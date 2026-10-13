@@ -12,6 +12,7 @@ const TR={score:0,streak:0,best:0,t:0,dummies:[],started:false,hits:0};
 
 /* ---------- démarrage de partie (remplace l'ancienne version) ---------- */
 function startMatch(){
+ if(cfg.mode==='zombies')cfg.map='asile';
  initAudio();initFX();
  G.variant=cfg.mode;G.mode=VARIANT_BASE[cfg.mode]||cfg.mode;resetMatchStats();
  G.roundT=G.variant==='rapid'?45:100;G.freezeT=G.variant==='rapid'?10:20;

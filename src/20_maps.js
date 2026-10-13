@@ -246,7 +246,7 @@ function mapReport(id){
 function drawMapThumb(cv,id){
  const d=MAPDATA[id],c=cv.getContext('2d'),W=cv.width,sc=W/N;
  const TH0={night:{bg:'#1a2438',w:'#5a6a86',h:'#3a4a6a',x:'#d39a2b',l:'#6a7a96',p:'#4a6a9a',g:'#4a6a9a'},metro:{bg:'#3a3f47',w:'#9aa4b4',h:'#7a8494',x:'#c9a23a',l:'#7a8494',p:'#6a8ab0',g:'#6a8ab0'},jungle:{bg:'#4a7a3a',w:'#8a9a7a',h:'#7a8a6a',x:'#6a7a5a',l:'#9aa48a',p:'#c9b070',g:'#c9b070'},range:{bg:'#7a8088',w:'#cfd5dd',h:'#8d97a6',x:'#d39a2b',l:'#8d97a6',p:'#6e8fb5',g:'#6e8fb5'}};
- const th=TH0[MAPS[id].theme]||{snow:{bg:'#e8eef6',w:'#7f8998',h:'#8a5a38',x:'#6f7a8a',l:'#ffffff',p:'#b08a5a',g:'#b08a5a'},sand:{bg:'#c9b18a',w:'#f0e6cc',h:'#c56a3e',x:'#8c6a3a',l:'#a89b78',p:'#e0c070',g:'#e8c97a'},industrial:{bg:'#566070',w:'#cfd5dd',h:'#8d97a6',x:'#d39a2b',l:'#8d97a6',p:'#6e8fb5',g:'#7fa6d0'}}[MAPS[id].theme];
+ const th=MAPS[id].theme==='haunt'?{bg:'#1e2a22',w:'#6a4a40',h:'#5a3a30',x:'#6a5030',l:'#7d8580',p:'#5a5048',g:'#5a5048'}:TH0[MAPS[id].theme]||{snow:{bg:'#e8eef6',w:'#7f8998',h:'#8a5a38',x:'#6f7a8a',l:'#ffffff',p:'#b08a5a',g:'#b08a5a'},sand:{bg:'#c9b18a',w:'#f0e6cc',h:'#c56a3e',x:'#8c6a3a',l:'#a89b78',p:'#e0c070',g:'#e8c97a'},industrial:{bg:'#566070',w:'#cfd5dd',h:'#8d97a6',x:'#d39a2b',l:'#8d97a6',p:'#6e8fb5',g:'#7fa6d0'}}[MAPS[id].theme];
  c.fillStyle=th.bg;c.fillRect(0,0,W,W);
  for(let z=0;z<N;z++)for(let x=0;x<N;x++){
   const i=z*N+x,t=d.type[i];
@@ -258,6 +258,7 @@ function drawMapThumb(cv,id){
  }
  const m=MAPS[id];
  c.font='bold '+(sc*4.5)+'px Arial';c.textAlign='center';c.textBaseline='middle';
+ if(m.zombie)return;
  for(const s of m.sites){c.beginPath();c.arc((s.cx+.5)*sc,(s.cz+.5)*sc,s.r/2*sc,0,TAU);c.strokeStyle='rgba(255,70,85,.9)';c.lineWidth=2;c.stroke();c.fillStyle='rgba(255,70,85,.95)';c.fillText(s.n,(s.cx+.5)*sc,(s.cz+.5)*sc);}
  c.font='bold '+(sc*2.4)+'px Arial';
  c.fillStyle='#4aa3ff';c.fillText('CT',20*sc,5*sc);c.fillStyle='#ff7a4a';c.fillText('T',20*sc,36*sc);
