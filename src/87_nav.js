@@ -7,7 +7,7 @@ const NAV=[
  {id:'arsenal',n:'Arsenal',ic:'⌖',sub:[['arms','Armes & skins'],['style','Accessoires & style'],['custom','Viseur & pseudo']]},
  {id:'locker',n:'Casier',ic:'◈',sub:[['locker','Tenues & danses'],['boxes','Caisses']]},
  {id:'career',n:'Carrière',ic:'★',sub:[['prog','Progression & défis'],['stats','Statistiques']]},
- {id:'options',n:'Options',ic:'⚙',sub:[['opts','Graphismes & son'],['keys','Touches'],['acc','Accessibilité']]}
+ {id:'options',n:'Options',ic:'⚙',sub:[['opts','Graphismes & son'],['keys','Touches'],['acc','Accessibilité'],['credits','Crédits']]}
 ];
 const MODE_GROUPS=[['Compétitif',['bomb','rapid']],['Action',['tdm','ffa','gg','koth']],['Spécial',['zombies','br','train']]];
 const MODE_TAG={bomb:'Bombe · économie · manches',rapid:'Manches courtes, armes fournies',tdm:'Équipes, réapparition',ffa:'Chacun pour soi',gg:'Une arme par élimination',koth:'Tiens la zone',zombies:'Coop contre des vagues',br:'Un seul survivant',train:'Stand de tir chronométré'};

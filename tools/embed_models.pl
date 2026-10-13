@@ -1,0 +1,16 @@
+#!/usr/bin/perl
+# Intègre les modèles 3D (models/weapons/*.glb + .json + credits.json) dans un fichier JS
+# pour que le jeu marche aussi en double-cliquant sur index.html (sans serveur).
+# Usage : perl tools/embed_models.pl > build/models_data.js
+use strict; use warnings; use MIME::Base64;
+binmode(STDOUT, ':raw');
+my $dir = 'models/weapons';
+opendir(my $d, $dir) or die "pas de $dir";
+my @k = sort map { /^(\w+)\.glb$/ ? $1 : () } readdir($d); closedir $d;
+print "/* modèles 3D intégrés — généré par tools/embed_models.pl, ne pas modifier */\n";
+print "const GLB_DATA={\n";
+for my $k (@k) { open(my $f, '<:raw', "$dir/$k.glb") or die; local $/; my $b = <$f>; close $f; print " $k:'", encode_base64($b, ''), "',\n"; }
+print "};\nconst GLB_INFO={\n";
+for my $k (@k) { open(my $f, '<:raw', "$dir/$k.json") or next; local $/; my $j = <$f>; close $f; $j =~ s/\s+$//; print " $k:$j,\n"; }
+print "};\n";
+if (open(my $f, '<:raw', "$dir/credits.json")) { local $/; my $c = <$f>; close $f; $c =~ s/\s+$//; print "const GLB_CREDITS=$c;\n"; } else { print "const GLB_CREDITS=[];\n"; }

@@ -27,6 +27,8 @@ function vmSetGun(k){
  // la crosse (pièces entièrement derrière la poignée) est masquée en visée : vue de 15 cm, elle boucherait l'écran
  g.updateMatrixWorld(true);u.stock=[];u.backZ=0;
  for(const c of g.children){const b=new THREE.Box3().setFromObject(c);if(b.isEmpty())continue;if(b.min.z>0&&!W[k].melee)u.stock.push(c);else u.backZ=Math.max(u.backZ,b.max.z);}
+ if(u.glb)u.backZ=0;
+ if(u.glb){u.vs=1.22;g.scale.setScalar(u.vs);}   // modÃ¨les 3D : la crosse est coupÃ©e par le plan proche de la camÃ©ra en visÃ©e
  VM.root.add(g);
  if(!VM.flashSprite){VM.flashSprite=new THREE.Sprite(flashSpriteMat.clone());VM.flashSprite.scale.set(.42,.42,1);
   VM.flashMesh=new THREE.Group();const m1=new THREE.Mesh(new THREE.PlaneGeometry(.34,.34),new THREE.MeshBasicMaterial({map:FLASHTEX,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,toneMapped:false}));VM.flashMesh.add(m1);const m2=m1.clone();m2.rotation.y=1.57;VM.flashMesh.add(m2);}
@@ -64,11 +66,11 @@ function vmUpdate(dt,t){
  VM.sx+=(clamp(dy*1.1,-.06,.06)-VM.sx)*Math.min(1,dt*10);VM.sy+=(clamp(-dp*1.1,-.05,.05)-VM.sy)*Math.min(1,dt*10);
  if(p.onGround&&!VM.prevGround)VM.landT=.25;VM.prevGround=p.onGround;VM.landT=Math.max(0,VM.landT-dt);
  const bobk=cfg.bob?1-ads*.85:.3,bx=Math.sin(VM.bph)*.006*spd*bobk,by=Math.abs(Math.cos(VM.bph))*.008*spd*bobk;
- let sightY=u.sight||.06;
+ let sightY=(u.sight||.06)*(u.vs||1);
  // position de base : hanche -> visée
  // en visée, la crosse reste à au moins 14 cm devant l'œil (sinon elle remplit l'écran)
  const adsZ=Math.min(-.46,-.38-(u.backZ||0));
- let px=lerp(.16,0,ads),py=lerp(-.165,-sightY,ads),pz=lerp(-.44,adsZ,ads);
+ let px=lerp(.16,0,ads),py=lerp(u.glb?-.15:-.165,-sightY,ads),pz=lerp(-.44,adsZ,ads);
  // position de hanche : canon légèrement tourné vers le centre, arme un peu inclinée
  let rx=.02*(1-ads),ry=.06*(1-ads),rz=-.05*(1-ads);
  px+=bx+VM.sx*(1-ads*.7);py+=by+VM.sy*(1-ads*.7)+(p.crouch?.02:0);
@@ -88,6 +90,7 @@ function vmUpdate(dt,t){
  let rl=-1;
  if(p.reload>0&&p.reloadMax>0){rl=1-p.reload/p.reloadMax;const a=Math.sin(rl*Math.PI);rx+=a*.45;rz+=a*.4;py-=a*.05;px-=a*.02;leftOff=a;}
  for(const c of u.stock)c.visible=ads<.55;
+ {const nr=u.glb?.01+.14*ads:.01;if(Math.abs(vmCam.near-nr)>.002){vmCam.near=nr;vmCam.updateProjectionMatrix();}}
  g.position.set(px,py,pz);_ve.set(rx,ry,rz);g.quaternion.setFromEuler(_ve);
  // pièces mobiles
  if(u.mag){
