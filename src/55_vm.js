@@ -109,7 +109,10 @@ function vmUpdate(dt,t){
  g.updateMatrix();
  const gm=g.matrix;
  _vr.copy(u.right).applyMatrix4(gm);
- if(u.twoHand){_vl.copy(u.left);_vl.y-=leftOff*.12;_vl.applyMatrix4(gm);}
+ if(u.twoHand){_vl.copy(u.left);_vl.y-=leftOff*.12;
+  if(rl>=0&&u.mag){if(!u.magC){const b=new THREE.Box3();u.mag.updateMatrix();b.setFromObject(u.mag);const inv=new THREE.Matrix4().copy(g.matrixWorld).invert();b.applyMatrix4(inv);u.magC=b.getCenter(new THREE.Vector3());u.magC.sub(u.mag.position);}
+   const k=rl<.15?rl/.15:rl>.8?(1-rl)/.2:1;_vp.copy(u.magC).add(u.mag.position);_vp.y-=.02;_vl.lerp(_vp,smooth01(clamp(k,0,1)));}
+  _vl.applyMatrix4(gm);}
  else _vl.set(-.18,-.3,-.05);
  // main droite
  VM.hR.position.copy(_vr);VM.hR.quaternion.copy(g.quaternion);

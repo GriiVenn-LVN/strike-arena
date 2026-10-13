@@ -64,6 +64,7 @@ function netOnMsg(m,from){
 }
 function netHostMsg(m,from){
  const p=NET.players.get(from);
+ if(m.t==='chat'||m.t==='pref'){netChatHost(m,from);return;}
  if(m.t==='hello'){
   NET.players.set(from,{id:from,name:String(m.name||'Joueur').slice(0,14),ent:null,in:null});
   netLobbyBroadcast();netLobbyDraw();
@@ -89,7 +90,8 @@ function netHostStart(){
  let n=0;for(const p of NET.players.values()){p.ent=null;netAttach(p,n++);}
 }
 function netAttach(p,n){
- const team=MODE().team?(NET.teams==='coop'?P.team:((n||0)%2===0?1-P.team:P.team)):null;
+ let team=MODE().team?(NET.teams==='coop'?P.team:((n||0)%2===0?1-P.team:P.team)):null;
+ if(team!==null&&(p.pref===0||p.pref===1))team=p.pref;
  let e=ents.find(b=>!b.isPlayer&&!b.remote&&!b.zombie&&!b.dummy&&(team===null||b.team===team));
  if(!e){
   const id=ents.reduce((m,x)=>Math.max(m,x.id),0)+1;
@@ -125,6 +127,7 @@ function netHostTick(dt){
 }
 /* ---------- CLIENT ---------- */
 function netClientMsg(m){
+ if(m.t==='chat'){chatAdd(m.n,m.m,m.c);return;}
  if(m.t==='lobby'){NET.lobby=m.players;netLobbyDraw();return;}
  if(m.t==='bye'){uiToast('L\'hôte a fermé le salon');if(G.running)toMenu();netLeave();netStatus('Salon fermé');return;}
  if(m.t==='start'){netClientStart(m);return;}
@@ -230,6 +233,8 @@ function netLobbyDraw(){
  chipsRow('mpMode',[['Même PC (onglets)','local'],['En ligne (code)','online']],()=>NET.mode,v=>{if(NET.role)netLeave();NET.mode=v;},netLobbyDraw);
  $('mpModeTxt').textContent=NET.mode==='local'?'Pour tester ou jouer à plusieurs sur le même ordinateur (plusieurs onglets ouverts).':'Pour jouer avec des amis sur d\'autres ordinateurs : il faut une connexion internet (service gratuit PeerJS pour se trouver, puis connexion directe).';
  chipsRow('mpTeams',[['Ensemble contre les bots','coop'],['Les uns contre les autres','versus']],()=>NET.teams,v=>NET.teams=v,netLobbyDraw);
+ if(!$('mpPref')){const d=document.createElement('div');d.className='chips';d.id='mpPref';d.style.marginTop='8px';$('mpTeams').parentNode.appendChild(d);}
+ chipsRow('mpPref',[['Mon équipe : auto',-1],['Attaquants',0],['Défenseurs',1]],()=>NET.pref===undefined?-1:NET.pref,v=>{NET.pref=v;if(NET.role==='client')netSend({t:'pref',v},'host');},netLobbyDraw);
  $('mpRoom').textContent=NET.role?NET.room:'';
  $('mpStart').style.display=host?'':'none';$('mpLeave').style.display=NET.role?'':'none';
  const list=host?[{name:(cfg.name||'Hôte')+' (toi, hôte)'}].concat([...NET.players.values()].map(p=>({name:p.name}))):cli?(NET.lobby||[]).map(p=>({name:p.name+(p.host?' (hôte)':'')})):[];
@@ -247,4 +252,39 @@ function netLobbyWire(){
   cfg.cine=0;startMatch();buildRadarMap();netHostStart();
  };
  netLobbyDraw();
+}
+/* ---------- discussion (Entrée pour écrire) ---------- */
+const CHAT={el:null,inp:null};
+function chatUi(){
+ if(CHAT.el)return;
+ const box=document.createElement('div');box.id='chatbox';box.style.cssText='position:fixed;left:14px;bottom:170px;width:340px;z-index:9;font:600 13px system-ui;pointer-events:none';
+ box.innerHTML='<div id="chatLines" style="display:flex;flex-direction:column;gap:3px"></div><input id="chatIn" type="text" maxlength="120" placeholder="Message… (Entrée pour envoyer, Échap pour annuler)" style="display:none;margin-top:6px;pointer-events:auto;width:100%">';
+ document.body.appendChild(box);CHAT.el=box;CHAT.inp=box.querySelector('#chatIn');
+ CHAT.inp.addEventListener('keydown',e=>{
+  e.stopPropagation();
+  if(e.code==='Enter'){const m=CHAT.inp.value.trim();CHAT.inp.value='';CHAT.inp.style.display='none';if(m)chatSend(m);if(G.running)lockMouse();}
+  else if(e.code==='Escape'){CHAT.inp.value='';CHAT.inp.style.display='none';if(G.running)lockMouse();}
+ });
+}
+function chatAdd(name,msg,col){
+ chatUi();const l=document.createElement('div');l.style.cssText='background:rgba(10,14,22,.72);padding:4px 9px;border-radius:3px;color:#fff;transition:opacity .6s;text-shadow:0 1px 2px #000';
+ l.innerHTML='<b style="color:'+(col||'#ffd75e')+'">'+String(name).replace(/</g,'&lt;')+'</b> : '+String(msg).replace(/</g,'&lt;');
+ const ls=CHAT.el.querySelector('#chatLines');ls.appendChild(l);while(ls.children.length>6)ls.removeChild(ls.firstChild);
+ setTimeout(()=>{l.style.opacity=0;setTimeout(()=>l.remove(),700);},9000);
+ sfx('ui');
+}
+function chatSend(m){
+ const me=cfg.name||'Joueur',col=P&&TEAMCSS[P.team]||'#ffd75e';
+ if(NET.role==='host'){chatAdd(me,m,col);netSend({t:'chat',n:me,m,c:col});}
+ else if(NET.role==='client'){netSend({t:'chat',m},'host');}
+}
+addEventListener('keydown',e=>{
+ if(!NET.role||e.code!=='Enter'||(e.target&&e.target.tagName==='INPUT'))return;
+ chatUi();CHAT.inp.style.display='block';if(document.pointerLockElement)document.exitPointerLock();setTimeout(()=>CHAT.inp.focus(),0);e.preventDefault();
+});
+/* relais des messages et préférence d'équipe (branchés dans les gestionnaires réseau) */
+function netChatHost(m,from){
+ const p=NET.players.get(from);if(!p)return;
+ if(m.t==='chat'){const col=p.ent?TEAMCSS[p.ent.team]:'#9fe3ff',msg=String(m.m||'').slice(0,120);chatAdd(p.name,msg,col);netSend({t:'chat',n:p.name,m:msg,c:col});}
+ if(m.t==='pref'){p.pref=m.v;netLobbyBroadcast();netLobbyDraw();}
 }

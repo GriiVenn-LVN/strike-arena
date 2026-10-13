@@ -13,4 +13,14 @@ for my $k (@k) { open(my $f, '<:raw', "$dir/$k.glb") or die; local $/; my $b = <
 print "};\nconst GLB_INFO={\n";
 for my $k (@k) { open(my $f, '<:raw', "$dir/$k.json") or next; local $/; my $j = <$f>; close $f; $j =~ s/\s+$//; print " $k:$j,\n"; }
 print "};\n";
+print "const CHAR_DATA={\n";
+if (opendir(my $cd, 'models/characters')) {
+  for my $fn (sort grep { /_game\.glb$/ } readdir($cd)) {
+    my ($ck) = $fn =~ /^(\w+)_game\.glb$/;
+    open(my $cf, '<:raw', "models/characters/$fn") or next; local $/; my $b = <$cf>; close $cf;
+    print " $ck:'", encode_base64($b, ''), "',\n";
+  }
+  closedir $cd;
+}
+print "};\n";
 if (open(my $f, '<:raw', "$dir/credits.json")) { local $/; my $c = <$f>; close $f; $c =~ s/\s+$//; print "const GLB_CREDITS=$c;\n"; } else { print "const GLB_CREDITS=[];\n"; }

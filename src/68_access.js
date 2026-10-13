@@ -101,6 +101,7 @@ function drawAccessTab(){
  sec('Mode daltonien',[{id:'none',n:'Aucun'},{id:'deut',n:'Deutéranopie'},{id:'prot',n:'Protanopie'},{id:'trit',n:'Tritanopie'}],it=>cfg.cb===it.id,it=>cfg.cb=it.id,it=>it.n);
  sec('Sous-titres sonores (direction des bruits)',[{id:0,n:'Désactivés'},{id:1,n:'Activés'}],it=>cfg.subs===it.id,it=>cfg.subs=it.id,it=>it.n);
  sec('Taille de l\'interface (HUD)',[.8,.9,1,1.15,1.3].map(v=>({id:v,n:Math.round(v*100)+' %'})),it=>cfg.hudS===it.id,it=>cfg.hudS=it.id,it=>it.n);
+ sec('Contours des personnages (rouge = ennemi, bleu = allié)',[{id:1,n:'Activés'},{id:0,n:'Désactivés'}],it=>cfg.outline===it.id,it=>{cfg.outline=it.id;applyOutlinesAll();},it=>it.n);
  sec('Secousses de l\'écran',[{id:0,n:'Aucune'},{id:.4,n:'Réduites'},{id:1,n:'Normales'}],it=>cfg.shakeS===it.id,it=>cfg.shakeS=it.id,it=>it.n);
  // profils de touches
  const kp=document.createElement('div');kp.className='stl grp';kp.innerHTML='<h4>Profils de touches</h4><div class="chips" id="kpRow"></div><div class="chips" id="kpPre" style="margin-top:6px"></div><small>Enregistre ta configuration actuelle dans un emplacement ou charge une disposition prête à l\'emploi.</small>';el.appendChild(kp);

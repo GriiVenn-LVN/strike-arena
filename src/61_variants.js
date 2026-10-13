@@ -83,7 +83,7 @@ function variantPostSpawn(){
  const v=G.variant;
  if(v==='br'){for(const e of ents){e.wp.p=null;e.wp.s=null;e.cur='k';e.armor=0;e.shield=0;e.nade={f:0,fl:0,sm:0};}}
  if(v==='train'){trPlaceDummies();P.wp.p&&(P.wp.p.res=999);}
- if(v==='zombies'){for(const e of ents){e.nade={f:2,fl:0,sm:0,mn:1};if(e.isPlayer){e.wp.p=null;giveWeapon(e,'p250');e.cur='s';}e.pts=500;e.perks={};}}
+ if(v==='zombies'){const sp=shuffle(MAP.spawnCT.slice());ents.forEach((e,i)=>{if(e.zombie)return;const c=nearestFree(sp[i%sp.length][0],sp[i%sp.length][1]);e.x=cc(c[0]);e.z=cc(c[1]);e.y=groundH(e.x,e.z);e.tp=(e.tp||0)+1;});for(const e of ents){e.nade={f:2,fl:0,sm:0,mn:1};if(e.isPlayer){e.wp.p=null;giveWeapon(e,'p250');e.cur='s';}e.pts=500;e.perks={};}}
 }
 function variantRespawn(v){ // délai de réapparition (Infinity = jamais)
  const g=G.variant;
@@ -150,10 +150,11 @@ function zStartWave(){
 }
 function zSpawn(){
  const humans=ents.filter(e=>e.alive&&e.team===0);if(!humans.length)return;
- const cand=MAP.roam.concat(MAP.spawnDM);let best=null,bd=-1;
+ let cand=MAP.roam.concat(MAP.spawnDM);if(ZD.reach){const f=cand.filter(c=>{const n=nearestFree(c[0],c[1]);return ZD.reach[n[1]*N+n[0]];});if(f.length)cand=f;}let best=null,bd=-1;
  for(let i=0;i<8;i++){const c=pick(cand),x=cc(c[0]),z=cc(c[1]);let md=1e9;for(const h of humans)md=Math.min(md,Math.hypot(h.x-x,h.z-z));if(md>bd&&md>14){bd=md;best=c;}}
+ if(ZD.reach){const s=zReachSpot(humans);if(s&&(!best||bd<10))best=s;}
  if(!best)best=pick(cand);
- const r=Math.random(),w=Z.wave,type=(w>=4&&r<.07)?'tank':(r<Math.min(.7,(w-2)*.12))?'runner':'normal';
+ const r=Math.random(),w=Z.wave,type=zSpecialType((w>=4&&r<.07)?'tank':(r<Math.min(.7,(w-2)*.12))?'runner':'normal');
  const z=newEnt('Zombie',1,false,Z.nextId);z.id=Z.nextId++;z.zombie=true;z.ztype=type;z.col=0;z.tone='#7ba35a';
  z.hp=Math.round((type==='tank'?3:type==='runner'?.7:1)*(w<10?100+55*(w-1):595*Math.pow(1.08,w-9)));
  z.zspeed=(type==='runner'?5+Math.min(1,w*.05):type==='tank'?2.6:2.3+Math.min(1.6,w*.13));z.zdmg=type==='tank'?28:12+w;z.atkT=0;
@@ -161,7 +162,8 @@ function zSpawn(){
  ents.push(z);attachRig(z);
  if(z.rig&&type==='tank')z.rig.root.scale.setScalar(1.3);
  if(z.rig&&type==='runner')z.rig.root.scale.setScalar(.92);
- fxDust(z.x,z.y+.1,z.z,6,.3);sfx('growl',z.x,z.z,.9);
+ zStyleZombie(z);
+ z.riseT=1.1;fxDust(z.x,z.y+.1,z.z,10,.35);sfx('growl',z.x,z.z,.9);
 }
 function zombieWaves(dt){
  if(G.state!=='live')return;
@@ -182,6 +184,7 @@ function zombieWaves(dt){
 }
 function zombieUpdate(z,dt){
  if(!z.alive){return;}
+ if(z.riseT>0){z.riseT-=dt;z.y=groundH(z.x,z.z)-Math.max(0,z.riseT)*1.6;z.speed=0;if(fxReady&&Math.random()<dt*20)fxDust(z.x,groundH(z.x,z.z)+.05,z.z,1,.3);return;}
  if(z.frozenT>0){z.target=null;botMove(z,0,0,dt);return;}
  let best=null,bd=1e9;
  for(const e of ents){if(!e.alive||e.team===z.team||e.invuln>0)continue;const d=Math.hypot(e.x-z.x,e.z-z.z);if(d<bd){bd=d;best=e;}}

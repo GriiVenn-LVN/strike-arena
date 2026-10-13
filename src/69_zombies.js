@@ -87,8 +87,11 @@ function zHurtHook(v,att,raw,w){
  }else if(att&&att.zombie&&v.perks&&v.perks.jugg)raw*=.45;
  return raw;
 }
-function zSave(v){            // Second Souffle : on se relève au lieu de mourir
- if(v.zombie||!v.perks||!v.perks.revive)return false;
+function zSave(v){            // à terre (alliés présents) ou Second Souffle (seul)
+ if(v.zombie)return false;
+ if(v.downed)return true;
+ if(zDown(v))return true;
+ if(!v.perks||!v.perks.revive)return false;
  v.perks={};v.hp=100;v.invuln=2.5;if(v.isPlayer){uiBanner('SECOND SOUFFLE','Tu te relèves… atouts perdus',2200,'#4aa3ff');sfx('perk');}
  for(const z of ents)if(z.zombie&&z.alive&&Math.hypot(z.x-v.x,z.z-v.z)<4){const d=Math.hypot(z.x-v.x,z.z-v.z)||1;z.x+=(z.x-v.x)/d*2;z.z+=(z.z-v.z)/d*2;}
  return true;
@@ -96,6 +99,7 @@ function zSave(v){            // Second Souffle : on se relève au lieu de mouri
 function zKillHook(att,v,w,hs){
  if(v.zombie){
   if(att&&!att.zombie)zPts(att,w&&w.melee?120:hs?90:50,v.x,v.z);
+  if(v.ztype==='boss'){if(att&&!att.zombie)zPts(att,1000);zDrop(v.x,v.z);uiBanner('BRUTE ÉLIMINÉE','+1000',2000,'#ffd23a');}
   if(Math.random()<.035&&ZB.dropsWave<4){ZB.dropsWave++;zDrop(v.x,v.z);}
  }else{v.perks={};zPerkHud();}
 }
@@ -189,6 +193,7 @@ function zBuildWall(spot,k,price){
 }
 function zSetup(){
  zCleanup();
+ zSetupDoors();zSetupEgg();
  const spots=zFindSpots();
  const sp=MAP.spawnCT[0],home={x:cc(sp[0]),z:cc(sp[1])};
  // armes murales proches du départ, puis tout le reste réparti sur la carte
@@ -218,6 +223,7 @@ function zMoveBox(i,first){
  if(!first){uiToast('La boîte mystère a changé de place !');sfx('teddy');}
 }
 function zCleanup(){
+ zClearDoors();for(const f of ZD.frags)scene.remove(f.m);ZD.frags=[];
  for(const o of ZB.objs)scene.remove(o);ZB.objs=[];ZB.inter=[];
  for(const d of ZB.drops)scene.remove(d.m);ZB.drops=[];
  if(ZB.box&&ZB.box.show)scene.remove(ZB.box.show);ZB.box=null;ZB.pap=null;
@@ -337,6 +343,9 @@ function wonderFire(e,w,wi){
 /* ---------- interactions (touche Utiliser) ---------- */
 function zInteract(dt){
  if(!P||!P.alive){return;}
+ if(P.downed){P.useMsg='';return;}
+ {const dn=ents.find(e=>!e.zombie&&e!==P&&e.alive&&e.downed&&Math.hypot(e.x-P.x,e.z-P.z)<1.9);
+  if(dn){P.useMsg='[E] Maintiens : réanimer '+dn.name+' ('+Math.round(dn.revP/(P.perks.revive?1.5:3)*100)+' %)';if(K('use'))dn.revP+=dt*(P.perks.revive?2:1);if(dn.revP>=3)zRevive(dn,P);return;}}
  let best=null,bd=1e9;
  const fx=-Math.sin(P.yaw),fz=-Math.cos(P.yaw);
  for(const it of ZB.inter){
@@ -361,6 +370,8 @@ function zInteract(dt){
    const p=PERKS[best.key];
    if(P.perks[best.key])msg=p.n+' (déjà bu)';
    else{msg=kb+' '+p.n+' — '+p.price+' pts · '+p.d;if(press&&zSpend(P,p.price)){P.perks[best.key]=true;sfx('perk');uiBanner(p.n.toUpperCase(),p.d,1800,p.c);zPerkHud();}}
+  }else if(best.kind==='door'){
+   msg=kb+' Dégager les débris — '+best.door.price+' pts';if(press&&zSpend(P,best.door.price))zOpenDoor(best.door);
   }else if(best.kind==='pap'){
    const wi=P.wp[P.cur];
    if(!wi||P.cur==='k')msg='Forge Arcane : prends une arme en main';
@@ -412,11 +423,12 @@ function zBotsShop(){
 function zUpdate(dt){
  if(!zOn()){if(ZB.hudEl)ZB.hudEl.root.style.display='none';return;}
  if(!G.running)return;
- zBoxUpdate(dt);zDropsUpdate(dt);zInteract(dt);zHudUpdate();
+ zBoxUpdate(dt);zDropsUpdate(dt);zInteract(dt);zHudUpdate();zExtraUpdate(dt);
  if(ZB.pap&&ZB.pap.userData.rollers)ZB.pap.userData.rollers.rotation.x+=dt*2;
  for(const z of ents)if(z.zombie&&z.frozenT>0){z.frozenT-=dt;if(fxReady&&Math.random()<dt*6)fxA.emit(z.x,z.y+rand(.3,1.7),z.z,0,.3,0,.6,.1,.03,.7,.9,1,1,-.5,1);}
 }
 function zOnWave(){
+ zRoundType();
  ZB.dropsWave=0;zBotsShop();
  for(const h of ents)if(!h.zombie&&h.isPlayer&&Z.wave>1)h.invuln=1;
 }

@@ -264,5 +264,5 @@ function showMatchRewards(win){
 }
 function buildMetaUI(){
  ensureMissions();refreshProfile();renderMissions();buildBoxesTab();buildLocker();buildStats();buildBinds();
- if(dailyStatus().can)setTimeout(()=>showDaily(),900);
+ if(dailyStatus().can)setTimeout(()=>{if(!G.running)showDaily();},900);
 }

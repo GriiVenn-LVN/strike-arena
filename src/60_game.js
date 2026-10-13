@@ -160,8 +160,8 @@ function shoot(e){
  e.spray=Math.min(e.spray+1,30);e.fireAnim=1;
  if(e.isPlayer){MS.shots++;if(hitAny)MS.hits++;}
  if(e.isPlayer){
-  const pat=Math.sin(e.spray*.9)*w.rec*.55;
-  e.punchP+=w.rec*rcm*(1.9+Math.min(e.spray,12)*.07)*(1-.25*e.ads);e.punchY+=(pat+(Math.random()-.5)*w.rec*.5)*rcm;
+  const rp=recoilPat(wi.k),n=e.spray,pat=(Math.sin(n*rp.f+rp.ph)*rp.a+(n>rp.kick?rp.drift*(n-rp.kick)*.12:0))*w.rec;
+  e.punchP+=w.rec*rcm*(rp.up+Math.min(n,12)*rp.climb)*(1-.25*e.ads);e.punchY+=(pat+(Math.random()-.5)*w.rec*rp.jit)*rcm;
   vmFire(w);G.shake=Math.max(G.shake,.04+w.rec*.012);
   const d0=dirOf(e.yaw,e.pitch);muzzleLight(ox+d0[0]*.6,oy-.1+d0[1]*.6,oz+d0[2]*.6);
   // douille
@@ -179,6 +179,15 @@ function shoot(e){
  }
  if(wi.mag===0&&!e.isPlayer)startReload(e);
  return true;
+}
+// motif de recul : chaque arme a sa « signature » (montée, oscillation, dérive)
+const RECP={};
+function recoilPat(k){
+ if(RECP[k])return RECP[k];
+ let h=0;for(const c of k)h=(h*31+c.charCodeAt(0))>>>0;
+ const r=i=>((h>>>(i*3))&7)/7,w=W[k]||{},cat=w.cat;
+ const base={pistol:[1.6,.03,.35,.5],smg:[1.4,.05,.45,.55],rifle:[1.9,.075,.55,.45],lmg:[1.7,.06,.4,.6],sniper:[2.4,0,.15,.2],shotgun:[2.2,0,.2,.3]}[cat]||[1.9,.07,.5,.5];
+ return RECP[k]={up:base[0]*(.85+r(1)*.3),climb:base[1],a:base[2]*(.7+r(2)*.6),f:.45+r(3)*.5,ph:r(4)*6,kick:5+Math.round(r(5)*5),drift:(r(6)-.5)*2,jit:base[3]};
 }
 function startReload(e){
  if(NET.role==='client'&&e.isPlayer&&G.netClient)netSend({t:'reload'},'host');
@@ -332,7 +341,8 @@ function entLook(e){
 }
 function attachRig(e){
  if(e.rig){scene.remove(e.rig.root);}
- const R=makeSoldier(entLook(e));scene.add(R.root);e.rig=R;setSoldierGun(R,curWi(e).k);
+ if(e.zombie&&zombieModelReady()){attachZombieModel(e);applyOutline(e);return;}
+ const R=makeSoldier(entLook(e));scene.add(R.root);e.rig=R;setSoldierGun(R,curWi(e).k);applyOutline(e);
  if(!e.isPlayer){
   const friendly=G.mode==='bomb'||G.mode==='tdm'?e.team===P.team:false;
   if(friendly){
@@ -347,6 +357,7 @@ function syncRigs(dt,t){
  const sp=P&&!P.alive?specTarget():null;
  for(const e of ents){
   const R=e.rig;if(!R)continue;
+  if(R.zm){zmUpdate(e,R,dt);continue;}
   if(G.state==='cine'){R.root.visible=!!e.cineSeat;}
   else if(e.isPlayer){R.root.visible=!e.alive||!!e.emote;}else R.root.visible=e!==sp;
   if(e.isPlayer&&e.alive&&!e.emote&&!e.cineSeat)continue;
@@ -630,9 +641,9 @@ function updatePlayer(dt){
  const L=Math.hypot(fx,fz)||1;fx/=L;fz/=L;
  if(p.emote){updateEmote(dt,fx||fz);if(p.emote)return;}
  const wantCrouch=K('crouch');
- if(p.crouch&&!wantCrouch&&ceilAt(p.x,p.z)-p.y<1.8){}else p.crouch=wantCrouch;
+ if(p.downed)p.crouch=true;else if(p.crouch&&!wantCrouch&&ceilAt(p.x,p.z)-p.y<1.8){}else p.crouch=wantCrouch;
  p.eyeH+=((p.crouch?1.15:1.6)-p.eyeH)*Math.min(1,dt*14);
- let spd=RUN*w.spd*spdMul(p);if(K('walk'))spd*=.5;if(p.crouch)spd*=.5;spd*=1-.25*p.ads;
+ let spd=RUN*w.spd*spdMul(p)*(p.downed?.15:1);if(K('walk'))spd*=.5;if(p.crouch)spd*=.5;spd*=1-.25*p.ads;
  if(G.state==='freeze'&&G.mode==='bomb')spd=0;
  const tx=(-Math.sin(p.yaw)*fz+Math.cos(p.yaw)*fx)*spd,tz=(-Math.cos(p.yaw)*fz-Math.sin(p.yaw)*fx)*spd;
  const ac=Math.min(1,dt*(p.onGround?12:2.2));

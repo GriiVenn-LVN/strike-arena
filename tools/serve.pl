@@ -13,7 +13,7 @@ eval{
  my $req=<$c>;die "vide
 " unless $req;
  while(my $l=<$c>){last if $l=~/^\r?\n$/;}
- my ($path)=$req=~m{^GET\s+(\S+)};$path//='/';$path=~s/\?.*//;$path='/strike-arena.html' if $path eq '/';
+ my ($path)=$req=~m{^GET\s+(\S+)};$path//='/';$path=~s/\?.*//;$path='/strike-arena-v2.html' if $path eq '/';
  $path=~s/%20/ /g;$path=~s{\.\.}{}g;
  my $file="$root$path";
  if(-f $file){

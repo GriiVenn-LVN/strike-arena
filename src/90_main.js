@@ -28,7 +28,7 @@ function update(dt){
   if(P.alive&&P.team===0&&BM.state==='dropped'&&Math.hypot(BM.x-P.x,BM.z-P.z)<1.4){BM.state='carried';BM.carrier=P.id;}
  }
  updatePlayer(dt);
- for(const e of ents.slice())if(!e.isPlayer){if(e.remote)netEntUpdate(e,dt);else if(e.zombie)zombieUpdate(e,dt);else if(!e.dummy)botUpdate(e,dt);}
+ for(const e of ents.slice())if(!e.isPlayer){if(e.remote)netEntUpdate(e,dt);else if(e.zombie)zombieUpdate(e,dt);else if(!e.dummy&&!e.downed)botUpdate(e,dt);}
  variantUpdate(dt,G.t);agentUpdate(dt);pumpkinUpdate(dt);immersionUpdate(dt);tutUpdate(dt);zUpdate(dt);
  updateNades(dt);updatePickups(dt,G.t);updateSpotting(dt);
  G.shake=Math.max(0,G.shake-dt*1.6);G.fall=Math.max(0,G.fall-dt*3);
@@ -96,4 +96,4 @@ function frame(){
   setTimeout(()=>{try{steps[i][1]();}catch(e){console.error(e);txt.textContent='ERREUR : '+e.message;}i++;next();},40);
  })();
 })();
-window.__dbg={NET,netHost,netJoin,RP,rpStart,endRound,shoot,giveWeapon,ZB,zApplyDrop,zDrop,zRollBox,PERKS,VM,vmCam,TUT,startTutorial,drawAccessTab,subtitle,applyAccess,immersionUpdate,applyAtmosphere,RAIN,MUS,barrelHit,BAR,podiumHTML,announce,progressMatch,bpClaim,bpBuy,ACH,PUMPK,drawProgressTab,doSpray,drawExtrasTab,MINES,placeMine,mineRayHit,update,Z,KO,BRZ,TR,pickups:()=>pickups,lkSetOut:(i)=>{lkTab="outfit";lkOut=i;if(lk.r&&lk.outShown!==i)lkRig(i);buildLocker();},startEmote,CINE,BXS,bxLoop,get PROF(){return PROF},startBoxOpen,startCine,DANCES,lkSetSel:(i)=>{lkSel=i;lk.t=0;buildLocker();},G,BM,get P(){return P},get ents(){return ents},cfg,startMatch,buildWorld,mapReport,mapAscii,camera,scene,renderer,W,MAPS,MODES,get MAP(){return MAP},toMenu,groundH,findPath,rayWall,losClear,weaponIcon,keys};
+window.__dbg={zSpawn,ZD,zDoorCandidates,zReach,zCount,zSetupDoors,NET,netHost,netJoin,RP,rpStart,endRound,shoot,giveWeapon,ZB,zApplyDrop,zDrop,zRollBox,PERKS,VM,vmCam,TUT,startTutorial,drawAccessTab,subtitle,applyAccess,immersionUpdate,applyAtmosphere,RAIN,MUS,barrelHit,BAR,podiumHTML,announce,progressMatch,bpClaim,bpBuy,ACH,PUMPK,drawProgressTab,doSpray,drawExtrasTab,MINES,placeMine,mineRayHit,update,Z,KO,BRZ,TR,pickups:()=>pickups,lkSetOut:(i)=>{lkTab="outfit";lkOut=i;if(lk.r&&lk.outShown!==i)lkRig(i);buildLocker();},startEmote,CINE,BXS,bxLoop,get PROF(){return PROF},startBoxOpen,startCine,DANCES,lkSetSel:(i)=>{lkSel=i;lk.t=0;buildLocker();},G,BM,get P(){return P},get ents(){return ents},cfg,startMatch,buildWorld,mapReport,mapAscii,camera,scene,renderer,W,MAPS,MODES,get MAP(){return MAP},toMenu,groundH,findPath,rayWall,losClear,weaponIcon,keys};

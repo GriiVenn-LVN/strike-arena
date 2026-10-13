@@ -54,6 +54,15 @@ function tinnitus(sec){
  const o=AC.createOscillator();o.type='sine';o.frequency.value=4200;const g=AC.createGain();g.gain.setValueAtTime(.12,t);g.gain.exponentialRampToValueAtTime(.0005,t+sec);o.connect(g);g.connect(master);o.start(t);o.stop(t+sec+.1);
 }
 const SURF={snow:[520,'lowpass',.42],sand:[650,'lowpass',.5],stone:[1500,'bandpass',.45],metal:[2400,'bandpass',.5]};
+// coup de feu en couches : claquement supersonique, corps, grave, mécanique, écho
+function gunShot(vol,pan,wet,dull,o){
+ const indoor=MAP&&(MAP.theme==='metro'||MAP.id==='labo');
+ nz(.035,7500,'highpass',o.crack*vol,pan,wet*.5,.7);
+ nz(o.len,o.body*dull,'bandpass',o.bodyV*vol,pan,wet,.75);
+ tn(o.thump,o.len*1.1,'sine',o.thumpV*vol,pan,o.thump*.38,wet);
+ if(o.mech)nz(.025,3200,'bandpass',o.mech*vol,pan,0,3,.045);
+ nz(o.tail*(indoor?.6:1),(indoor?900:520)*dull,'lowpass',o.tailV*vol*(indoor?1.3:1),pan,Math.min(1,wet*2+.25),.8,.03,.02);
+}
 function sfx(type,x,z,vol,extra){
  if(!AC)return;subtitle(type,x,z);vol=vol===undefined?1:vol;let pan=0,wet=0,d=0;
  if(x!==undefined){
@@ -63,12 +72,12 @@ function sfx(type,x,z,vol,extra){
  }
  const dull=d>30?clamp(1-(d-30)/70,.4,1):1;  // sons lointains plus sourds
  switch(type){
-  case 'pistol':nz(.1,2600*dull,'bandpass',.75*vol,pan,wet,.8);nz(.03,5000,'highpass',.4*vol,pan,wet);tn(170,.09,'square',.18*vol,pan,60,wet);tn(1200,.025,'sawtooth',.06*vol,pan,300,wet);break;
-  case 'smg':nz(.08,2800*dull,'bandpass',.6*vol,pan,wet,.9);tn(160,.06,'square',.12*vol,pan,60,wet);nz(.02,6000,'highpass',.3*vol,pan,wet);break;
-  case 'rifle':nz(.16,1800*dull,'lowpass',.95*vol,pan,wet);nz(.025,5500,'highpass',.5*vol,pan,wet);tn(100,.14,'sine',.5*vol,pan,40,wet);tn(900,.03,'sawtooth',.08*vol,pan,200,wet);break;
-  case 'lmg':nz(.17,1500*dull,'lowpass',1*vol,pan,wet);nz(.03,5000,'highpass',.5*vol,pan,wet);tn(80,.16,'sine',.6*vol,pan,32,wet);break;
-  case 'sniper':nz(.55,1100*dull,'lowpass',1.2*vol,pan,wet*1.4);nz(.04,6000,'highpass',.7*vol,pan,wet);tn(62,.4,'sine',.8*vol,pan,24,wet);nz(.3,500,'lowpass',.4*vol,pan,wet*1.5,1,.12);break;
-  case 'shotgun':nz(.32,950*dull,'lowpass',1.1*vol,pan,wet);nz(.05,4000,'highpass',.5*vol,pan,wet);tn(64,.28,'sine',.7*vol,pan,28,wet);break;
+  case 'pistol':gunShot(vol,pan,wet,dull,{crack:.55,body:2400,bodyV:.7,thump:150,thumpV:.35,len:.09,tail:.45,tailV:.25,mech:.07});break;
+  case 'smg':gunShot(vol,pan,wet,dull,{crack:.45,body:2600,bodyV:.55,thump:140,thumpV:.25,len:.07,tail:.35,tailV:.18,mech:.05});break;
+  case 'rifle':gunShot(vol,pan,wet,dull,{crack:.7,body:1700,bodyV:.9,thump:95,thumpV:.55,len:.13,tail:.75,tailV:.32,mech:.06});break;
+  case 'lmg':gunShot(vol,pan,wet,dull,{crack:.65,body:1450,bodyV:1,thump:80,thumpV:.65,len:.15,tail:.8,tailV:.35,mech:.05});break;
+  case 'sniper':gunShot(vol,pan,wet,dull,{crack:1,body:1100,bodyV:1.2,thump:60,thumpV:.9,len:.4,tail:1.4,tailV:.5,mech:0});break;
+  case 'shotgun':gunShot(vol,pan,wet,dull,{crack:.6,body:950,bodyV:1.15,thump:62,thumpV:.85,len:.28,tail:1.1,tailV:.45,mech:0});break;
   case 'knife':nz(.12,4000,'highpass',.3*vol,pan,wet);tn(900,.1,'sine',.06*vol,pan,300);break;
   case 'knifehit':nz(.08,2400,'bandpass',.6*vol,pan,wet);tn(200,.08,'square',.2*vol,pan,80);break;
   case 'hit':tn(1700,.05,'square',.16*vol,0);tn(2300,.04,'sine',.1*vol,0,null,0,.02);break;

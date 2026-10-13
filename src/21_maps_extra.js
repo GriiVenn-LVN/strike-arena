@@ -177,3 +177,53 @@ MAPS.range={
  locName(cx,cz,x,z){return cz>=32?'Ligne de tir':cz>=20?'Zone proche':cz>=10?'Zone moyenne':'Longue distance';}
 };
 ['harbor','metro','jungle','range'].forEach(buildMapSnapshot);
+
+/* ---------- Laboratoire abandonné (pensé pour le mode Zombies) ---------- */
+MAPS.labo={
+ id:'labo',n:'Laboratoire',theme:'night',
+ desc:'Un laboratoire abandonné, de nuit : on démarre dans le hall, puis on dégage les débris pour ouvrir la salle des machines, l\'infirmerie et le grand labo. Idéal pour les Zombies.',
+ build(){
+  const R=GB.rect,T=TY,K=T.CONC;
+  R(K,0,0,39,0);R(K,0,39,39,39);R(K,0,0,0,39);R(K,39,0,39,39);
+  // hall d'entrée (départ)
+  R(K,13,19,13,38);R(K,26,19,26,38);R(K,13,26,26,26);GB.clear(13,31,13,32);GB.clear(26,31,26,32);GB.clear(19,26,20,26);
+  GB.ceil(14,27,25,38,4.2);
+  R(T.LOW,17,33,22,33);R(T.PILLAR,16,29,16,29,4.2);R(T.PILLAR,23,29,23,29,4.2);R(T.PILLAR,16,36,16,36,4.2);R(T.PILLAR,23,36,23,36,4.2);R(T.CRATE,25,37,25,38);R(T.BARREL,14,37,14,37);
+  // couloir vers le grand labo
+  R(K,14,19,16,25);R(K,23,19,25,25);GB.ceil(17,20,22,25,3.6);R(T.CRATE,17,22,17,22);R(T.BARREL,22,24,22,24);
+  // salle des machines (ouest)
+  R(K,0,19,12,19);GB.clear(5,19,6,19);GB.ceil(1,20,12,38,4.6);
+  R(T.CONT,2,22,4,25);R(T.CONT,8,22,10,24);R(T.CONT,2,33,5,36);R(T.BARREL,10,30,10,30);R(T.BARREL,11,35,11,35);R(T.LOW,7,28,9,28);R(T.CRATE,9,36,10,37);
+  R(T.PLAT,6,32,11,34,2.2);GB.ramp(6,35,7,36,'z',2.2,0);
+  // infirmerie (est)
+  R(K,27,19,39,19);GB.clear(32,19,33,19);GB.ceil(27,20,38,38,4.2);
+  for(const z of [22,26,30,34])R(T.LOW,29,z,31,z);
+  R(T.CRATE,37,21,38,22);R(T.CRATE,37,36,38,37);R(T.LOW,35,28,36,30);R(T.BARREL,28,37,28,37);
+  // grand labo (nord) : cour centrale à ciel ouvert, plateformes, serveurs
+  GB.ceil(1,1,14,18,5);GB.ceil(25,1,38,18,5);
+  R(T.CRATE,3,3,3,6);R(T.CRATE,6,3,6,6);R(T.CRATE,9,3,9,6);R(T.CRATE,30,3,30,6);R(T.CRATE,33,3,33,6);R(T.CRATE,36,3,36,6);
+  R(T.PLAT,15,2,24,5,2.6);GB.ramp(13,3,14,4,'x',0,2.6);GB.ramp(25,3,26,4,'x',2.6,0);
+  R(T.LOW,17,9,22,9);R(T.LOW,17,13,22,13);R(T.PILLAR,15,11,15,11);R(T.PILLAR,24,11,24,11);
+  R(T.CONT,4,11,6,15);R(T.CONT,33,11,35,15);R(T.LOW,9,14,11,14);R(T.LOW,28,14,30,14);R(T.BARREL,12,8,12,8);R(T.BARREL,27,8,27,8);
+  GB.tag(14,27,25,38,1);GB.tag(1,20,12,38,2);GB.tag(27,20,38,38,3);GB.tag(1,1,38,18,4);GB.tag(17,20,22,25,5);
+ },
+ sites:[{n:'A',cx:6,cz:28,r:6},{n:'B',cx:33,cz:28,r:6}],
+ spawnCT:[[17,30],[19,30],[21,30],[23,31],[18,35],[20,35],[22,35],[15,34],[24,33],[19,28]],
+ spawnT:[[8,8],[11,10],[14,7],[19,7],[25,7],[28,10],[31,8],[19,11],[16,15],[23,15]],
+ spawnDM:[[19,30],[6,29],[33,29],[19,8],[4,9],[35,9],[19,22],[9,37],[30,37],[19,15],[26,12],[12,12]],
+ zdoors:[{cells:[[13,31],[13,32]],price:750},{cells:[[26,31],[26,32]],price:750},{cells:[[19,26],[20,26]],price:1000},{cells:[[5,19],[6,19]],price:1250},{cells:[[32,19],[33,19]],price:1250}],
+ pickups:[[19,31,'ammo'],[6,29,'shield'],[33,29,'health'],[19,8,'ammo']],
+ koth:[[19,31,4],[6,28,4],[33,28,4],[19,11,5]],
+ holdCT:[[6,28],[33,28],[19,30],[8,24],[31,24]],
+ roam:[[19,30],[16,34],[23,34],[6,28],[9,31],[3,30],[33,28],[30,24],[36,33],[19,22],[19,8],[8,9],[31,9],[19,15],[12,16],[27,16],[4,17],[35,17],[19,3]],
+ arches:[],
+ locName(cx,cz,x,z){
+  if(cz>=27&&cx>=14&&cx<=25)return 'Hall d\'entrée';
+  if(cz>=20&&cx<=12)return 'Salle des machines';
+  if(cz>=20&&cx>=27)return 'Infirmerie';
+  if(cz>=20)return 'Couloir';
+  if(groundH(x,z)>2)return 'Passerelle';
+  return cx>=15&&cx<=24&&cz>=6&&cz<=14?'Cour du labo':'Grand labo';
+ }
+};
+buildMapSnapshot('labo');
