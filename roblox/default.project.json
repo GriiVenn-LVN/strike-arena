@@ -1,0 +1,18 @@
+{
+  "name": "StrikeArena",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "Shared": { "$path": "ReplicatedStorage/Shared" }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "$path": "ServerScriptService"
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": { "$path": "StarterPlayer/StarterPlayerScripts" }
+    }
+  }
+}
