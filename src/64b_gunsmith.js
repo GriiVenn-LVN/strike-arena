@@ -20,7 +20,12 @@ const ATTS={
  flash:{s:'muzzle',n:'Cache-flamme',lv:1,d:'Masque la flamme de bouche, léger gain de stabilité.',m:{rec:.95},noFlash:1},
  reddot:{s:'optic',n:'Point rouge',lv:1,d:'Visée nette et dégagée : dispersion en visée −25 %.',m:{adsSpr:.75}},
  holo:{s:'optic',n:'Holographique',lv:2,d:'Réticule cerclé, grande fenêtre : dispersion en visée −20 %, visée plus rapide.',m:{adsSpr:.8,ads:1.05}},
+ mini:{s:'optic',n:'Mini réflex',lv:1,d:'Petit viseur ouvert, très léger : visée plus rapide, dispersion en visée −15 %.',m:{adsSpr:.85,ads:1.08}},
  acog:{s:'optic',n:'Lunette ×2,5',lv:4,d:'Grossissement ×2,5 pour la moyenne distance. Visée plus lente.',m:{adsSpr:.7,ads:.85,zoom:1.9}},
+ sc4:{s:'optic',n:'Lunette ×4',lv:3,d:'Lunette de précision ×4 : vue plein écran en visée, idéale à longue distance. Visée lente.',m:{adsSpr:.6,ads:.78,mob:.97,zoom:2.4},ov:1},
+ sc6:{s:'optic',n:'Lunette ×6',lv:5,d:'Grossissement ×6 : pour tenir une longue ligne. Visée lente.',m:{adsSpr:.55,ads:.72,mob:.96,zoom:3.1},ov:1},
+ sc8:{s:'optic',n:'Lunette ×8',lv:6,d:'Grossissement ×8 pour les très longues distances.',m:{ads:.95,zoom:3.8},ov:1},
+ sc10:{s:'optic',n:'Lunette ×10',lv:8,d:'Grossissement maximal ×10. Visée plus lente, champ de vision très étroit.',m:{ads:.88,zoom:4.8},ov:1},
  long:{s:'barrel',n:'Canon long',lv:3,d:'Portée efficace +30 %, balles plus précises. Arme plus lourde.',m:{rng:1.3,hip:.92,adsSpr:.92,mob:.96,ads:.92}},
  heavy:{s:'barrel',n:'Canon lourd',lv:5,d:'Recul −12 %, portée +10 %. Mobilité réduite.',m:{rec:.88,recH:.9,rng:1.1,mob:.93,ads:.9}},
  grip:{s:'under',n:'Poignée verticale',lv:2,d:'Meilleure tenue : recul −18 %.',m:{rec:.82,recH:.85,ads:.96}},
@@ -38,10 +43,19 @@ const ATT_CAT={
  shotgun:{muzzle:['brake','flash'],optic:['reddot','holo'],barrel:['long'],under:['grip','laser'],mag:['ext','fast'],stock:['light','tac']},
  sniper:{muzzle:['sil','brake','flash'],barrel:['long','heavy'],under:['grip','laser'],mag:['ext','fast'],stock:['light','tac']}
 };
+// viseurs proposés par catégorie (« aucun » = mires d'origine, ou lunette d'origine pour les snipers)
+const OPTIC_CAT={
+ pistol:['mini','reddot','holo'],
+ smg:['mini','reddot','holo','acog'],
+ shotgun:['mini','reddot','holo'],
+ rifle:['reddot','holo','acog','sc4','sc6'],
+ lmg:['reddot','holo','acog','sc4'],
+ sniper:['sc4','sc6','sc8','sc10']
+};
 function attAllowed(k){
  const w=W[k];if(!w||w.melee||w.wonder||w.cat==='wonder'||w.cat==='melee')return {};
  const lim=ATT_CAT[w.cat],out={};
- for(const s of ATT_SLOTS){const l=lim===undefined||lim===null?Object.keys(ATTS).filter(a=>ATTS[a].s===s.id):(lim[s.id]||[]);if(l.length)out[s.id]=l;}
+ for(const s of ATT_SLOTS){const l=s.id==='optic'&&OPTIC_CAT[w.cat]?OPTIC_CAT[w.cat]:lim===undefined||lim===null?Object.keys(ATTS).filter(a=>ATTS[a].s===s.id):(lim[s.id]||[]);if(l.length)out[s.id]=l;}
  return out;
 }
 // ancien format {sil:true,opt:true,ext:true,grip:true} -> nouveau format par emplacement
@@ -135,14 +149,32 @@ function attBuild(g,k,sel,opt){
     for(let i=0;i<4;i++){const an=i*Math.PI/2+Math.PI/4,p=boxA(.005,.005,L*.6,AM.blk,Math.cos(an)*r*.8,Math.sin(an)*r*.8,-L*.2);o.add(p);}
     o.position.set(0,bore,u.muzzle-L/2+.005);add(o,a);u.muzzle-=L-.005;break;}
    case 'reddot':{const z=clamp(u.muzzle*.28,-.2,-.03);const o=redDot({sight:pr.topR(z-.04,z+.04)-.002});o.position.z=z+.15;o.userData.att=a;g.add(o);   // redDot() construit à z=-.15 : recalé sur le rail
+    retSwapDot(o,'reddot',.018);
     u.sight=pr.topR(z-.04,z+.04)-.002+.034;u.optic=a;break;}
+   case 'mini':{const z=clamp(u.muzzle*(pistol?.2:.26),-.18,-.02),base=pr.topR(z-.03,z+.03)-.002,o=new THREE.Group(),cy=base+.02;
+    // mini réflex : semelle basse + fenêtre inclinée
+    o.add(boxA(.026,.008,.04,AM.dark,0,base+.004,z+.004));
+    o.add(boxA(.004,.026,.012,AM.blk,-.013,cy-.002,z-.01),boxA(.004,.026,.012,AM.blk,.013,cy-.002,z-.01),boxA(.03,.004,.014,AM.blk,0,cy+.012,z-.01));
+    const lens=new THREE.Mesh(new THREE.PlaneGeometry(.022,.022),AM.lensB);lens.position.set(0,cy,z-.016);o.add(lens);
+    const ret=retMesh('mini',.012);ret.position.set(0,cy,z-.017);o.add(ret);
+    add(o,a);u.sight=cy;u.optic=a;break;}
+   case 'sc4':case 'sc6':case 'sc8':case 'sc10':{
+    if(w.cat==='sniper'||u.scope){u.optic=a;break;}  // le sniper garde sa lunette : seul le grossissement change
+    const L=a==='sc4'?.17:.21,r=a==='sc4'?.019:.022,z=clamp(u.muzzle*.32,-.26,-.08),base=pr.topR(z-L/2,z+L/2),cy=base+r+.022,o=new THREE.Group();
+    const tube=new THREE.MeshStandardMaterial({color:C(0x15171b),roughness:.45,metalness:.75,side:THREE.DoubleSide});
+    o.add(cylZ(r*.8,r*.8,L,tube,0,cy,z,22,true));
+    o.add(cylZ(r*1.3,r*.8,.045,tube,0,cy,z-L/2-.012,22,true),cylZ(r*.8,r*1.15,.035,tube,0,cy,z+L/2+.01,22,true));
+    o.add(cylZ(r*.95,r*.95,.03,AM.blk,0,cy+r*.95,z,14),cylZ(r*.95,r*.95,.03,AM.blk,r*.95,cy,z,14));
+    for(const dz of [-L*.28,L*.28]){o.add(boxA(.012,cy-base,.016,AM.dark,0,base+(cy-base)/2,z+dz));o.add(new THREE.Mesh(new THREE.TorusGeometry(r*.85,.004,6,18),AM.blk).translateX(0).translateY(cy).translateZ(z+dz));}
+    const lens=new THREE.Mesh(new THREE.CircleGeometry(r*1.2,22),AM.lensB);lens.position.set(0,cy,z-L/2-.034);o.add(lens);
+    add(o,a);u.sight=cy;u.optic=a;break;}
    case 'holo':{const z=clamp(u.muzzle*.3,-.22,-.05),base=pr.topR(z-.05,z+.05),o=new THREE.Group(),h=.04,cy=base+.026;
     o.add(boxA(.034,.012,.085,AM.dark,0,base+.006,z));
     // cadre ouvert (fenêtre rectangulaire)
     o.add(boxA(.005,h,.05,AM.blk,-.02,cy+.003,z),boxA(.005,h,.05,AM.blk,.02,cy+.003,z),boxA(.045,.006,.054,AM.blk,0,cy+h/2+.003,z));
     o.add(boxA(.045,.006,.034,AM.dark,0,base+.012,z+.016));
     const lens=new THREE.Mesh(new THREE.PlaneGeometry(.035,.034),AM.lensB);lens.position.set(0,cy,z-.023);o.add(lens);
-    const ret=ringReticle(.017);ret.position.set(0,cy,z-.024);o.add(ret);
+    const ret=retMesh('holo',.017);ret.position.set(0,cy,z-.024);o.add(ret);
     add(o,a);u.sight=cy;u.optic=a;break;}
    case 'acog':{const z=clamp(u.muzzle*.3,-.24,-.06),base=pr.topR(z-.06,z+.06),o=new THREE.Group(),r=.021,cy=base+.036;
     o.add(boxA(.028,.016,.07,AM.dark,0,base+.008,z));
@@ -150,7 +182,7 @@ function attBuild(g,k,sel,opt){
     o.add(cylZ(r*1.25,r,.03,AM.blk,0,cy,z-.07,22,true),cylZ(r,r*1.15,.02,AM.blk,0,cy,z+.065,22,true));
     o.add(boxA(.014,.014,.02,AM.blk,0,cy+r+.004,z),boxA(.014,.014,.02,AM.blk,r+.004,cy,z));
     const lens=new THREE.Mesh(new THREE.CircleGeometry(r*.95,22),AM.lensB);lens.position.set(0,cy,z-.05);o.add(lens);
-    const ret=chevronReticle(.022);ret.position.set(0,cy,z-.051);o.add(ret);
+    const ret=retMesh('acog',.022);ret.position.set(0,cy,z-.051);o.add(ret);
     add(o,a);u.sight=cy;u.optic=a;break;}
    case 'long':{const L=.09*S,r=.012*S,o=new THREE.Group();o.add(cylZ(r,r,L,AM.blk,0,0,0,14));o.add(cylZ(r*1.5,r*1.5,.025,AM.dark,0,0,L/2-.012,14));
     o.position.set(0,bore,u.muzzle-L/2+.005);add(o,a);u.muzzle-=L-.005;break;}
@@ -243,7 +275,7 @@ function gsDraw(){
   h+='<div class="gsSlot'+(ok[s.id]?'':' off')+(gsSlot===s.id?' on':'')+(has?' has':'')+'" data-s="'+s.id+'"><em>'+s.ic+' '+s.n.toUpperCase()+'</em><b>'+(has?ATTS[a].n:ok[s.id]?'—':'Indisponible')+'</b></div>';}
  h+='</div><div class="gsOpts">';
  const cur=sel[gsSlot];
- h+='<div class="gsOpt'+(!cur?' on':'')+'" data-a=""><b>Aucun</b><small>Retirer l\'accessoire</small></div>';
+ h+='<div class="gsOpt'+(!cur?' on':'')+'" data-a=""><b>'+(gsSlot==='optic'?opticNone(k):'Aucun')+'</b><small>'+(gsSlot==='optic'?'Viseur de base de l\'arme':'Retirer l\'accessoire')+'</small></div>';
  for(const a of ok[gsSlot]||[]){const d=ATTS[a],lock=lv<d.lv;
   h+='<div class="gsOpt'+(cur===a?' on':'')+(lock?' lock':'')+'" data-a="'+a+'"><b>'+d.n+(lock?' 🔒':'')+'</b><small>'+(lock?'Débloqué au niveau '+d.lv+'. ':'')+d.d+'</small></div>';}
  h+='</div>';host.innerHTML=h;

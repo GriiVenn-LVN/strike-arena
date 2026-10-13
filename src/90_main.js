@@ -56,7 +56,7 @@ function placeCamera(dt,t){
  camera.position.set(src.x,src.y+eye+bobY-G.fall*.1,src.z);
  camera.rotation.set(pit,yaw,roll);
  const w=curW(src);let zoom=1;
- if(src.isPlayer){const az=attMods(P,curWi(P).k).zoom,zf=w.zoom?w.zoom:az||ADS_ZOOM[w.cat]||1.1;zoom=lerp(1,zf,P.ads);}
+ if(src.isPlayer)zoom=lerp(1,sightZoom(P,w),P.ads);
  const mw=src.isPlayer&&P.mv?P.mv.w:null,tf=cfg.fov/zoom*(mw?1+mw.spr*.06+mw.tac*.1+mw.sld*.07:1);camera.fov+=(tf-camera.fov)*Math.min(1,dt*18);camera.updateProjectionMatrix();
 }
 function render(dt,t){
