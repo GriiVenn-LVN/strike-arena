@@ -303,6 +303,13 @@ function floorTexture(th,id){
     else if(tag===2){f.strokeStyle='rgba(255,255,255,.55)';f.lineWidth=2;for(let i=0;i<5;i++){let x=x0+rand(0,cs),y=y0+rand(0,cs);f.beginPath();f.moveTo(x,y);for(let k=0;k<4;k++){x+=rand(-14,14);y+=rand(-14,14);f.lineTo(x,y);}f.stroke();}}
     else if(tag===3){f.strokeStyle='rgba(0,0,0,.35)';f.lineWidth=2;for(let i=1;i<6;i++){f.beginPath();f.moveTo(x0,y0+i*cs/6);f.lineTo(x0+cs,y0+i*cs/6);f.stroke();}}
     else if(tag===4){f.strokeStyle='rgba(20,24,30,.5)';f.lineWidth=2;f.strokeRect(x0+2,y0+2,cs-4,cs-4);}
+   }else if(bt==='haunt'){
+    const pal={0:['#2c3a26','#27341f'],1:['#4a4640','#433f3a'],2:['#6c6a62','#2a2a28'],3:['#3a3324','#2f3a24'],4:['#7d8580','#727a75'],5:['#47443e','#3e3b36'],6:['#2b2a2c','#262528']}[tag]||['#2c3a26','#27341f'];
+    if(tag===2||tag===4){const n=tag===2?6:5,tw=cs/n;for(let sy=0;sy<n;sy++)for(let sx=0;sx<n;sx++){f.fillStyle=pal[tag===2?(sx+sy)&1:0];f.fillRect(x0+sx*tw,y0+sy*tw,tw,tw);}
+     f.strokeStyle='rgba(0,0,0,.3)';f.lineWidth=1;for(let i=0;i<=n;i++){f.beginPath();f.moveTo(x0+i*tw,y0);f.lineTo(x0+i*tw,y0+cs);f.moveTo(x0,y0+i*tw);f.lineTo(x0+cs,y0+i*tw);f.stroke();}
+     if(Math.random()<.18){const x=x0+rand(10,cs-10),y=y0+rand(10,cs-10),r=rand(8,20);f.fillStyle='rgba(90,8,8,.55)';f.beginPath();f.ellipse(x,y,r,r*.7,rand(0,3),0,TAU);f.fill();for(let k=0;k<6;k++){f.beginPath();f.arc(x+rand(-30,30),y+rand(-30,30),rand(1,4),0,TAU);f.fill();}}}
+    else if(tag===1||tag===5||tag===6){f.fillStyle=pal[0];f.fillRect(x0,y0,cs,cs);const n=tag===5?6:3,tw=cs/n;for(let sy=0;sy<n;sy++)for(let sx=0;sx<n;sx++){f.fillStyle=pal[(sx*3+sy+cx+cz)%2];f.fillRect(x0+sx*tw+1.5,y0+sy*tw+1.5,tw-3,tw-3);}}
+    else{f.fillStyle=pal[(cx+cz)&1];f.fillRect(x0,y0,cs,cs);for(let i=0;i<40;i++){f.fillStyle=tag===0?'rgba('+(Math.random()<.5?'70,90,50':'25,22,15')+','+rand(.2,.5)+')':'rgba(60,50,30,'+rand(.2,.4)+')';f.fillRect(x0+rand(0,cs),y0+rand(0,cs),rand(1,3),rand(3,8));}}
    }else{
     const pal={0:['#6e747b','#686e75'],1:['#7a8088','#737982'],2:['#3e4a5c','#39455a'],3:['#8f949a','#878c92'],4:['#6a7078','#656b73'],5:['#4d4f54','#48494e'],6:['#7a7f86','#72777e']}[tag]||['#6e747b','#686e75'];
     f.fillStyle=pal[(cx+cz)&1];f.fillRect(x0,y0,cs,cs);
@@ -316,18 +323,18 @@ function floorTexture(th,id){
   for(let i=0;i<110;i++){const x=rand(0,fs),y=rand(0,fs),r=rand(25,120),g=f.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,sand2?'rgba(95,65,30,.15)':'rgba(15,15,20,.22)');g.addColorStop(1,'rgba(0,0,0,0)');f.fillStyle=g;f.fillRect(x-r,y-r,r*2,r*2);}
   // marquages
   f.textAlign='center';f.textBaseline='middle';
-  if(!sand&&!snow){ // lignes jaunes dans la halle, flèches, hachures
+  if(!sand&&!snow&&bt!=='haunt'){ // lignes jaunes dans la halle, flèches, hachures
    f.strokeStyle='rgba(232,185,35,.75)';f.lineWidth=9;f.setLineDash([60,40]);
    for(const [ax,az,bx2,bz] of [[19,11,19,30],[21,11,21,30],[12,21,27,21]]){f.beginPath();f.moveTo(cc(ax)*ppu,cc(az)*ppu);f.lineTo(cc(bx2)*ppu,cc(bz)*ppu);f.stroke();}
    f.setLineDash([]);
   }
-  for(const s of MAP.sites){
+  if(bt!=='haunt')for(const s of MAP.sites){
    const x=s.x*ppu,y=s.z*ppu;
    f.lineWidth=14;f.strokeStyle=sand?'rgba(120,80,15,.6)':'rgba(255,200,40,.7)';f.beginPath();f.arc(x,y,s.rw*ppu-8,0,TAU);f.stroke();
    f.lineWidth=5;f.beginPath();f.arc(x,y,s.rw*ppu-34,0,TAU);f.stroke();
    f.font='bold 300px Georgia,serif';f.fillStyle=sand?'rgba(120,80,15,.6)':'rgba(255,200,40,.75)';f.fillText(s.n,x,y+14);
   }
-  f.font='bold 120px Arial';f.fillStyle='rgba(30,70,150,.4)';f.fillText('CT',40*ppu,cc(2.5)*ppu);f.fillStyle='rgba(160,60,15,.4)';f.fillText('T',40*ppu,cc(36)*ppu);
+  if(bt!=='haunt'){f.font='bold 120px Arial';f.fillStyle='rgba(30,70,150,.4)';f.fillText('CT',40*ppu,cc(2.5)*ppu);f.fillStyle='rgba(160,60,15,.4)';f.fillText('T',40*ppu,cc(36)*ppu);}
  });
 }
 
@@ -371,13 +378,13 @@ function buildWorld(id){
  if(worldG)scene.remove(worldG);
  worldG=new THREE.Group();scene.add(worldG);worldAnim.length=0;
  loadMap(id);
- const th=THEMES[MAP.theme],sand=MAP.base==='sand',snow=MAP.base==='snow';
+ const th=THEMES[MAP.theme],sand=MAP.base==='sand',snow=MAP.base==='snow',haunt=MAP.base==='haunt';
  applyTheme(th);buildSky(th);
  // sol
  const floor=new THREE.Mesh(new THREE.PlaneGeometry(N*S,N*S),stdMat(0xffffff,{map:floorTexture(th,id),roughness:.95}));
  floor.rotation.x=-Math.PI/2;floor.position.set(N*S/2,0,N*S/2);floor.receiveShadow=true;worldG.add(floor);
  // grand sol extérieur
- const ext=new THREE.Mesh(new THREE.PlaneGeometry(600,600),(MAP.theme==='night'?stdMat(0x0c1d36,{roughness:.12,metalness:.7}):stdMat(sand?(MAP.theme==='jungle'?0x4d6b3a:0xb89d76):snow?0xe9f0f8:0x3a3d44,{roughness:1})));ext.rotation.x=-Math.PI/2;ext.position.set(N*S/2,-.02,N*S/2);worldG.add(ext);
+ const ext=new THREE.Mesh(new THREE.PlaneGeometry(600,600),(MAP.theme==='night'?stdMat(0x0c1d36,{roughness:.12,metalness:.7}):haunt?stdMat(0x1c2618,{roughness:1}):stdMat(sand?(MAP.theme==='jungle'?0x4d6b3a:0xb89d76):snow?0xe9f0f8:0x3a3d44,{roughness:1})));ext.rotation.x=-Math.PI/2;ext.position.set(N*S/2,-.02,N*S/2);worldG.add(ext);
  // blocs : groupés par (type, hauteur)
  const groups={};
  for(let i=0;i<NC;i++){const t=G_TYPE[i];if(!t||G_RAMP[i])continue;const key=t+'|'+G_H[i].toFixed(2);(groups[key]||(groups[key]=[])).push([i%N,(i/N)|0]);}
@@ -400,7 +407,7 @@ function buildWorld(id){
   }
   if(t===TY.PILLAR){
    geo=new THREE.CylinderGeometry(.75,.8,h,16);
-   const side=sideM(sand?texPillar():snow?texPole():texPillarI(),{roughness:.8});
+   const side=sideM(sand||MAP.base==='haunt'?texPillar():snow?texPole():texPillarI(),{roughness:.8});
    mats=[side,stdMat(sand?0xd4c4a0:0x9aa0a6),stdMat(0x4a4c50)];
    addInstances(geo,mats,list,()=>h/2);
    // chapiteau + base
@@ -409,7 +416,8 @@ function buildWorld(id){
    continue;
   }
   geo=new THREE.BoxGeometry(S,h,S);
-  if(snow){
+  if(haunt&&(mats=hauntMats(t,h,sideM,topM,boxMats))){}
+  else if(snow){
    if(t===TY.WALL)mats=boxMats(sideM(texRock(h)),topM(null,0xf4f8fd));
    else if(t===TY.HOUSE)mats=boxMats(sideM(texCabin(h)),topM(null,0xf4f8fd));
    else if(t===TY.CRATE)mats=boxMats(sideM(texCrateMetal(h)),topM(null,0xf1f5fa));
@@ -443,7 +451,7 @@ function buildWorld(id){
  for(let i=0;i<NC;i++){if(G_CEIL[i]<90&&!G_TYPE[i]){const k=G_CEIL[i].toFixed(2);(ceilCells[k]||(ceilCells[k]=[])).push([i%N,(i/N)|0]);}}
  for(const k in ceilCells){
   const h=+k,list=ceilCells[k];
-  const slab=addInstances(new THREE.BoxGeometry(S,.4,S),stdMat(0xffffff,{map:(sand||snow)?texWoodCeil():texCorrug(),roughness:.8,metalness:(sand||snow)?0:.5}),list,()=>h+.2);
+  const slab=addInstances(new THREE.BoxGeometry(S,.4,S),stdMat(0xffffff,{map:(sand||snow||haunt)?texWoodCeil():texCorrug(),roughness:.8,metalness:(sand||snow)?0:.5}),list,()=>h+.2);
   addInstances(new THREE.BoxGeometry(S,.22,.22),stdMat((sand||snow)?0x5b3b19:0x3a3f46),list,()=>h-.11,{rot:()=>0});
   addInstances(new THREE.BoxGeometry(.22,.22,S),stdMat(sand?0x5b3b19:0x3a3f46),list,()=>h-.11);
  }
@@ -457,6 +465,7 @@ function buildWorld(id){
  sun.shadow.needsUpdate=true;
 }
 function buildSkyline(th,sand){
+ if(MAP.base==='haunt')return;
  if(MAP.theme==='jungle'){
   const base=new THREE.MeshStandardMaterial({color:C(0x3f6a45),roughness:1}),capM=new THREE.MeshStandardMaterial({color:C(0x5f8a55),roughness:1});
   for(let i=0;i<40;i++){const a=rand(0,TAU),r=rand(70,125),x=N*S/2+Math.cos(a)*r,z=N*S/2+Math.sin(a)*r,hh=rand(20,48),rr=hh*rand(.6,.9);

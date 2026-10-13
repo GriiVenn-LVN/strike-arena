@@ -201,6 +201,8 @@ function zSetup(){
  const walls=zPickSpread(near.slice(0,Math.max(10,near.length>>1)),Math.min(WALLBUYS.length,6),[]);
  const rest=spots.filter(s=>!walls.includes(s));
  const boxSpots=zPickSpread(rest,3,walls);
+ // la boîte mystère démarre dans la zone de départ (avant d'ouvrir les portes)
+ if(ZD.reach){const ok=s=>!!ZD.reach[Math.floor(s.z/S)*N+Math.floor(s.x/S)];const st=rest.filter(s=>ok(s)&&!boxSpots.includes(s));const i0=boxSpots.findIndex(ok);if(i0>0)boxSpots.unshift(boxSpots.splice(i0,1)[0]);else if(i0<0&&st.length)boxSpots.unshift(st[Math.floor(Math.random()*st.length)]);}
  const rest2=rest.filter(s=>!boxSpots.includes(s));
  const machines=zPickSpread(rest2,6,walls.concat(boxSpots));
  walls.forEach((s,i)=>{const [k,pr]=WALLBUYS[i];zBuildWall(s,k,pr);ZB.inter.push({x:s.x,z:s.z,r:1.9,kind:'wall',k,price:pr});});

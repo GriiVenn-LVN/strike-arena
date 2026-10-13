@@ -18,7 +18,7 @@ function ensureRain(){
 }
 function applyAtmosphere(){
  ensureRain();
- const th=THEMES[MAP.theme],night=MAP.theme==='night';
+ const th=THEMES[MAP.theme],night=MAP.theme==='night'||MAP.theme==='haunt';
  let fogC=new THREE.Color(th.fog),fogN=th.fogN,fogF=th.fogF,sunI=th.sunI,hemiI=th.hemiI,exp=th.exp,sunC=new THREE.Color(th.sunC),hemiS=new THREE.Color(th.hemiS);
  if(!night){
   if(cfg.tod==='dusk'){sunC.set(0xff8a4a);sunI*=.65;hemiI*=.85;fogC.lerp(new THREE.Color(0xd77a58),.55);hemiS.lerp(new THREE.Color(0xa78ad8),.4);exp*=.95;}

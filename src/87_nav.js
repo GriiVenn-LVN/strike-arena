@@ -88,7 +88,7 @@ function buildModeCards(){
   for(const k of list){
    const m=MODES[k];if(!m)continue;const c=document.createElement('div');c.className='mcard'+(cfg.mode===k?' on':'');c.style.setProperty('--c',m.c);
    c.innerHTML='<div class="ic">'+m.ic+'</div><div><b>'+m.n+'</b><span>'+(MODE_TAG[k]||'')+'</span></div>';
-   c.onclick=()=>{initAudio();sfxUI();cfg.mode=k;saveCfg();drawMenu();};el.appendChild(c);
+   c.onclick=()=>{initAudio();sfxUI();cfg.mode=k;if(k==='zombies'&&!MAPS[cfg.map].zombie&&cfg.map!=='labo'){cfg.map='asile';if(typeof previewMapWorld==='function')previewMapWorld();}saveCfg();drawMenu();};el.appendChild(c);
   }
  }
  let info=$('modeInfo');if(!info){info=document.createElement('div');info.id='modeInfo';el.parentNode.insertBefore(info,el.nextSibling);}

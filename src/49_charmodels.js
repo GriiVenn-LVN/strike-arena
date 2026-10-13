@@ -41,12 +41,20 @@ function buildCharFactory(buf){
  const nodeName=i=>THREE.PropertyBinding.sanitizeNodeName(json.nodes[i].name||('node_'+i));
  // clips
  const clips={};
+ // le squelette a été remis à l'échelle (1,8 m) mais pas les translations des clips :
+ // on retrouve le facteur en comparant la pose de repos aux clés d'animation
+ const ratios=[];
+ for(const an of json.animations||[])for(const ch of an.channels){if(ch.target.path!=='translation')continue;
+  const rest=json.nodes[ch.target.node].translation;if(!rest)continue;const v=acc(an.samplers[ch.sampler].output).arr;
+  const lr=Math.hypot(rest[0],rest[1],rest[2]),lk=Math.hypot(v[0],v[1],v[2]);if(lr>1e-4&&lk>1e-4)ratios.push(lr/lk);}
+ ratios.sort((a,b)=>a-b);
+ const tScale=ratios.length?ratios[ratios.length>>1]:1,fixT=Math.abs(tScale-1)>.1;
  for(const an of json.animations||[]){
   const tracks=[];
   for(const ch of an.channels){const s=an.samplers[ch.sampler],t=acc(s.input).arr,v=acc(s.output).arr,nm=nodeName(ch.target.node),path=ch.target.path;
    const interp=s.interpolation==='STEP'?THREE.InterpolateDiscrete:THREE.InterpolateLinear;
    if(path==='rotation')tracks.push(new THREE.QuaternionKeyframeTrack(nm+'.quaternion',Array.from(t),Array.from(v),interp));
-   else if(path==='translation')tracks.push(new THREE.VectorKeyframeTrack(nm+'.position',Array.from(t),Array.from(v),interp));
+   else if(path==='translation')tracks.push(new THREE.VectorKeyframeTrack(nm+'.position',Array.from(t),Array.from(v,x=>fixT?x*tScale:x),interp));
    else if(path==='scale')tracks.push(new THREE.VectorKeyframeTrack(nm+'.scale',Array.from(t),Array.from(v),interp));}
   clips[an.name.split('|').pop()]=new THREE.AnimationClip(an.name.split('|').pop(),-1,tracks);
  }
@@ -65,7 +73,7 @@ function buildCharFactory(buf){
     let m;if(n.skin!==undefined){m=new THREE.SkinnedMesh(g,mt);skinned.push([m,n.skin]);}else m=new THREE.Mesh(g,mt);
     m.castShadow=true;m.frustumCulled=false;objs[i].add(m);});});
   root.updateMatrixWorld(true);
-  for(const [m,si] of skinned){const s=json.skins[si];m.bind(new THREE.Skeleton(s.joints.map(j=>objs[j]),ibm[si]),m.matrixWorld);}
+  for(const [m,si] of skinned){const s=json.skins[si];m.bind(new THREE.Skeleton(s.joints.map(j=>objs[j]),ibm[si]),new THREE.Matrix4());}   // glTF : la transformation du nœud du maillage est ignorée, seuls les os comptent
   return root;
  }
  return {instance,clips};
@@ -74,7 +82,7 @@ function buildCharFactory(buf){
 const zombieModelReady=()=>!!charFactory('zombie');
 function attachZombieModel(e){
  const F=charFactory('zombie');
- const root=new THREE.Group(),inner=F.instance();inner.rotation.y=Math.PI;root.add(inner);   // le modèle regarde vers +Z, le jeu vers -Z
+ const root=new THREE.Group(),inner=F.instance();inner.rotation.y=Math.PI;inner.scale.setScalar(1.4);root.add(inner);   // le modèle regarde vers +Z, le jeu vers -Z
  scene.add(root);
  const mixer=new THREE.AnimationMixer(inner),act={};
  for(const k in F.clips){act[k]=mixer.clipAction(F.clips[k]);}
