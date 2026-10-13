@@ -315,7 +315,7 @@ addEventListener('keydown',e=>{
  if(rebindCb){e.preventDefault();rebindCb(e.code);return;}
  if(e.target&&(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'))return;
  const b=cfg.binds;
- if(G.running&&(e.code==='Tab'||e.code===b.score||e.code==='Space'||e.code===b.buy))e.preventDefault();
+ if(G.running&&(e.code==='Tab'||e.code===b.score||e.code==='Space'||e.code===b.buy||e.code===b.walk||e.code===b.sprint||e.code==='AltLeft'))e.preventDefault();
  if(e.repeat)return;
  inputDown(e.code);
 });

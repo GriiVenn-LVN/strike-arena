@@ -51,13 +51,13 @@ function placeCamera(dt,t){
  let yaw=src.yaw+(src.isPlayer?P.punchY*RAD:0),pit=src.pitch+(src.isPlayer?P.punchP*RAD:0);
  let roll=0;
  if(G.shake>0){const s=G.shake*cfg.shakeS;yaw+=rand(-1,1)*s*.025;pit+=rand(-1,1)*s*.025;roll+=rand(-1,1)*s*.02;}
- if(src.isPlayer){roll+=-clamp((P.vx*Math.cos(P.yaw)-P.vz*Math.sin(P.yaw))/RUN,-1,1)*.012*P.speed/5;}
+ if(src.isPlayer){roll+=-clamp((P.vx*Math.cos(P.yaw)-P.vz*Math.sin(P.yaw))/RUN,-1,1)*.012*P.speed/5;if(P.mv)roll+=P.mv.w.sld*.055;}
  const bobY=src.isPlayer&&P.onGround&&cfg.bob?Math.sin(bobT*2)*.014*clamp(P.speed/5,0,1):0;
  camera.position.set(src.x,src.y+eye+bobY-G.fall*.1,src.z);
  camera.rotation.set(pit,yaw,roll);
  const w=curW(src);let zoom=1;
- if(src.isPlayer){const zf=w.zoom?w.zoom:ADS_ZOOM[w.cat]||1.1;zoom=lerp(1,zf,P.ads);}
- const tf=cfg.fov/zoom;camera.fov+=(tf-camera.fov)*Math.min(1,dt*18);camera.updateProjectionMatrix();
+ if(src.isPlayer){const az=attMods(P,curWi(P).k).zoom,zf=w.zoom?w.zoom:az||ADS_ZOOM[w.cat]||1.1;zoom=lerp(1,zf,P.ads);}
+ const mw=src.isPlayer&&P.mv?P.mv.w:null,tf=cfg.fov/zoom*(mw?1+mw.spr*.06+mw.tac*.1+mw.sld*.07:1);camera.fov+=(tf-camera.fov)*Math.min(1,dt*18);camera.updateProjectionMatrix();
 }
 function render(dt,t){
  for(const f of worldAnim)f(t);

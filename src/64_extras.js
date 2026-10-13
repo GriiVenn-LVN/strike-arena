@@ -4,12 +4,6 @@
    Les choix sont gratuits ou liés au niveau (lv) et se règlent dans
    l'onglet « Style ».
    ===================================================================== */
-const ATT={
- sil:{n:'Silencieux',ic:'🔇',lv:1,d:'Tir discret : les bots entendent moins loin. −8 % de dégâts.'},
- opt:{n:'Point rouge',ic:'🔴',lv:3,d:'Dispersion −25 % en visant.'},
- ext:{n:'Chargeur étendu',ic:'📦',lv:2,d:'+30 % de munitions par chargeur.'},
- grip:{n:'Poignée verticale',ic:'✋',lv:4,d:'Recul −18 %.'}
-};
 const CHARMS=[
  {id:'',n:'Aucun',lv:1},{id:'cube',n:'Dé',lv:1,c:0xf5f5f5},{id:'heart',n:'Cœur',lv:2,c:0xff4d6d},{id:'star',n:'Étoile',lv:3,c:0xffd23a},
  {id:'bear',n:'Nounours',lv:4,c:0xc98a55},{id:'orb',n:'Orbe',lv:5,c:0x6ee7ff},{id:'skull',n:'Crâne',lv:6,c:0xe8e8e8},{id:'bolt',n:'Éclair',lv:8,c:0xfff04a}
@@ -28,9 +22,7 @@ const KNIVES=[{id:'classic',n:'Tactique',lv:1},{id:'karambit',n:'Karambit',lv:3}
 cfg.att=cfg.att||{};cfg.charm=cfg.charm||'';cfg.spray=cfg.spray||'smile';cfg.trail=cfg.trail||'';cfg.title=cfg.title||'';cfg.knife=cfg.knife||'classic';cfg.counter=cfg.counter===undefined?1:cfg.counter;
 PROF.wk=PROF.wk||{};
 const myLv=()=>levelInfo().level;
-const attOf=(e,k)=>e&&e.isPlayer&&cfg.att[k]?cfg.att[k]:{};
-const hasAtt=(e,k,a)=>!!(attOf(e,k)[a]&&myLv()>=ATT[a].lv);
-const magMax=(e,k)=>Math.ceil(W[k].mag*(hasAtt(e,k,'ext')?1.3:1)*(papOf(e,k)?1.5:1));
+const magMax=(e,k)=>Math.ceil(W[k].mag*attMods(e,k).mag*(papOf(e,k)?1.5:1));
 
 /* ---------- modèles : accessoires, charms, compteur ---------- */
 const attMat={blk:new THREE.MeshStandardMaterial({color:0x1b1e24,roughness:.45,metalness:.8}),glass:new THREE.MeshStandardMaterial({color:0xff2a2a,emissive:0xff2a2a,emissiveIntensity:.9,roughness:.2}),dark:new THREE.MeshStandardMaterial({color:0x2c3138,roughness:.5,metalness:.7})};
@@ -79,11 +71,7 @@ function redDot(u){
 }
 function decorateVM(g,k){
  const u=g.userData,w=W[k];if(w.melee)return;
- const a=attOf(P,k),lv=myLv(),dec=[];
- if(a.sil&&lv>=ATT.sil.lv){const s=cz(.03,.03,.2,attMat.blk,0,.014,u.muzzle-.08,14);g.add(s);u.muzzle-=.18;}
- if(a.opt&&lv>=ATT.opt.lv&&w.cat!=='sniper')g.add(redDot(u));
- if(a.grip&&lv>=ATT.grip.lv){g.add(rb(.022,.07,.022,attMat.dark,0,-.07,(u.left?u.left.z:-.3)+.02,.006));}
- if(a.ext&&lv>=ATT.ext.lv&&u.mag)u.mag.scale.y*=1.22;
+ attBuild(g,k,attSel(P,k));
  if(cfg.charm&&cfg.charm!==''){const ch=charmMesh(cfg.charm);if(ch){ch.position.set(.032,-.07,.05);g.add(ch);g.userData.charm=ch;}}
  if(cfg.counter&&(w.cat!=='pistol'||true)){const c=counterMesh(k);c.position.set(.031,.045,-.12);g.add(c);g.userData.counter=c;counterDraw(c);}
 }
@@ -178,12 +166,7 @@ function drawExtrasTab(){
    c.onclick=()=>{if(!ok){sfxUI();uiToast('Débloqué au niveau '+it.lv);return;}sfxUI();set(it);saveCfg();drawExtrasTab();};box.appendChild(c);});
   el.appendChild(d);
  };
- // accessoires : par arme principale / secondaire choisie
- const wk=[cfg.loadout.p,cfg.loadout.s].filter(Boolean);
- wk.forEach(k=>{
-  const items=Object.keys(ATT).map(a=>Object.assign({id:a},ATT[a]));
-  sec('Accessoires — '+W[k].n,items,it=>(cfg.att[k]||{})[it.id],it=>{cfg.att[k]=cfg.att[k]||{};cfg.att[k][it.id]=!cfg.att[k][it.id];},it=>it.ic+' '+it.n+'<small>'+it.d+'</small>');
- });
+ {const d=document.createElement('div');d.className='stl grp';d.innerHTML='<h4>Accessoires d\'armes</h4><small>Silencieux, viseurs, poignées, chargeurs… se règlent dans <b>Arsenal › Armes &amp; skins</b>, panneau <b>Armurier</b> sous l\'arme, avec aperçu 3D en direct.</small>';el.appendChild(d);}
  sec('Charm d\'arme',CHARMS,it=>cfg.charm===it.id,it=>cfg.charm=it.id,it=>it.n);
  sec('Compteur d\'éliminations',[{id:1,n:'Affiché',lv:1},{id:0,n:'Masqué',lv:1}],it=>cfg.counter===it.id,it=>cfg.counter=it.id,it=>it.n);
  sec('Couteau',KNIVES,it=>cfg.knife===it.id,it=>cfg.knife=it.id,it=>it.n);

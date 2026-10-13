@@ -9,7 +9,7 @@ const CALIBRE={glock:'9×19 mm',usp:'.45 ACP',p250:'9×19 mm',fiveseven:'5,7×28
 function pvSet(k){
  pvKey=k;pvInit();if(!pvR)return;
  if(pvPivot)pvS.remove(pvPivot);
- const g=gunParts(k,skinOf(k)),box=new THREE.Box3().setFromObject(g),c=box.getCenter(new THREE.Vector3()),sz=box.getSize(new THREE.Vector3());
+ const g=gunParts(k,skinOf(k));attBuild(g,k,gsSel(k),{preview:1});const box=new THREE.Box3().setFromObject(g),c=box.getCenter(new THREE.Vector3()),sz=box.getSize(new THREE.Vector3());
  g.position.set(-c.x,-c.y,-c.z);pvPivot=new THREE.Group();pvPivot.add(g);pvPivot.scale.setScalar(1.9/Math.max(sz.x,sz.z,.3));pvPivot.rotation.y=Math.PI*.55;pvS.add(pvPivot);
  BP.size=sz;BP.gun=g;BP.parts=[];
  for(const ch of g.children){const b=new THREE.Box3().setFromObject(ch);if(b.isEmpty())continue;const cc=b.getCenter(new THREE.Vector3());BP.parts.push({o:ch,base:ch.position.clone(),c:cc.sub(c)});}

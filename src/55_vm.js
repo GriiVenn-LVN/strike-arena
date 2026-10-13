@@ -69,7 +69,7 @@ function vmUpdate(dt,t){
  let sightY=(u.sight||.06)*(u.vs||1);
  // position de base : hanche -> visée
  // en visée, la crosse reste à au moins 14 cm devant l'œil (sinon elle remplit l'écran)
- const adsZ=Math.min(-.46,-.38-(u.backZ||0));
+ const adsZ=Math.min(-.46,-.38-(u.backZ||0))+(u.optic?.08:0);   // optique : arme un peu plus près de l'oeil
  let px=lerp(.16,0,ads),py=lerp(u.glb?-.15:-.165,-sightY,ads),pz=lerp(-.44,adsZ,ads);
  // position de hanche : canon légèrement tourné vers le centre, arme un peu inclinée
  let rx=.02*(1-ads),ry=.06*(1-ads),rz=-.05*(1-ads);
@@ -86,6 +86,11 @@ function vmUpdate(dt,t){
  if(VM.swingT>0){const a=1-VM.swingT/.38,s=Math.sin(a*Math.PI);rz+=s*1.1;ry+=s*.7;px-=s*.18;rx-=s*.5;pz-=s*.06;}
  // inspection
  if(VM.inspectT>0){const a=1-VM.inspectT/2.6,s=smooth01(a<.15?a/.15:a>.85?(1-a)/.15:1);ry+=s*(1.15+Math.sin(a*8)*.15);rz+=s*(.4+Math.sin(a*6)*.2);rx+=s*.25;px-=s*.04;py+=s*.03;pz-=s*.05;}
+ // sprint (arme en travers), sprint tactique (arme levée), glissade (inclinée), escalade (arme baissée)
+ {const mw=p.mv?p.mv.w:null;if(mw){const s=mw.spr*(1-ads),T=mw.tac*(1-ads),L=mw.sld,Mn=mw.mnt,sb=Math.sin(VM.bph*.9);
+  px+=-s*.045+s*sb*.014;py+=-s*.05+s*Math.abs(sb)*.012;rx-=s*.3;ry+=s*.62;rz+=s*.38;
+  px+=T*(.1+sb*.01);py+=T*(-.015+Math.abs(sb)*.015);rx+=T*.8;rz-=T*.6;ry-=T*.12;
+  rz+=L*.32;py-=L*.03;px-=L*.02;py-=Mn*.22;rx-=Mn*.7;}}
  // rechargement
  let rl=-1;
  if(p.reload>0&&p.reloadMax>0){rl=1-p.reload/p.reloadMax;const a=Math.sin(rl*Math.PI);rx+=a*.45;rz+=a*.4;py-=a*.05;px-=a*.02;leftOff=a;}
@@ -103,7 +108,7 @@ function vmUpdate(dt,t){
  if(u.slide)u.slide.position.z=kk*.03;
  if(u.bolt){const bt=VM.boltT>0?Math.sin((1-VM.boltT/.8)*Math.PI):0;u.bolt.position.z=bt*.06;u.bolt.rotation.z=bt*.8;}
  if(u.pump){const pt=VM.pumpT>0?Math.sin((1-VM.pumpT/.6)*Math.PI):0;u.pump.position.z=pt*.09;}
- VM.flashSprite.visible=VM.flashT>0;VM.flashMesh.visible=VM.flashT>0;
+ VM.flashSprite.visible=VM.flashT>0&&!u.noFlash;VM.flashMesh.visible=VM.flashT>0&&!u.noFlash;
  if(VM.flashT>0){VM.flashSprite.material.rotation=Math.random()*6;VM.flashMesh.rotation.z=Math.random()*6;const s=.8+Math.random()*.5;VM.flashMesh.scale.set(s,s,s);}
  // mains
  g.updateMatrix();

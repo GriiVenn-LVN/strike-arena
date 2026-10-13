@@ -94,6 +94,7 @@ function sfx(type,x,z,vol,extra){
   case 'shell':tn(4200+Math.random()*900,.05,'sine',.07*vol,pan,2600,wet);break;
   case 'step':{const s=SURF[extra||'sand'];nz(.07,s[0],s[1],s[2]*vol,pan,wet*.5,1.5);if(extra==='metal')tn(300,.08,'square',.05*vol,pan,150);break;}
   case 'jump':nz(.06,700,'lowpass',.3*vol,pan,wet*.4);break;
+  case 'slide':nz(.55,1100,'bandpass',.32*vol,pan,wet*.3,.6,0,.03);nz(.4,300,'lowpass',.25*vol,pan,wet*.3);break;
   case 'land':nz(.1,400,'lowpass',.5*vol,pan,wet*.5);tn(80,.1,'sine',.3*vol,pan,40);break;
   case 'beep':tn(1100,.09,'square',.3*vol,pan,null,wet);break;
   case 'plant':tn(700,.12,'square',.3*vol,pan,null,wet);tn(1000,.15,'square',.3*vol,pan,null,wet,.13);break;

@@ -37,9 +37,9 @@ function subtitle(type,x,z){
 function wsensMul(){const wi=P&&P.alive?curWi(P):null;return wi&&cfg.wsens[wi.k]?cfg.wsens[wi.k]:1;}
 /* ---------- profils de touches ---------- */
 const KPRESETS={
- 'Valorant':{forward:'KeyW',back:'KeyS',left:'KeyA',right:'KeyD',crouch:'ControlLeft',walk:'ShiftLeft',jump:'Space',reload:'KeyR',use:'KeyE',buy:'KeyB',frag:'KeyG',flash:'KeyF',smoke:'KeyH',mine:'KeyC',last:'KeyV',spray:'KeyJ'},
- 'CS':{forward:'KeyW',back:'KeyS',left:'KeyA',right:'KeyD',crouch:'ControlLeft',walk:'ShiftLeft',jump:'Space',reload:'KeyR',use:'KeyE',buy:'KeyB',frag:'Digit4',flash:'Digit5',smoke:'Digit6',mine:'KeyX',last:'KeyQ',spray:'KeyT'},
- 'Gaucher (flèches)':{forward:'ArrowUp',back:'ArrowDown',left:'ArrowLeft',right:'ArrowRight',crouch:'ControlRight',walk:'ShiftRight',jump:'Space',reload:'KeyR',use:'KeyE',buy:'KeyB',frag:'KeyG',flash:'KeyF',smoke:'KeyH',mine:'KeyX',last:'KeyQ',spray:'KeyJ'},
+ 'Valorant':{forward:'KeyW',back:'KeyS',left:'KeyA',right:'KeyD',crouch:'ControlLeft',sprint:'ShiftLeft',walk:'AltLeft',jump:'Space',reload:'KeyR',use:'KeyE',buy:'KeyB',frag:'KeyG',flash:'KeyF',smoke:'KeyH',mine:'KeyC',last:'KeyV',spray:'KeyJ'},
+ 'CS':{forward:'KeyW',back:'KeyS',left:'KeyA',right:'KeyD',crouch:'ControlLeft',sprint:'ShiftLeft',walk:'AltLeft',jump:'Space',reload:'KeyR',use:'KeyE',buy:'KeyB',frag:'Digit4',flash:'Digit5',smoke:'Digit6',mine:'KeyX',last:'KeyQ',spray:'KeyT'},
+ 'Gaucher (flèches)':{forward:'ArrowUp',back:'ArrowDown',left:'ArrowLeft',right:'ArrowRight',crouch:'ControlRight',sprint:'ShiftRight',walk:'AltRight',jump:'Space',reload:'KeyR',use:'KeyE',buy:'KeyB',frag:'KeyG',flash:'KeyF',smoke:'KeyH',mine:'KeyX',last:'KeyQ',spray:'KeyJ'},
  'Azerty':{forward:'KeyW',back:'KeyS',left:'KeyA',right:'KeyD'}
 };
 function loadBinds(b){cfg.binds=Object.assign({},DEFBINDS,b);saveCfg();if(typeof buildBinds==='function')buildBinds();}

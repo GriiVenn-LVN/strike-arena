@@ -105,6 +105,7 @@ function refreshArms(){
  $('pvName').textContent=w.n.toUpperCase();
  const bar=(l,v,mx,txt)=>'<div class="stat1"><em>'+l+'</em><b>'+txt+'</b><div class="bar"><i style="width:'+clamp(v/mx*100,3,100)+'%"></i></div></div>';
  $('pvStats').innerHTML=w.melee?bar('DÉGÂTS',w.dmg,120,w.dmg):bar('DÉGÂTS',w.dmg*(w.pel||1),150,Math.round(w.dmg*(w.pel||1))+(w.pel?'×'+w.pel:''))+bar('CADENCE',w.rpm,1000,w.rpm)+bar('CHARGEUR',w.mag,150,w.mag)+bar('PRÉCISION',100-w.spr*14,100,Math.round(100-w.spr*14)+'%')+bar('PRIX',w.price,5200,'$'+w.price);
+ gsUi();gsDraw();gsStats();
  const eq=$('eqBtn'),slotKey=w.slot===0?'p':w.slot===1?'s':null;
  eq.style.display=slotKey?'':'none';
  if(slotKey){const cur=cfg.loadout[slotKey]===k;eq.textContent=cur?'✔ Équipée au départ':'Équiper au départ';eq.classList.toggle('on',cur);}
