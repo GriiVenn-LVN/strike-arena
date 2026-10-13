@@ -29,6 +29,7 @@ function resize(){
  sun.castShadow=cfg.gfx>=1;
  const ms=cfg.gfx>=2?4096:2048;
  if(sun.shadow.mapSize.x!==ms){sun.shadow.mapSize.set(ms,ms);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}}
+ if(typeof postSize==='function')postSize();
 }
 // ombres : en jeu, la zone d'ombre (80 m) suit la caméra -> ombres ~3x plus nettes ; au menu, toute la carte
 const SUNOFF=V3(55,80,34);let shFollow=null;
@@ -668,3 +669,52 @@ DECOR.station=function(th){
  const au=canvasTex(256,64,(c,w,h)=>{const g=c.createLinearGradient(0,0,w,0);g.addColorStop(0,'rgba(80,255,170,0)');g.addColorStop(.3,'rgba(80,255,170,.8)');g.addColorStop(.6,'rgba(90,200,255,.7)');g.addColorStop(1,'rgba(160,90,255,0)');c.fillStyle=g;c.fillRect(0,0,w,h);const v=c.createLinearGradient(0,0,0,h);v.addColorStop(0,'rgba(0,0,0,1)');v.addColorStop(.5,'rgba(0,0,0,0)');v.addColorStop(1,'rgba(0,0,0,1)');c.globalCompositeOperation='destination-out';c.fillStyle=v;c.fillRect(0,0,w,h);});
  for(let i=0;i<3;i++){const s=new THREE.Sprite(new THREE.SpriteMaterial({map:au,fog:false,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,opacity:.28,toneMapped:false}));const a=rand(0,TAU);s.scale.set(190,34,1);s.position.set(Math.cos(a)*150,rand(70,110),Math.sin(a)*150);skyG.add(s);worldAnim.push(t=>{s.material.opacity=.2+.12*Math.sin(t*.4+i*2);});}
 };
+
+/* ---------------- post-traitement (qualité Haute) ----------------
+   La scène est rendue dans une texture puis composée : halo lumineux
+   (bloom) autour du soleil, des lampes et des flammes, contraste et
+   saturation légèrement relevés, vignettage discret. */
+const POST={rt:null,bA:null,bB:null,q:null,cam:new THREE.OrthographicCamera(-1,1,1,-1,0,1),mBright:null,mBlur:null,mComp:null};
+function postInit(){
+ if(POST.q)return;
+ const vs='varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}';
+ POST.mBright=new THREE.ShaderMaterial({uniforms:{t:{value:null}},vertexShader:vs,depthTest:false,depthWrite:false,
+  fragmentShader:'uniform sampler2D t;varying vec2 vUv;void main(){vec3 c=texture2D(t,vUv).rgb;float l=dot(c,vec3(.2126,.7152,.0722));gl_FragColor=vec4(c*smoothstep(.86,1.,l),1.);}'});
+ POST.mBlur=new THREE.ShaderMaterial({uniforms:{t:{value:null},d:{value:new THREE.Vector2()}},vertexShader:vs,depthTest:false,depthWrite:false,
+  fragmentShader:'uniform sampler2D t;uniform vec2 d;varying vec2 vUv;void main(){vec3 c=texture2D(t,vUv).rgb*.227;c+=(texture2D(t,vUv+d*1.385).rgb+texture2D(t,vUv-d*1.385).rgb)*.316;c+=(texture2D(t,vUv+d*3.231).rgb+texture2D(t,vUv-d*3.231).rgb)*.07;gl_FragColor=vec4(c,1.);}'});
+ POST.mComp=new THREE.ShaderMaterial({uniforms:{t:{value:null},b:{value:null},bs:{value:.55},sat:{value:1.1},con:{value:1.06},vig:{value:.28}},vertexShader:vs,depthTest:false,depthWrite:false,
+  fragmentShader:'uniform sampler2D t,b;uniform float bs,sat,con,vig;varying vec2 vUv;void main(){vec3 c=texture2D(t,vUv).rgb;c+=texture2D(b,vUv).rgb*bs;'+
+  'float l=dot(c,vec3(.2126,.7152,.0722));c=mix(vec3(l),c,sat);c=(c-.5)*con+.5;'+
+  'vec2 q=vUv-.5;c*=1.-vig*smoothstep(.25,.85,dot(q,q)*2.2);gl_FragColor=vec4(clamp(c,0.,1.),1.);}'});
+ POST.q=new THREE.Mesh(new THREE.PlaneGeometry(2,2),POST.mComp);POST.q.frustumCulled=false;
+ POST.scene=new THREE.Scene();POST.scene.add(POST.q);
+}
+function postSize(){
+ const on=cfg.gfx>=2&&cfg.post!==0;POST.on=on;
+ if(!on){for(const k of ['rt','bA','bB'])if(POST[k]){POST[k].dispose();POST[k]=null;}return;}
+ postInit();
+ const v=renderer.getDrawingBufferSize(new THREE.Vector2()),w=v.x,h=v.y;
+ if(POST.rt&&POST.rt.width===w&&POST.rt.height===h)return;
+ for(const k of ['rt','bA','bB'])if(POST[k])POST[k].dispose();
+ const RT=renderer.capabilities.isWebGL2&&THREE.WebGLMultisampleRenderTarget?THREE.WebGLMultisampleRenderTarget:THREE.WebGLRenderTarget;
+ POST.rt=new RT(w,h,{format:THREE.RGBAFormat,encoding:THREE.sRGBEncoding});if(POST.rt.samples!==undefined)POST.rt.samples=4;
+ POST.rt.texture.encoding=THREE.sRGBEncoding;
+ const bw=Math.max(1,w>>2),bh=Math.max(1,h>>2);
+ POST.bA=new THREE.WebGLRenderTarget(bw,bh,{format:THREE.RGBAFormat});POST.bB=new THREE.WebGLRenderTarget(bw,bh,{format:THREE.RGBAFormat});
+}
+function postPass(m,src,dst){POST.q.material=m;if(m.uniforms.t)m.uniforms.t.value=src;renderer.setRenderTarget(dst);renderer.render(POST.scene,POST.cam);}
+// commence le rendu de l'image (dans la texture si le post-traitement est actif)
+function postBegin(){if(POST.on&&POST.rt){renderer.setRenderTarget(POST.rt);}renderer.clear();}
+function postEnd(){
+ if(!POST.on||!POST.rt)return;
+ const ae=renderer.autoClear;renderer.autoClear=true;
+ postPass(POST.mBright,POST.rt.texture,POST.bA);
+ POST.mBlur.uniforms.d.value.set(1/POST.bA.width,0);postPass(POST.mBlur,POST.bA.texture,POST.bB);
+ POST.mBlur.uniforms.d.value.set(0,1/POST.bA.height);postPass(POST.mBlur,POST.bB.texture,POST.bA);
+ POST.mBlur.uniforms.d.value.set(2/POST.bA.width,0);postPass(POST.mBlur,POST.bA.texture,POST.bB);
+ POST.mBlur.uniforms.d.value.set(0,2/POST.bA.height);postPass(POST.mBlur,POST.bB.texture,POST.bA);
+ POST.mComp.uniforms.b.value=POST.bA.texture;
+ const night=MAP&&(MAP.theme==='night'||MAP.theme==='haunt');POST.mComp.uniforms.bs.value=night?.75:.32;POST.mComp.uniforms.vig.value=night?.38:.26;
+ postPass(POST.mComp,POST.rt.texture,null);
+ renderer.autoClear=ae;
+}

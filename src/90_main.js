@@ -36,6 +36,7 @@ function update(dt){
  if(NET.role==='host')netHostTick(dt);
 }
 const menuCam={a:0};
+const CAMS={y:null,l:0,lv:0,ground:true,airVy:0};
 function placeCamera(dt,t){
  if(G.state==='cine'&&CINE.on)return;
  if(!G.running&&G.state!=='over'||!P){
@@ -52,8 +53,19 @@ function placeCamera(dt,t){
  let roll=0;
  if(G.shake>0){const s=G.shake*cfg.shakeS;yaw+=rand(-1,1)*s*.025;pit+=rand(-1,1)*s*.025;roll+=rand(-1,1)*s*.02;}
  if(src.isPlayer){roll+=-clamp((P.vx*Math.cos(P.yaw)-P.vz*Math.sin(P.yaw))/RUN,-1,1)*.012*P.speed/5;if(P.mv)roll+=P.mv.w.sld*.055;}
- const bobY=src.isPlayer&&P.onGround&&cfg.bob?Math.sin(bobT*2)*.014*clamp(P.speed/5,0,1):0;
- camera.position.set(src.x,src.y+eye+bobY-G.fall*.1,src.z);
+ // hauteur de caméra lissée : plus de saut sec à chaque marche d'escalier ; petit amorti à l'atterrissage
+ let cy=src.y,bobY=0,bobX=0;
+ if(src.isPlayer){
+  if(CAMS.y===null||!P.onGround||Math.abs(cy-CAMS.y)>1.2)CAMS.y=cy;else CAMS.y+=(cy-CAMS.y)*(1-Math.exp(-dt*18));
+  cy=CAMS.y;
+  if(!P.onGround)CAMS.airVy=P.vy;
+  if(P.onGround&&!CAMS.ground&&CAMS.airVy<-2.5)CAMS.lv-=Math.min(1.6,-CAMS.airVy*.16);
+  CAMS.ground=P.onGround;CAMS.airVy=P.onGround?0:CAMS.airVy;
+  const sd=Math.min(dt,.033);CAMS.lv+=(-CAMS.l*190-CAMS.lv*20)*sd;CAMS.l+=CAMS.lv*sd;
+  if(P.onGround&&cfg.bob){const a=clamp(P.speed/5,0,1.3);bobY=Math.sin(bobT*2)*.016*a;bobX=Math.sin(bobT)*.011*a;roll+=Math.sin(bobT)*.0035*a;}
+  pit+=CAMS.l*.35;
+ }else CAMS.y=null;
+ camera.position.set(src.x+Math.cos(yaw)*bobX,cy+eye+bobY+CAMS.l-G.fall*.1,src.z-Math.sin(yaw)*bobX);
  camera.rotation.set(pit,yaw,roll);
  const w=curW(src);let zoom=1;
  if(src.isPlayer){const az=attMods(P,curWi(P).k).zoom,zf=w.zoom?w.zoom:az||ADS_ZOOM[w.cat]||1.1;zoom=lerp(1,zf,P.ads);}
@@ -66,8 +78,9 @@ function render(dt,t){
  if(skyG)skyG.position.copy(camera.position);
  if(G.running||G.state==='over'){if(P){syncRigs(dt,t);if(P.alive)vmUpdate(dt,t);}}
  updateFX(dt,t);
- renderer.clear();renderer.render(scene,camera);
+ postBegin();renderer.render(scene,camera);
  if(G.running&&P&&P.alive&&VM.root.visible&&G.state!=='cine'&&!P.emote){renderer.clearDepth();renderer.render(vmScene,vmCam);}
+ postEnd();
  if(G.running&&P){updateHUD(dt,t);radarT2-=dt;if(radarT2<=0){radarT2=.05;drawRadar();}}
 }
 let radarT2=0;
