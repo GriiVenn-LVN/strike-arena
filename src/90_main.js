@@ -62,7 +62,7 @@ function placeCamera(dt,t){
 function render(dt,t){
  for(const f of worldAnim)f(t);
  if(RP.on&&RP.wait<=0&&G.running&&!G.paused){rpRender(dt,t);return;}
- placeCamera(dt,t);
+ placeCamera(dt,t);shadowFollow(camera.position.x,camera.position.z,G.running&&!!P);
  if(skyG)skyG.position.copy(camera.position);
  if(G.running||G.state==='over'){if(P){syncRigs(dt,t);if(P.alive)vmUpdate(dt,t);}}
  updateFX(dt,t);

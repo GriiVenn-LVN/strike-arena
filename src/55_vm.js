@@ -12,9 +12,10 @@ vmCam.add(VM.root);
   const M=lookMats(lk);
   if(VM.parts)for(const o of VM.parts)VM.root.remove(o);
   VM.fR=new THREE.Mesh(SG.farm,M.shirt);VM.fL=new THREE.Mesh(SG.farm,M.shirt);
+  VM.uR=new THREE.Mesh(SG.uarm,M.shirt);VM.uL=new THREE.Mesh(SG.uarm,M.shirt);
   VM.cR=rb(.06,.06,.06,M.vest,0,0,0,.015);VM.cL=rb(.06,.06,.06,M.vest,0,0,0,.015);
   VM.hR=makeHandMesh(M.glove,true);VM.hL=makeHandMesh(M.glove,true);VM.hL.scale.x=-1;
-  VM.parts=[VM.fR,VM.fL,VM.hR,VM.hL];
+  VM.parts=[VM.fR,VM.fL,VM.uR,VM.uL,VM.cR,VM.cL,VM.hR,VM.hL];
   for(const o of VM.parts){o.traverse(c=>{if(c.isMesh){c.castShadow=false;}});VM.root.add(o);}
  };
  VM.setLook(look);
@@ -123,14 +124,22 @@ function vmUpdate(dt,t){
  VM.hR.position.copy(_vr);VM.hR.quaternion.copy(g.quaternion);
  VM.hL.visible=u.twoHand;VM.hL.position.copy(_vl);_vq.copy(g.quaternion);VM.hL.quaternion.copy(_vq);
  // avant-bras
- const place=(f,c,hand,sx)=>{
+ // bras en deux segments (épaule -> coude -> main) au lieu d'un seul tube étiré
+ const seg=(m,a,b,len)=>{_vl.subVectors(b,a);const L=_vl.length();_vl.divideScalar(L||1);m.position.copy(a);m.quaternion.setFromUnitVectors(_dn,_vl);m.scale.set(1.15,L/len,1.15);};
+ const place=(f,up,hand,sx)=>{
   _vp.set(sx*(.3-.06*ads),-.5-.14*ads,-.05);
-  const dx=hand.x-_vp.x,dy=hand.y-_vp.y,dz=hand.z-_vp.z,L=Math.hypot(dx,dy,dz);
-  f.position.copy(_vp);_vl.set(dx/L,dy/L,dz/L);f.quaternion.setFromUnitVectors(_dn,_vl);f.scale.set(1.15,L/.27,1.15);
+  const LU=.34,LF=.3,d0=_vp.distanceTo(hand),k=Math.max(1,d0/(LU+LF-.01)),lu=LU*k,lf=LF*k,d=Math.max(d0,1e-4);
+  const dir=V3().subVectors(hand,_vp).divideScalar(d);
+  const a=(lu*lu-lf*lf+d*d)/(2*d),h=Math.sqrt(Math.max(0,lu*lu-a*a));
+  const pole=V3(sx*.8,-1,.2);pole.addScaledVector(dir,-pole.dot(dir)).normalize();
+  const el=_vp.clone().addScaledVector(dir,a).addScaledVector(pole,h);
+  seg(up,_vp,el,.29);seg(f,el,hand,.27);
+  // poignet : bande de manche qui sépare le bras du gant
+  const c=sx>0?VM.cR:VM.cL;c.position.lerpVectors(el,hand,.9);c.quaternion.copy(f.quaternion);c.scale.set(1.45,.9,1.45);c.visible=true;
  };
- const hrp=VM.hR.position.clone();place(VM.fR,VM.cR,hrp,1);
- if(u.twoHand){const hlp=VM.hL.position.clone();place(VM.fL,VM.cL,hlp,-1);VM.fL.visible=true;}else VM.fL.visible=false;
- VM.cR.visible=VM.cL.visible=false;
+ const hrp=VM.hR.position.clone();place(VM.fR,VM.uR,hrp,1);
+ if(u.twoHand){const hlp=VM.hL.position.clone();place(VM.fL,VM.uL,hlp,-1);VM.fL.visible=VM.uL.visible=true;}else VM.fL.visible=VM.uL.visible=false;
+ if(!u.twoHand)VM.cL.visible=false;
  // masquer en lunette
  VM.root.visible=!(p.scoped)&&p.alive;
 }
