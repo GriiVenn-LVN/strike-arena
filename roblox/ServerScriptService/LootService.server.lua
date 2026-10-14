@@ -73,7 +73,7 @@ local function openBox(player: Player, boxType: string)
 	local result: any = { ok = true, rarity = rarity, duplicate = false, coins = 0 }
 	if rarity == 1 then
 		result.item = { kind = "coins" }
-		result.coins = math.random(80, 180)
+		result.coins = math.random(40, 90)
 		profile.coins += result.coins
 	else
 		local candidates = {}

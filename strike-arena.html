@@ -359,7 +359,7 @@ input[type=text]{background:#111827;border:1px solid var(--line);color:#fff;padd
      <div class="skl"><label>SKIN</label><div class="sw" id="skins"></div><button class="chip" id="eqBtn">Équiper au départ</button><small id="eqInfo"></small></div>
    </div></div>
    <div class="tp" id="tab-locker"><div class="custgrid"><div><h3 style="font-size:.62rem;letter-spacing:3px;color:var(--dim);margin-bottom:10px">DANSES &amp; EMOTES — touche T en jeu</h3><div class="dgrid" id="danceList"></div></div><div><canvas id="lkCv" width="520" height="560"></canvas><div style="text-align:center;margin-top:10px"><button class="chip" id="danceEq">Équiper cette danse</button></div></div></div></div>
-   <div class="tp" id="tab-boxes"><div class="boxgrid"><div class="boxcard" id="boxStd" style="--c:#4aa3ff"><div class="crate"></div><h3>CAISSE STANDARD</h3><div class="own" id="ownStd"></div><div class="odds" id="oddsStd"></div><button class="btn cut" id="openStd">OUVRIR</button></div><div class="boxcard" id="boxPrem" style="--c:#ffb938"><div class="crate"></div><h3>CAISSE PREMIUM</h3><div class="own" id="ownPrem"></div><div class="odds" id="oddsPrem"></div><button class="btn cut" id="openPrem">OUVRIR</button></div><div><div class="card2"><h4>COMMENT ÇA MARCHE</h4><div style="font-size:.74rem;color:#b8c5da;line-height:1.6">Gagne des <b>pièces</b> et de l'<b>XP</b> en jouant, termine les défis du jour et récupère ta récompense quotidienne. Les caisses contiennent des <b>skins d'armes</b> et des <b>danses</b>. Les doublons sont convertis en pièces. Probabilités affichées ; une rareté Épique est garantie toutes les 10 ouvertures et une Légendaire toutes les 40.</div></div><div class="card2"><h4>PITIÉ</h4><div id="pityTxt" style="font-size:.74rem;color:#b8c5da"></div></div><div class="card2"><h4>COLLECTION</h4><div id="collTxt" style="font-size:.74rem;color:#b8c5da"></div></div></div></div></div>
+   <div class="tp" id="tab-boxes"><div class="boxgrid"><div class="boxcard" id="boxStd" style="--c:#4aa3ff"><div class="crate"></div><h3>CAISSE STANDARD</h3><div class="own" id="ownStd"></div><div class="odds" id="oddsStd"></div><button class="btn cut" id="openStd">OUVRIR</button></div><div class="boxcard" id="boxPrem" style="--c:#ffb938"><div class="crate"></div><h3>CAISSE PREMIUM</h3><div class="own" id="ownPrem"></div><div class="odds" id="oddsPrem"></div><button class="btn cut" id="openPrem">OUVRIR</button></div><div><div class="card2"><h4>COMMENT ÇA MARCHE</h4><div style="font-size:.74rem;color:#b8c5da;line-height:1.6">Gagne des <b>pièces</b> et de l'<b>XP</b> en jouant, termine les défis du jour et récupère ta récompense quotidienne. Les caisses contiennent des <b>skins d'armes</b> et des <b>danses</b>. Les doublons sont convertis en pièces. Probabilités affichées ; une rareté Épique est garantie toutes les 10 ouvertures et une Légendaire toutes les 60. Les camos de base se débloquent en faisant des éliminations avec chaque arme ; les camos animés ✨ sont exclusifs (achat en Robux sur Roblox).</div></div><div class="card2"><h4>PITIÉ</h4><div id="pityTxt" style="font-size:.74rem;color:#b8c5da"></div></div><div class="card2"><h4>COLLECTION</h4><div id="collTxt" style="font-size:.74rem;color:#b8c5da"></div></div></div></div></div>
    <div class="tp" id="tab-stats"><div class="stiles" id="stTiles"></div><div class="sgrid"><div class="card2"><h4>PAR MODE</h4><div id="stModes"></div><h4 style="margin-top:14px">PAR CARTE</h4><div id="stMaps"></div></div><div class="card2"><h4>ARMES LES PLUS EFFICACES (éliminations)</h4><div id="stWeap"></div></div></div><div class="card2" style="margin-top:12px"><h4>DERNIÈRES PARTIES</h4><table class="hist" id="stHist"></table><div style="text-align:right;margin-top:8px"><button class="chip" id="stReset">Réinitialiser les stats</button></div></div></div>
    <div class="tp" id="tab-custom">
 <div class="custgrid">
@@ -2295,20 +2295,20 @@ DECOR.asile=function(th){
    (couleur + carte d'émission pour les skins lumineux), projection
    continue sur toute l'arme, aperçus réels
    ===================================================================== */
-const RARITY=[{id:'common',n:'Commun',c:'#9aa6b8'},{id:'rare',n:'Rare',c:'#4aa3ff'},{id:'epic',n:'Épique',c:'#b36bff'},{id:'legend',n:'Légendaire',c:'#ffb938'}];
+const RARITY=[{id:'common',n:'Commun',c:'#9aa6b8'},{id:'rare',n:'Rare',c:'#4aa3ff'},{id:'epic',n:'Épique',c:'#b36bff'},{id:'legend',n:'Légendaire',c:'#ffb938'},{id:'excl',n:'Exclusif',c:'#ff3df0'}];
 const FIN={matte:{m:.5,r:.55},gloss:{m:.65,r:.24},chrome:{m:1,r:.12},anod:{m:.9,r:.3},pearl:{m:.85,r:.16},paint:{m:.3,r:.42}};
-// n : nom ; q : rareté ; tex : peinture ; fin : finition ; a : couleur des pièces secondaires ; glow : carte d'émission (couleur ge)
+// n : nom ; q : rareté (4 = exclusif payant, jamais dans les caisses) ; kreq : éliminations avec l'arme pour débloquer ; tex : peinture ; fin : finition ; a : couleur des pièces secondaires ; glow : carte d'émission (couleur ge)
 const SKINS=[
  {n:'Défaut',def:1,q:0},
- {n:'Noir mat',b:'#202327',a:'#0c0d0f',fin:'matte',q:0},
+ {n:'Noir mat',b:'#202327',a:'#0c0d0f',fin:'matte',q:0,kreq:25},
  {n:'Or royal',tex:'goldleaf',a:'#6a4a10',fin:'chrome',q:3},
  {n:'Rouge sang',tex:'bloodfade',a:'#1a0406',fin:'gloss',q:1},
  {n:'Bleu néon',tex:'neonlines',a:'#050c22',fin:'gloss',glow:1,ge:'#35d6ff',ei:1.1,q:2},
- {n:'Arctique',tex:'frost',a:'#7f93a8',fin:'gloss',q:0},
+ {n:'Arctique',tex:'frost',a:'#7f93a8',fin:'gloss',q:0,kreq:50},
  {n:'Violet nacré',tex:'pearl',a:'#2b1450',fin:'pearl',q:2},
  {n:'Cœurs',tex:'hearts',a:'#b0306a',fin:'paint',q:1},
- {n:'Camo forêt',tex:'camoForest',a:'#1f2810',fin:'paint',q:0},
- {n:'Camo désert',tex:'camoDesert',a:'#5e4726',fin:'paint',q:0},
+ {n:'Camo forêt',tex:'camoForest',a:'#1f2810',fin:'paint',q:0,kreq:100},
+ {n:'Camo désert',tex:'camoDesert',a:'#5e4726',fin:'paint',q:0,kreq:150},
  {n:'Carbone',tex:'hex',a:'#0b0b0d',fin:'gloss',q:1},
  {n:'Vapeur',tex:'brass',a:'#3a1c0c',fin:'anod',q:1},
  {n:'Dragon',tex:'flame',a:'#1a0606',fin:'gloss',q:2},
@@ -2321,7 +2321,7 @@ const SKINS=[
  {n:'Bois précieux',tex:'burl',a:'#2a1608',fin:'gloss',q:1},
  {n:'Coucher de soleil',tex:'sunset',a:'#3a1630',fin:'gloss',q:1},
  {n:'Course',tex:'racing',a:'#160608',fin:'gloss',q:1},
- {n:'Danger',tex:'hazard',a:'#1a1a1a',fin:'paint',q:0},
+ {n:'Danger',tex:'hazard',a:'#1a1a1a',fin:'paint',q:0,kreq:250},
  {n:'Léopard',tex:'leopard',a:'#2a1606',fin:'paint',q:1},
  {n:'Écailles',tex:'scales',a:'#0a2a1a',fin:'anod',q:2},
  {n:'Cristal',tex:'ice',a:'#244a66',fin:'chrome',q:2},
@@ -2331,10 +2331,10 @@ const SKINS=[
  {n:'Sakura',tex:'sakura',a:'#8a3a58',fin:'paint',q:2},
  {n:'Bonbon',tex:'candy',a:'#ff8fb8',fin:'paint',q:1},
  {n:'Océan',tex:'ocean',a:'#06284a',fin:'gloss',q:1},
- {n:'Étoilé',tex:'stars',a:'#0a1233',fin:'paint',q:0},
+ {n:'Étoilé',tex:'stars',a:'#0a1233',fin:'paint',q:0,kreq:350},
  {n:'Hologramme',tex:'holo',a:'#2a2a3a',fin:'chrome',q:3},
- {n:'Digital',tex:'digital',a:'#1c2420',fin:'paint',q:0},
- {n:'Damier',tex:'checker',a:'#161616',fin:'gloss',q:0},
+ {n:'Digital',tex:'digital',a:'#1c2420',fin:'paint',q:0,kreq:500},
+ {n:'Damier',tex:'checker',a:'#161616',fin:'gloss',q:0,kreq:750},
  {n:'Nuages',tex:'clouds',a:'#3a6fb0',fin:'paint',q:1},
  {n:'Filigrane royal',tex:'royal',a:'#07102a',fin:'chrome',q:3},
  {n:'Arcade',tex:'pixel8',a:'#0a0612',fin:'gloss',glow:1,ge:'#ffffff',ei:.7,q:2}
@@ -2468,6 +2468,83 @@ function applyPlanarUV(g,scale){
  });
 }
 /* =====================================================================
+   CAMOS ANIMÉS (rareté « Exclusif », réservés aux joueurs qui paient)
+   Chaque camo a une texture 128 px partagée, redessinée ~30 fois par
+   seconde tant qu'une arme l'utilise. Les motifs bouclent (tuiles sans
+   couture) pour la projection continue sur l'arme.
+   Sur le web il n'y a pas de paiement : ils sont visibles avec un
+   cadenas « exclusif ». Sur Roblox ils s'achètent en Robux
+   (roblox/ReplicatedStorage/Shared/ConfigExtra.lua, X.EXCLUSIVES).
+   ===================================================================== */
+const ANIM_CAMOS=[
+ {id:'plasma',n:'Plasma',a:'#12061f',fin:'gloss',ei:.55,rbx:299},
+ {id:'magma',n:'Magma vivant',a:'#140604',fin:'matte',ei:.9,rbx:349},
+ {id:'code',n:'Code vivant',a:'#021008',fin:'gloss',ei:.8,rbx:249},
+ {id:'nebula',n:'Nébuleuse',a:'#07051a',fin:'gloss',ei:.6,rbx:399},
+ {id:'prism',n:'Prisme',a:'#2a2a3a',fin:'chrome',ei:.35,rbx:449},
+ {id:'storm',n:'Tempête électrique',a:'#05080f',fin:'anod',ei:1,rbx:349}
+];
+for(const c of ANIM_CAMOS)SKINS.push({n:c.n,tex:'anim_'+c.id,anim:c.id,a:c.a,fin:c.fin,glow:1,ge:'#ffffff',ei:c.ei,q:4,rbx:c.rbx});
+
+const ACAMO={live:{},buf:null,last:0};
+// petite grille 64×64 calculée pixel par pixel puis agrandie (lissée) : économique et sans couture
+function acPix(ctx,w,h,fn,t){
+ if(!ACAMO.buf){const b=document.createElement('canvas');b.width=b.height=64;ACAMO.buf={cv:b,ctx:b.getContext('2d'),img:b.getContext('2d').createImageData(64,64)};}
+ const B=ACAMO.buf,d=B.img.data,o=[0,0,0];
+ for(let y=0;y<64;y++)for(let x=0;x<64;x++){fn(x/64,y/64,t,o);const i=(y*64+x)*4;d[i]=o[0];d[i+1]=o[1];d[i+2]=o[2];d[i+3]=255;}
+ B.ctx.putImageData(B.img,0,0);ctx.imageSmoothingEnabled=true;ctx.drawImage(B.cv,0,0,w,h);
+}
+const P2=Math.PI*2;
+function hsl2rgb(h,s,l,o){h=((h%1)+1)%1;const a=s*Math.min(l,1-l),f=n=>{const k=(n+h*12)%12;return 255*(l-a*Math.max(-1,Math.min(k-3,9-k,1)));};o[0]=f(0);o[1]=f(8);o[2]=f(4);return o;}
+const ANIM_DRAW={
+ plasma:(c,w,h,t)=>acPix(c,w,h,(u,v,t,o)=>{
+  const s=Math.sin(P2*u+t)+Math.sin(P2*2*v-t*1.3)+Math.sin(P2*(u+v)+t*.7)+Math.sin(P2*(u-v)*2+t*.4);
+  hsl2rgb(.72+s*.09+t*.03,.95,.32+.18*Math.sin(s*1.7+t),o);},t),
+ magma:(c,w,h,t)=>acPix(c,w,h,(u,v,t,o)=>{
+  const f=Math.abs(Math.sin(P2*2*u+Math.sin(P2*v+t*.6)*1.6+Math.sin(P2*2*v-t*.35)*.8));
+  const g=Math.abs(Math.sin(P2*3*v+Math.sin(P2*2*u-t*.5)*1.2));
+  const crack=Math.max(0,1-Math.min(f,g)*5.5),pulse=.75+.25*Math.sin(t*2.2+u*P2);
+  const k=crack*pulse;o[0]=40+215*k;o[1]=14+170*k*k;o[2]=10+60*k*k*k;},t),
+ nebula:(c,w,h,t)=>{acPix(c,w,h,(u,v,t,o)=>{
+   const s=Math.sin(P2*u+Math.sin(P2*v+t*.25)*2)+Math.sin(P2*2*v+Math.cos(P2*u-t*.2)*1.5);
+   const k=Math.max(0,s*.35+.25);hsl2rgb(.64+s*.1+Math.sin(t*.15)*.06,.85,.05+k*.42,o);},t);
+  const r=mkRng(77);for(let i=0;i<70;i++){const x=r(0,w),y=r(0,h),ph=r(0,P2),sp=r(1.5,4),a=.35+.65*Math.max(0,Math.sin(t*sp+ph));c.fillStyle='rgba(255,255,255,'+a.toFixed(2)+')';const s=r(.6,1.8)*w/128;c.fillRect(x,y,s,s);}},
+ prism:(c,w,h,t)=>acPix(c,w,h,(u,v,t,o)=>{
+  const d=u+v,band=.5+.5*Math.sin(P2*6*d-t*4);
+  hsl2rgb(d*.5+t*.12,.9,.5+band*.22,o);},t),
+ code:(c,w,h,t)=>{
+  c.fillStyle='#021209';c.fillRect(0,0,w,h);const S=w/128,r=mkRng(31),ch='01アイウエオカキクケコ<>$#';
+  c.font='bold '+Math.round(11*S)+'px monospace';c.textAlign='center';c.textBaseline='top';
+  for(let x=4;x<128;x+=8){const sp=r(18,46),len=Math.floor(r(6,14)),y0=(t*sp+r(0,128))%128;
+   for(let k=0;k<len;k++){const y=((y0-k*10)%128+128)%128,a=1-k/len;c.fillStyle=k===0?'#e6fff0':'rgba(60,230,120,'+(a*.9).toFixed(2)+')';
+    const g=ch[(Math.floor(t*6+x*.37+k*1.7)>>>0)%ch.length];c.fillText(g,x*S,y*S);if(y>118)c.fillText(g,x*S,(y-128)*S);}}},
+ storm:(c,w,h,t)=>{
+  const S=w/128;c.fillStyle='#0a0f1a';c.fillRect(0,0,w,h);
+  c.strokeStyle='rgba(60,90,140,.35)';c.lineWidth=S;for(let y=0;y<128;y+=8){c.beginPath();for(let x=0;x<=128;x+=8){const yy=y+((x/8)&1?4:0);x?c.lineTo(x*S,yy*S):c.moveTo(0,yy*S);}c.stroke();}
+  const r=mkRng(1000+Math.floor(t*7));c.lineCap='round';
+  for(let b=0;b<4;b++){let x=r(0,128),y=r(0,128);const pts=[[x,y]];for(let k=0;k<7;k++){x+=r(-18,18);y+=r(6,18);pts.push([x,y]);}
+   for(const [ox,oy] of [[0,0],[-128,0],[128,0],[0,-128],[0,128]]){
+    c.beginPath();pts.forEach((p,i)=>i?c.lineTo((p[0]+ox)*S,(p[1]+oy)*S):c.moveTo((p[0]+ox)*S,(p[1]+oy)*S));
+    c.strokeStyle='rgba(60,170,255,.35)';c.lineWidth=5*S;c.stroke();c.strokeStyle='#c8f2ff';c.lineWidth=1.4*S;c.stroke();}}
+  const fl=.12+.12*Math.max(0,Math.sin(t*9));c.fillStyle='rgba(120,200,255,'+fl.toFixed(2)+')';c.fillRect(0,0,w,h);}
+};
+// aperçu fixe (pastilles du menu, icônes) : première image du motif
+for(const c of ANIM_CAMOS)PAINT['anim_'+c.id]=(ctx,w,h)=>ANIM_DRAW[c.id](ctx,w,h,1.3);
+// texture vivante partagée par toutes les armes qui portent ce camo
+function animCamoTex(id){
+ if(ACAMO.live[id])return ACAMO.live[id].tex;
+ const cv=document.createElement('canvas');cv.width=cv.height=128;const ctx=cv.getContext('2d');ANIM_DRAW[id](ctx,128,128,0);
+ const tex=new THREE.CanvasTexture(cv);tex.encoding=THREE.sRGBEncoding;tex.wrapS=tex.wrapT=THREE.RepeatWrapping;tex.anisotropy=MAXANI;
+ ACAMO.live[id]={tex,ctx};return tex;
+}
+(function acLoop(){
+ const f=now=>{requestAnimationFrame(f);
+  if(document.hidden||now-ACAMO.last<33)return;ACAMO.last=now;const t=now/1000;
+  for(const id in ACAMO.live){const L=ACAMO.live[id];try{ANIM_DRAW[id](L.ctx,128,128,t);L.tex.needsUpdate=true;}catch(e){}}};
+ requestAnimationFrame(f);
+})();
+(function(){const s=document.createElement('style');s.textContent='@keyframes animSw{to{filter:hue-rotate(360deg)}}.animSw{animation:animSw 3s linear infinite}';document.head.appendChild(s);})();
+/* =====================================================================
    MODÈLES : armes détaillées (silhouettes extrudées, matériaux PBR),
    skins, soldats animés (squelette + IK des bras), viewmodel
    ===================================================================== */
@@ -2513,11 +2590,12 @@ function gunMats(sk,w){
  M.glass=new THREE.MeshStandardMaterial({color:C(0x3a6fb0),roughness:.05,metalness:.2,emissive:C(0x1a3a66),emissiveIntensity:.5,transparent:true,opacity:.75});
  M.red=new THREE.MeshBasicMaterial({color:0xff2a2a,toneMapped:false});
  if(sk&&!dflt&&sk.tex){
-  const fin=FIN[sk.fin||'gloss'],tc=skinTex(sk.tex,false).clone();tc.needsUpdate=true;
+  // camo animé : texture vivante partagée (pas de copie, sinon elle ne bougerait plus)
+  const fin=FIN[sk.fin||'gloss'],tc=sk.anim?animCamoTex(sk.anim):skinTex(sk.tex,false).clone();tc.needsUpdate=true;
   const o={map:tc,roughness:fin.r,metalness:fin.m};
-  if(sk.glow){const tg=skinTex(sk.tex,true).clone();tg.needsUpdate=true;o.emissiveMap=tg;o.emissive=C(sk.ge||'#ffffff');o.emissiveIntensity=sk.ei||1;}
+  if(sk.glow){const tg=sk.anim?tc:skinTex(sk.tex,true).clone();tg.needsUpdate=true;o.emissiveMap=tg;o.emissive=C(sk.ge||'#ffffff');o.emissiveIntensity=sk.ei||1;}
   M.body=new THREE.MeshStandardMaterial(o);M.body.userData.skinned=true;
-  {const ta=tc.clone();ta.needsUpdate=true;M.acc=new THREE.MeshStandardMaterial({map:ta,color:C(sk.tint||'#8c8c8c'),roughness:Math.min(1,fin.r+.1),metalness:fin.m});M.acc.userData.skinned=true;}M.wood=M.body;
+  {const ta=sk.anim?tc:tc.clone();ta.needsUpdate=true;M.acc=new THREE.MeshStandardMaterial({map:ta,color:C(sk.tint||'#8c8c8c'),roughness:Math.min(1,fin.r+.1),metalness:fin.m});M.acc.userData.skinned=true;}M.wood=M.body;
  }
  else if(dflt){const base=new THREE.Color(w.col||0x3a3d44);M.body=new THREE.MeshStandardMaterial({color:base.clone().convertSRGBToLinear(),roughness:.38,metalness:.82});M.acc=new THREE.MeshStandardMaterial({color:base.clone().multiplyScalar(.5).convertSRGBToLinear(),roughness:.45,metalness:.8});
   const wt=woodTex().clone();wt.needsUpdate=true;wt.repeat.set(3,3);M.wood=new THREE.MeshStandardMaterial({map:wt,roughness:.55,metalness:0});}
@@ -5298,7 +5376,7 @@ function adaptBots(dt){
 const PKEY="sa2_profile";
 const rcol=q=>RARITY[q].c;
 function newProfile(){
- return {v:2,xp:0,coins:500,lastLogin:'',streak:0,inv:{skins:{},dances:['wave','clap'],outfits:[]},dance:'wave',outfit:0,boxes:{std:2,prem:0},pity:{epic:0,legend:0},opened:0,
+ return {v:2,xp:0,coins:250,lastLogin:'',streak:0,inv:{skins:{},dances:['wave','clap'],outfits:[]},dance:'wave',outfit:0,boxes:{std:1,prem:0},pity:{epic:0,legend:0},opened:0,
   stats:{matches:0,wins:0,kills:0,deaths:0,hs:0,dmg:0,shots:0,hits:0,secs:0,bestStreak:0,plants:0,defuses:0,byMode:{},byMap:{},byWeapon:{}},
   history:[],missions:{date:'',list:[]}};
 }
@@ -5310,9 +5388,11 @@ function loadProfile(){
 let PROF=loadProfile();
 const saveProf=()=>{try{localStorage.setItem(PKEY,JSON.stringify(PROF));}catch(e){}};
 /* ---------- niveaux ---------- */
-const xpNeed=l=>100+l*55;
-function levelInfo(){let l=1,x=PROF.xp;while(x>=xpNeed(l)){x-=xpNeed(l);l++;}return {level:l,cur:x,need:xpNeed(l)};}
-function levelReward(l){if(l%5===0)return {box:'prem',coins:200};if(l%3===0)return {box:'std',coins:100};return {coins:100+l*10};}
+/* économie réaliste : ~4 parties pour le niveau 3, ~28 pour le niveau 10, ~260 pour le niveau 30 */
+const xpNeed=l=>300+l*80+l*l*2;
+let _liC=null;
+function levelInfo(){if(_liC&&_liC.xp===PROF.xp)return Object.assign({},_liC.r);let l=1,x=PROF.xp;while(x>=xpNeed(l)){x-=xpNeed(l);l++;}const r={level:l,cur:x,need:xpNeed(l)};_liC={xp:PROF.xp,r};return Object.assign({},r);}
+function levelReward(l){if(l%25===0)return {box:'prem',coins:250};if(l%10===0)return {box:'std',coins:150};if(l%5===0)return {coins:120};return {coins:30+l*3};}
 function applyReward(r){
  if(r.coins)PROF.coins+=r.coins;
  if(r.box)PROF.boxes[r.box]=(PROF.boxes[r.box]||0)+(r.n||1);
@@ -5325,7 +5405,7 @@ function addXP(n){
 }
 function rewardText(r){const a=[];if(r.coins)a.push('+'+r.coins+' pièces');if(r.box)a.push('1 '+BOXES[r.box].n);if(r.dance)a.push('Danse '+DANCES.find(d=>d.id===r.dance).n);return a.join(' • ');}
 /* ---------- récompense quotidienne ---------- */
-const DAILY=[{coins:200},{box:'std'},{coins:350},{dance:'disco',coins:150},{coins:500},{box:'prem'},{box:'prem',coins:1000}];
+const DAILY=[{coins:40},{coins:60},{coins:80},{dance:'disco',coins:40},{coins:120},{coins:150},{box:'std',coins:200}];
 const todayStr=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
 function dailyStatus(){
  const t=todayStr();
@@ -5337,10 +5417,10 @@ function dailyStatus(){
 function claimDaily(){const st=dailyStatus();if(!st.can)return null;PROF.streak=st.next;PROF.lastLogin=todayStr();const r=DAILY[st.day];applyReward(r);saveProf();return r;}
 /* ---------- missions du jour ---------- */
 const MPOOL=[
- {id:'kills',n:'Élimine {t} adversaires',t:15,coins:150,xp:60},{id:'hs',n:'Fais {t} headshots',t:5,coins:120,xp:50},
- {id:'win',n:'Gagne {t} partie',t:1,coins:200,xp:80},{id:'matches',n:'Joue {t} parties',t:3,coins:180,xp:60},
- {id:'plant',n:'Pose ou désamorce la bombe {t} fois',t:2,coins:150,xp:60},{id:'nade',n:'Élimine {t} adversaires avec une grenade',t:2,coins:200,xp:70},
- {id:'knife',n:'Élimine {t} adversaire au couteau',t:1,coins:250,xp:90},{id:'dmg',n:'Inflige {t} dégâts',t:1500,coins:150,xp:60}
+ {id:'kills',n:'Élimine {t} adversaires',t:15,coins:50,xp:60},{id:'hs',n:'Fais {t} headshots',t:5,coins:40,xp:50},
+ {id:'win',n:'Gagne {t} partie',t:1,coins:65,xp:80},{id:'matches',n:'Joue {t} parties',t:3,coins:60,xp:60},
+ {id:'plant',n:'Pose ou désamorce la bombe {t} fois',t:2,coins:50,xp:60},{id:'nade',n:'Élimine {t} adversaires avec une grenade',t:2,coins:65,xp:70},
+ {id:'knife',n:'Élimine {t} adversaire au couteau',t:1,coins:85,xp:90},{id:'dmg',n:'Inflige {t} dégâts',t:1500,coins:50,xp:60}
 ];
 const missionDef=id=>MPOOL.find(m=>m.id===id);
 function ensureMissions(){
@@ -5354,28 +5434,33 @@ function metaEvent(id,n){
 }
 function claimMission(i){const m=PROF.missions.list[i];if(!m||!m.done||m.claimed)return null;m.claimed=true;const d=missionDef(m.id);applyReward({coins:d.coins});const ups=addXP(d.xp);saveProf();return {d,ups};}
 /* ---------- caisses ---------- */
-const BOXES={std:{n:'Caisse Standard',price:500,w:[62,27,9,2],c:'#4aa3ff'},prem:{n:'Caisse Premium',price:1500,w:[20,45,27,8],c:'#ffb938'}};
-const DUPV=[0,120,350,900];
+const BOXES={std:{n:'Caisse Standard',price:1200,w:[70,24,5,1],c:'#4aa3ff'},prem:{n:'Caisse Premium',price:3500,w:[30,45,20,5],c:'#ffb938'}};
+const DUPV=[0,40,120,350];
 let LOOT=null;
 function lootPool(){
  if(LOOT)return LOOT;const items=[];
- for(const k in W)if(!W[k].wonder)for(let i=1;i<SKINS.length;i++){const q=SKINS[i].q;if(q>0)items.push({t:'skin',w:k,s:i,q});}
+ for(const k in W)if(!W[k].wonder)for(let i=1;i<SKINS.length;i++){const q=SKINS[i].q;if(q>0&&q<4)items.push({t:'skin',w:k,s:i,q});}
  for(const d of DANCES){if(d.q>0)items.push({t:'dance',id:d.id,q:d.q});}
  for(let i=1;i<OUTFITS.length;i++){if(OUTFITS[i].q>0)items.push({t:'outfit',o:i,q:OUTFITS[i].q});}
  return LOOT=items;
 }
-function ownsSkin(k,i){return i===0||SKINS[i].q===0||(PROF.inv.skins[k]||[]).includes(i);}
+function ownsSkin(k,i){const s=SKINS[i];if(!s)return false;if(i===0||(PROF.inv.skins[k]||[]).includes(i))return true;
+ if(s.kreq)return (PROF.wk&&PROF.wk[k]||0)>=s.kreq; // camos de base : défis d'éliminations par arme
+ return s.q===0;}
+// texte affiché quand un skin est verrouillé
+function skinLockTxt(k,i){const s=SKINS[i];if(s.q===4)return 'Camo animé exclusif : réservé aux joueurs qui l\'achètent ('+s.rbx+' R$ sur la version Roblox)';
+ if(s.kreq)return 'Camo verrouillé : '+s.kreq+' éliminations avec cette arme ('+(PROF.wk&&PROF.wk[k]||0)+'/'+s.kreq+')';return 'Skin verrouillé : trouve-le dans les caisses !';}
 function ownsOutfit(i){return i===0||OUTFITS[i].q===0||(PROF.inv.outfits||[]).includes(i);}
 function ownsItem(it){return it.t==='skin'?ownsSkin(it.w,it.s):it.t==='outfit'?ownsOutfit(it.o):PROF.inv.dances.includes(it.id);}
 function itemName(it){return it.t==='skin'?W[it.w].n+' — '+SKINS[it.s].n:it.t==='outfit'?'Tenue « '+OUTFITS[it.o].n+' »':'Danse « '+DANCES.find(d=>d.id===it.id).n+' »';}
 function rollBox(type){
  const b=BOXES[type];let q;
- if(PROF.pity.legend>=39)q=3;
+ if(PROF.pity.legend>=59)q=3;
  else if(PROF.pity.epic>=9){const a=b.w[2],c=b.w[3];q=Math.random()*(a+c)<c?3:2;}
  else{const tot=b.w.reduce((s,x)=>s+x,0);let r=Math.random()*tot;q=0;for(let i=0;i<4;i++){r-=b.w[i];if(r<=0){q=i;break;}}}
  PROF.pity.epic=q>=2?0:PROF.pity.epic+1;PROF.pity.legend=q===3?0:PROF.pity.legend+1;
  let item,dup=false,coins=0;
- if(q===0){item={t:'coins',n:Math.round(rand(80,180)),q:0};coins=item.n;PROF.coins+=coins;}
+ if(q===0){item={t:'coins',n:Math.round(rand(40,90)),q:0};coins=item.n;PROF.coins+=coins;}
  else{
   const pool=lootPool().filter(i=>i.q===q);item=pick(pool);
   if(ownsItem(item)){dup=true;coins=DUPV[q];PROF.coins+=coins;}
@@ -5399,7 +5484,7 @@ function resetMatchStats(){MS.shots=0;MS.hits=0;MS.wkills={};MS.plants=0;MS.defu
 function commitMatch(win){
  const s=PROF.stats,secs=Math.round((performance.now()-MS.start)/1000);
  const xp=Math.round(40+P.kills*10+P.hsKills*5+(win?120:0)+MS.plants*25+MS.defuses*25);
- const coinsGain=Math.round(xp*.45);
+ const coinsGain=Math.round(xp*.15);
  s.matches++;if(win)s.wins++;s.kills+=P.kills;s.deaths+=P.deaths;s.hs+=P.hsKills;s.dmg+=P.dmg;s.shots+=MS.shots;s.hits+=MS.hits;s.secs+=secs;
  s.bestStreak=Math.max(s.bestStreak,P.bestStreak||0);s.plants+=MS.plants;s.defuses+=MS.defuses;
  const m=(s.byMode[G.mode]||(s.byMode[G.mode]={m:0,w:0,k:0,d:0}));m.m++;if(win)m.w++;m.k+=P.kills;m.d+=P.deaths;
@@ -5667,11 +5752,16 @@ function attAllowed(k){
  for(const k in cfg.att){const a=cfg.att[k];if(!a||typeof a!=='object')continue;
   for(const o in conv)if(a[o]===true||a[o]===false){if(a[o])a[conv[o][0]]=conv[o][1];delete a[o];}}
 })();
+/* déblocage réaliste : un accessoire demande un niveau de joueur ET un nombre d'éliminations avec CETTE arme */
+const ATT_REQ={1:[3,15],2:[6,40],3:[9,80],4:[12,130],5:[15,200],6:[18,280],8:[24,450]};
+function attReq(a){const d=ATTS[a];return ATT_REQ[d.lv]||[d.lv*3,d.lv*55];}
+function attOpen(k,a){const r=attReq(a);return myLv()>=r[0]&&(PROF.wk[k]||0)>=r[1];}
+function attLockTxt(k,a){const r=attReq(a),n=PROF.wk[k]||0,o=[];if(myLv()<r[0])o.push('niveau '+r[0]);if(n<r[1])o.push(r[1]+' éliminations avec cette arme ('+n+'/'+r[1]+')');return o.length?'Requis : '+o.join(' + '):'';}
 function attSel(e,k){return e&&e.isPlayer&&cfg.att[k]?cfg.att[k]:{};}
 // liste des accessoires actifs (respecte le niveau et la catégorie)
 function attList(k,sel){
- const ok=attAllowed(k),lv=myLv(),out=[];
- for(const s in sel){const a=sel[s];if(a&&ATTS[a]&&ATTS[a].s===s&&ok[s]&&ok[s].includes(a)&&lv>=ATTS[a].lv)out.push(a);}
+ const ok=attAllowed(k),out=[];
+ for(const s in sel){const a=sel[s];if(a&&ATTS[a]&&ATTS[a].s===s&&ok[s]&&ok[s].includes(a)&&attOpen(k,a))out.push(a);}
  return out;
 }
 const ATT_NEUTRAL={dmg:1,rec:1,recH:1,adsSpr:1,hip:1,mob:1,ads:1,rng:1,rel:1,mag:1,snd:1,zoom:0,sil:0,noFlash:0};
@@ -5896,7 +5986,7 @@ function gsCss(){
 }
 function gsDraw(){
  const k=pvKey,host=$('gsPanel');if(!host)return;
- const ok=attAllowed(k),sel=cfg.att[k]||{},lv=myLv();
+ const ok=attAllowed(k),sel=cfg.att[k]||{};
  if(!Object.keys(ok).length){host.innerHTML='<h4>ARMURIER</h4><small style="color:#8fa3c0">Pas d\'accessoires pour cette arme.</small>';return;}
  if(!ok[gsSlot])gsSlot=Object.keys(ok)[0];
  const n=gsCount(sel);
@@ -5906,8 +5996,8 @@ function gsDraw(){
  h+='</div><div class="gsOpts">';
  const cur=sel[gsSlot];
  h+='<div class="gsOpt'+(!cur?' on':'')+'" data-a=""><b>'+(gsSlot==='optic'?opticNone(k):'Aucun')+'</b><small>'+(gsSlot==='optic'?'Viseur de base de l\'arme':'Retirer l\'accessoire')+'</small></div>';
- for(const a of ok[gsSlot]||[]){const d=ATTS[a],lock=lv<d.lv;
-  h+='<div class="gsOpt'+(cur===a?' on':'')+(lock?' lock':'')+'" data-a="'+a+'"><b>'+d.n+(lock?' 🔒':'')+'</b><small>'+(lock?'Débloqué au niveau '+d.lv+'. ':'')+d.d+'</small></div>';}
+ for(const a of ok[gsSlot]||[]){const d=ATTS[a],lock=!attOpen(k,a);
+  h+='<div class="gsOpt'+(cur===a?' on':'')+(lock?' lock':'')+'" data-a="'+a+'"><b>'+d.n+(lock?' 🔒':'')+'</b><small>'+(lock?attLockTxt(k,a)+'. ':'')+d.d+'</small></div>';}
  h+='</div>';host.innerHTML=h;
  host.querySelectorAll('.gsSlot').forEach(el=>el.onclick=()=>{if(el.classList.contains('off'))return;sfxUI();gsSlot=el.dataset.s;gsDraw();});
  host.querySelectorAll('.gsOpt').forEach(el=>{
@@ -5916,7 +6006,7 @@ function gsDraw(){
   el.onmouseenter=()=>{if(lock)return;gsPrev=trial();pvSet(k);gsStats();};
   el.onmouseleave=()=>{if(!gsPrev)return;gsPrev=null;pvSet(k);gsStats();};
   el.onclick=()=>{
-   if(lock){sfxUI();uiToast('Débloqué au niveau '+ATTS[a].lv);return;}
+   if(lock){sfxUI();uiToast(attLockTxt(k,a));return;}
    const s=trial();
    if(gsCount(s)>ATT_MAX){sfxUI();uiToast('Maximum '+ATT_MAX+' accessoires : retire-en un d\'abord');return;}
    cfg.att[k]=s;saveCfg();gsPrev=null;sfx('reload',undefined,undefined,.35);pvSet(k);gsDraw();gsStats();
@@ -6047,7 +6137,7 @@ function svCurOpt(k){const o=(cfg.att[k]||{}).optic;return o&&(attAllowed(k).opt
 function svZoomTxt(k,o){if(o)return o.startsWith('sc')?'×'+o.slice(2):o==='acog'?'×2,5':'';return W[k].overlay?'×'+Math.round(W[k].zoom*2):'';}
 function drawSightsTab(){
  const host=$('svWeap');if(!host)return;
- const ws=sightWeapons(),lv=myLv();
+ const ws=sightWeapons();
  if(!svKey||!W[svKey]||!attAllowed(svKey).optic)svKey=(W[pvKey]&&attAllowed(pvKey).optic)?pvKey:(ws.rifle||ws.smg||Object.values(ws)[0])[0];
  // armes
  host.innerHTML='';
@@ -6062,11 +6152,11 @@ function drawSightsTab(){
  const k=svKey,cur=svCurOpt(k),list=$('svList');
  let h='<h5>Viseur — '+W[k].n+'</h5>';
  h+='<div class="svo'+(!cur?' on':'')+'" data-a=""><div><b>'+opticNone(k)+'</b><br><small>Viseur de base de l\'arme</small></div><i>'+svZoomTxt(k,null)+'</i></div>';
- for(const a of attAllowed(k).optic){const d=ATTS[a],lock=lv<d.lv;
-  h+='<div class="svo'+(cur===a?' on':'')+(lock?' lock':'')+'" data-a="'+a+'" title="'+d.d.replace(/"/g,'&quot;')+'"><div><b>'+d.n+(lock?' 🔒':'')+'</b><br><small>'+(lock?'Niveau '+d.lv:d.d.split(':')[0].split('.')[0])+'</small></div><i>'+svZoomTxt(k,a)+'</i></div>';}
+ for(const a of attAllowed(k).optic){const d=ATTS[a],lock=!attOpen(k,a);
+  h+='<div class="svo'+(cur===a?' on':'')+(lock?' lock':'')+'" data-a="'+a+'" title="'+d.d.replace(/"/g,'&quot;')+'"><div><b>'+d.n+(lock?' 🔒':'')+'</b><br><small>'+(lock?attLockTxt(k,a).replace('Requis : ',''):d.d.split(':')[0].split('.')[0])+'</small></div><i>'+svZoomTxt(k,a)+'</i></div>';}
  list.innerHTML=h;
  list.querySelectorAll('.svo').forEach(el=>el.onclick=()=>{
-  const a=el.dataset.a;if(el.classList.contains('lock')){sfxUI();uiToast('Débloqué au niveau '+ATTS[a].lv);return;}
+  const a=el.dataset.a;if(el.classList.contains('lock')){sfxUI();uiToast(attLockTxt(k,a));return;}
   if(!svSetOpt(k,a))return;sfx('reload',undefined,undefined,.3);drawSightsTab();
  });
  // réticule
@@ -6134,7 +6224,7 @@ document.querySelectorAll('.mtab[data-t="sights"]').forEach(t=>t.addEventListene
 /* =====================================================================
    PROGRESSION : passe de combat, classement, succès, événement
    ===================================================================== */
-const SEASON={id:'s1',n:'Saison 1 · Néon',tiers:30,xpPer:180,price:1500};
+const SEASON={id:'s1',n:'Saison 1 · Néon',tiers:30,xpPer:900,price:3500};
 function ensureBP(){
  if(!PROF.bp||PROF.bp.id!==SEASON.id)PROF.bp={id:SEASON.id,xp:0,prem:false,cf:[],cp:[]};
  if(!PROF.rank)PROF.rank={rp:0,best:0};
@@ -6152,9 +6242,9 @@ function grantItem(it){
 function seedPick(arr,seed){let s=seed*9301+49297;s=(s*233280+11)%233280;return arr[Math.floor(s/233280*arr.length)];}
 function bpReward(t,prem){
  if(!prem){
-  if(t===SEASON.tiers)return {box:'prem',coins:300};
-  if(t%5===0)return {box:'std',coins:100};
-  return {coins:60+t*8};
+  if(t===SEASON.tiers)return {box:'prem',coins:200};
+  if(t%10===0)return {box:'std',coins:60};
+  return {coins:20+t*2};
  }
  if(t===1)return {box:'prem'};
  if(t%5===0){
@@ -6162,7 +6252,7 @@ function bpReward(t,prem){
   const pool=lootPool().filter(i=>i.q===q&&(t%10===5?i.t!=='outfit':true));
   return {item:seedPick(pool,t*17+q)};
  }
- return {coins:100+t*10};
+ return {coins:40+t*4};
 }
 function bpRewardText(r){
  if(r.item){const it=r.item;return it.t==='skin'?W[it.w].n+' · '+SKINS[it.s].n:it.t==='outfit'?'Tenue '+OUTFITS[it.o].n:'Danse '+DANCES.find(d=>d.id===it.id).n;}
@@ -8752,10 +8842,10 @@ function drawSkins(){
  SKINS.forEach((s,i)=>{
   const own=ownsSkin(pvKey,i),d=document.createElement('div');
   d.style.borderColor=i===(cfg.skins[pvKey]||0)?'':'';d.style.borderLeft='3px solid '+rcol(s.q);
-  d.innerHTML='<i style="background:'+skinSwatch(i)+'"></i>'+s.n+(own?'':' 🔒');
+  d.innerHTML='<i'+(s.anim?' class="animSw"':'')+' style="background:'+skinSwatch(i)+'"></i>'+s.n+(s.anim?' ✨':'')+(own?'':' 🔒');d.title=own?'':skinLockTxt(pvKey,i);
   if(!own)d.style.opacity=.45;
   if(i===(cfg.skins[pvKey]||0)&&own)d.classList.add('on');
-  d.onclick=()=>{if(!own){sfx('deny');menuToast('Skin verrouillé — trouve-le dans les caisses !');return;}sfxUI();cfg.skins[pvKey]=i;saveCfg();iconCache={};pvSet(pvKey);refreshArms();};
+  d.onclick=()=>{if(!own){sfx('deny');menuToast(skinLockTxt(pvKey,i));return;}sfxUI();cfg.skins[pvKey]=i;saveCfg();iconCache={};pvSet(pvKey);refreshArms();};
   sk.appendChild(d);
  });
 }
@@ -8817,7 +8907,7 @@ function showLevelUps(ups){
  next();
 }
 /* ---------- récompense quotidienne ---------- */
-const DAYICON=['🪙','📦','🪙','💃','🪙','🎁','👑'];
+const DAYICON=['🪙','🪙','🪙','💃','🪙','🪙','👑'];
 function dayText(r){return rewardText(r).split(' • ').join('<br>');}
 function showDaily(){
  const st=dailyStatus();
@@ -8855,7 +8945,7 @@ function buildBoxesTab(){
   const btn=$('open'+id);btn.textContent=n>0?'OUVRIR':'ACHETER & OUVRIR (🪙 '+b.price+')';btn.disabled=n<=0&&PROF.coins<b.price;btn.style.opacity=btn.disabled?.45:1;
   btn.onclick=()=>startBoxOpen(t);
  }
- $('pityTxt').innerHTML='Épique garanti dans <b>'+(10-PROF.pity.epic)+'</b> ouvertures<br>Légendaire garanti dans <b>'+(40-PROF.pity.legend)+'</b> ouvertures<br>Caisses ouvertes : <b>'+PROF.opened+'</b>';
+ $('pityTxt').innerHTML='Épique garanti dans <b>'+(10-PROF.pity.epic)+'</b> ouvertures<br>Légendaire garanti dans <b>'+(60-PROF.pity.legend)+'</b> ouvertures<br>Caisses ouvertes : <b>'+PROF.opened+'</b>';
  const pool=lootPool();let own=0;for(const it of pool)if(ownsItem(it))own++;
  $('collTxt').innerHTML='Objets débloqués : <b>'+own+' / '+pool.length+'</b><br>Danses : <b>'+PROF.inv.dances.length+' / '+DANCES.length+'</b>';
 }

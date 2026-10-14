@@ -3,20 +3,20 @@
    (couleur + carte d'émission pour les skins lumineux), projection
    continue sur toute l'arme, aperçus réels
    ===================================================================== */
-const RARITY=[{id:'common',n:'Commun',c:'#9aa6b8'},{id:'rare',n:'Rare',c:'#4aa3ff'},{id:'epic',n:'Épique',c:'#b36bff'},{id:'legend',n:'Légendaire',c:'#ffb938'}];
+const RARITY=[{id:'common',n:'Commun',c:'#9aa6b8'},{id:'rare',n:'Rare',c:'#4aa3ff'},{id:'epic',n:'Épique',c:'#b36bff'},{id:'legend',n:'Légendaire',c:'#ffb938'},{id:'excl',n:'Exclusif',c:'#ff3df0'}];
 const FIN={matte:{m:.5,r:.55},gloss:{m:.65,r:.24},chrome:{m:1,r:.12},anod:{m:.9,r:.3},pearl:{m:.85,r:.16},paint:{m:.3,r:.42}};
-// n : nom ; q : rareté ; tex : peinture ; fin : finition ; a : couleur des pièces secondaires ; glow : carte d'émission (couleur ge)
+// n : nom ; q : rareté (4 = exclusif payant, jamais dans les caisses) ; kreq : éliminations avec l'arme pour débloquer ; tex : peinture ; fin : finition ; a : couleur des pièces secondaires ; glow : carte d'émission (couleur ge)
 const SKINS=[
  {n:'Défaut',def:1,q:0},
- {n:'Noir mat',b:'#202327',a:'#0c0d0f',fin:'matte',q:0},
+ {n:'Noir mat',b:'#202327',a:'#0c0d0f',fin:'matte',q:0,kreq:25},
  {n:'Or royal',tex:'goldleaf',a:'#6a4a10',fin:'chrome',q:3},
  {n:'Rouge sang',tex:'bloodfade',a:'#1a0406',fin:'gloss',q:1},
  {n:'Bleu néon',tex:'neonlines',a:'#050c22',fin:'gloss',glow:1,ge:'#35d6ff',ei:1.1,q:2},
- {n:'Arctique',tex:'frost',a:'#7f93a8',fin:'gloss',q:0},
+ {n:'Arctique',tex:'frost',a:'#7f93a8',fin:'gloss',q:0,kreq:50},
  {n:'Violet nacré',tex:'pearl',a:'#2b1450',fin:'pearl',q:2},
  {n:'Cœurs',tex:'hearts',a:'#b0306a',fin:'paint',q:1},
- {n:'Camo forêt',tex:'camoForest',a:'#1f2810',fin:'paint',q:0},
- {n:'Camo désert',tex:'camoDesert',a:'#5e4726',fin:'paint',q:0},
+ {n:'Camo forêt',tex:'camoForest',a:'#1f2810',fin:'paint',q:0,kreq:100},
+ {n:'Camo désert',tex:'camoDesert',a:'#5e4726',fin:'paint',q:0,kreq:150},
  {n:'Carbone',tex:'hex',a:'#0b0b0d',fin:'gloss',q:1},
  {n:'Vapeur',tex:'brass',a:'#3a1c0c',fin:'anod',q:1},
  {n:'Dragon',tex:'flame',a:'#1a0606',fin:'gloss',q:2},
@@ -29,7 +29,7 @@ const SKINS=[
  {n:'Bois précieux',tex:'burl',a:'#2a1608',fin:'gloss',q:1},
  {n:'Coucher de soleil',tex:'sunset',a:'#3a1630',fin:'gloss',q:1},
  {n:'Course',tex:'racing',a:'#160608',fin:'gloss',q:1},
- {n:'Danger',tex:'hazard',a:'#1a1a1a',fin:'paint',q:0},
+ {n:'Danger',tex:'hazard',a:'#1a1a1a',fin:'paint',q:0,kreq:250},
  {n:'Léopard',tex:'leopard',a:'#2a1606',fin:'paint',q:1},
  {n:'Écailles',tex:'scales',a:'#0a2a1a',fin:'anod',q:2},
  {n:'Cristal',tex:'ice',a:'#244a66',fin:'chrome',q:2},
@@ -39,10 +39,10 @@ const SKINS=[
  {n:'Sakura',tex:'sakura',a:'#8a3a58',fin:'paint',q:2},
  {n:'Bonbon',tex:'candy',a:'#ff8fb8',fin:'paint',q:1},
  {n:'Océan',tex:'ocean',a:'#06284a',fin:'gloss',q:1},
- {n:'Étoilé',tex:'stars',a:'#0a1233',fin:'paint',q:0},
+ {n:'Étoilé',tex:'stars',a:'#0a1233',fin:'paint',q:0,kreq:350},
  {n:'Hologramme',tex:'holo',a:'#2a2a3a',fin:'chrome',q:3},
- {n:'Digital',tex:'digital',a:'#1c2420',fin:'paint',q:0},
- {n:'Damier',tex:'checker',a:'#161616',fin:'gloss',q:0},
+ {n:'Digital',tex:'digital',a:'#1c2420',fin:'paint',q:0,kreq:500},
+ {n:'Damier',tex:'checker',a:'#161616',fin:'gloss',q:0,kreq:750},
  {n:'Nuages',tex:'clouds',a:'#3a6fb0',fin:'paint',q:1},
  {n:'Filigrane royal',tex:'royal',a:'#07102a',fin:'chrome',q:3},
  {n:'Arcade',tex:'pixel8',a:'#0a0612',fin:'gloss',glow:1,ge:'#ffffff',ei:.7,q:2}

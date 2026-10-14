@@ -44,11 +44,12 @@ function gunMats(sk,w){
  M.glass=new THREE.MeshStandardMaterial({color:C(0x3a6fb0),roughness:.05,metalness:.2,emissive:C(0x1a3a66),emissiveIntensity:.5,transparent:true,opacity:.75});
  M.red=new THREE.MeshBasicMaterial({color:0xff2a2a,toneMapped:false});
  if(sk&&!dflt&&sk.tex){
-  const fin=FIN[sk.fin||'gloss'],tc=skinTex(sk.tex,false).clone();tc.needsUpdate=true;
+  // camo animé : texture vivante partagée (pas de copie, sinon elle ne bougerait plus)
+  const fin=FIN[sk.fin||'gloss'],tc=sk.anim?animCamoTex(sk.anim):skinTex(sk.tex,false).clone();tc.needsUpdate=true;
   const o={map:tc,roughness:fin.r,metalness:fin.m};
-  if(sk.glow){const tg=skinTex(sk.tex,true).clone();tg.needsUpdate=true;o.emissiveMap=tg;o.emissive=C(sk.ge||'#ffffff');o.emissiveIntensity=sk.ei||1;}
+  if(sk.glow){const tg=sk.anim?tc:skinTex(sk.tex,true).clone();tg.needsUpdate=true;o.emissiveMap=tg;o.emissive=C(sk.ge||'#ffffff');o.emissiveIntensity=sk.ei||1;}
   M.body=new THREE.MeshStandardMaterial(o);M.body.userData.skinned=true;
-  {const ta=tc.clone();ta.needsUpdate=true;M.acc=new THREE.MeshStandardMaterial({map:ta,color:C(sk.tint||'#8c8c8c'),roughness:Math.min(1,fin.r+.1),metalness:fin.m});M.acc.userData.skinned=true;}M.wood=M.body;
+  {const ta=sk.anim?tc:tc.clone();ta.needsUpdate=true;M.acc=new THREE.MeshStandardMaterial({map:ta,color:C(sk.tint||'#8c8c8c'),roughness:Math.min(1,fin.r+.1),metalness:fin.m});M.acc.userData.skinned=true;}M.wood=M.body;
  }
  else if(dflt){const base=new THREE.Color(w.col||0x3a3d44);M.body=new THREE.MeshStandardMaterial({color:base.clone().convertSRGBToLinear(),roughness:.38,metalness:.82});M.acc=new THREE.MeshStandardMaterial({color:base.clone().multiplyScalar(.5).convertSRGBToLinear(),roughness:.45,metalness:.8});
   const wt=woodTex().clone();wt.needsUpdate=true;wt.repeat.set(3,3);M.wood=new THREE.MeshStandardMaterial({map:wt,roughness:.55,metalness:0});}

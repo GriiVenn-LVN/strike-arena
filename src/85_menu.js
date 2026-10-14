@@ -127,10 +127,10 @@ function drawSkins(){
  SKINS.forEach((s,i)=>{
   const own=ownsSkin(pvKey,i),d=document.createElement('div');
   d.style.borderColor=i===(cfg.skins[pvKey]||0)?'':'';d.style.borderLeft='3px solid '+rcol(s.q);
-  d.innerHTML='<i style="background:'+skinSwatch(i)+'"></i>'+s.n+(own?'':' 🔒');
+  d.innerHTML='<i'+(s.anim?' class="animSw"':'')+' style="background:'+skinSwatch(i)+'"></i>'+s.n+(s.anim?' ✨':'')+(own?'':' 🔒');d.title=own?'':skinLockTxt(pvKey,i);
   if(!own)d.style.opacity=.45;
   if(i===(cfg.skins[pvKey]||0)&&own)d.classList.add('on');
-  d.onclick=()=>{if(!own){sfx('deny');menuToast('Skin verrouillé — trouve-le dans les caisses !');return;}sfxUI();cfg.skins[pvKey]=i;saveCfg();iconCache={};pvSet(pvKey);refreshArms();};
+  d.onclick=()=>{if(!own){sfx('deny');menuToast(skinLockTxt(pvKey,i));return;}sfxUI();cfg.skins[pvKey]=i;saveCfg();iconCache={};pvSet(pvKey);refreshArms();};
   sk.appendChild(d);
  });
 }

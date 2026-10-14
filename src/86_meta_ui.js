@@ -24,7 +24,7 @@ function showLevelUps(ups){
  next();
 }
 /* ---------- récompense quotidienne ---------- */
-const DAYICON=['🪙','📦','🪙','💃','🪙','🎁','👑'];
+const DAYICON=['🪙','🪙','🪙','💃','🪙','🪙','👑'];
 function dayText(r){return rewardText(r).split(' • ').join('<br>');}
 function showDaily(){
  const st=dailyStatus();
@@ -62,7 +62,7 @@ function buildBoxesTab(){
   const btn=$('open'+id);btn.textContent=n>0?'OUVRIR':'ACHETER & OUVRIR (🪙 '+b.price+')';btn.disabled=n<=0&&PROF.coins<b.price;btn.style.opacity=btn.disabled?.45:1;
   btn.onclick=()=>startBoxOpen(t);
  }
- $('pityTxt').innerHTML='Épique garanti dans <b>'+(10-PROF.pity.epic)+'</b> ouvertures<br>Légendaire garanti dans <b>'+(40-PROF.pity.legend)+'</b> ouvertures<br>Caisses ouvertes : <b>'+PROF.opened+'</b>';
+ $('pityTxt').innerHTML='Épique garanti dans <b>'+(10-PROF.pity.epic)+'</b> ouvertures<br>Légendaire garanti dans <b>'+(60-PROF.pity.legend)+'</b> ouvertures<br>Caisses ouvertes : <b>'+PROF.opened+'</b>';
  const pool=lootPool();let own=0;for(const it of pool)if(ownsItem(it))own++;
  $('collTxt').innerHTML='Objets débloqués : <b>'+own+' / '+pool.length+'</b><br>Danses : <b>'+PROF.inv.dances.length+' / '+DANCES.length+'</b>';
 }

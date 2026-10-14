@@ -1,7 +1,7 @@
 /* =====================================================================
    PROGRESSION : passe de combat, classement, succès, événement
    ===================================================================== */
-const SEASON={id:'s1',n:'Saison 1 · Néon',tiers:30,xpPer:180,price:1500};
+const SEASON={id:'s1',n:'Saison 1 · Néon',tiers:30,xpPer:900,price:3500};
 function ensureBP(){
  if(!PROF.bp||PROF.bp.id!==SEASON.id)PROF.bp={id:SEASON.id,xp:0,prem:false,cf:[],cp:[]};
  if(!PROF.rank)PROF.rank={rp:0,best:0};
@@ -19,9 +19,9 @@ function grantItem(it){
 function seedPick(arr,seed){let s=seed*9301+49297;s=(s*233280+11)%233280;return arr[Math.floor(s/233280*arr.length)];}
 function bpReward(t,prem){
  if(!prem){
-  if(t===SEASON.tiers)return {box:'prem',coins:300};
-  if(t%5===0)return {box:'std',coins:100};
-  return {coins:60+t*8};
+  if(t===SEASON.tiers)return {box:'prem',coins:200};
+  if(t%10===0)return {box:'std',coins:60};
+  return {coins:20+t*2};
  }
  if(t===1)return {box:'prem'};
  if(t%5===0){
@@ -29,7 +29,7 @@ function bpReward(t,prem){
   const pool=lootPool().filter(i=>i.q===q&&(t%10===5?i.t!=='outfit':true));
   return {item:seedPick(pool,t*17+q)};
  }
- return {coins:100+t*10};
+ return {coins:40+t*4};
 }
 function bpRewardText(r){
  if(r.item){const it=r.item;return it.t==='skin'?W[it.w].n+' · '+SKINS[it.s].n:it.t==='outfit'?'Tenue '+OUTFITS[it.o].n:'Danse '+DANCES.find(d=>d.id===it.id).n;}

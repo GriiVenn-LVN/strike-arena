@@ -21,19 +21,20 @@ Config.RARITY = {
 	{ id = "rare", name = "Rare", color = Color3.fromRGB(74, 163, 255) },
 	{ id = "epic", name = "Épique", color = Color3.fromRGB(179, 107, 255) },
 	{ id = "legend", name = "Légendaire", color = Color3.fromRGB(255, 185, 56) },
+	{ id = "excl", name = "Exclusif", color = Color3.fromRGB(255, 61, 240) },   -- objets payants en Robux, jamais dans les caisses
 }
 
 -- Probabilités affichées au joueur (obligatoire pour les objets aléatoires payants sur Roblox)
 Config.BOXES = {
-	std = { name = "Caisse Standard", coins = 500, weights = { 62, 27, 9, 2 } },
-	prem = { name = "Caisse Premium", coins = 1500, weights = { 20, 45, 27, 8 } },
+	std = { name = "Caisse Standard", coins = 1200, weights = { 70, 24, 5, 1 } },
+	prem = { name = "Caisse Premium", coins = 3500, weights = { 30, 45, 20, 5 } },
 }
-Config.PITY = { epic = 10, legend = 40 }          -- Épique garanti toutes les 10 ouvertures, Légendaire toutes les 40
-Config.DUPLICATE_VALUE = { 0, 120, 350, 900 }     -- pièces rendues pour un doublon, par rareté
+Config.PITY = { epic = 10, legend = 60 }          -- Épique garanti toutes les 10 ouvertures, Légendaire toutes les 60
+Config.DUPLICATE_VALUE = { 0, 40, 120, 350 }       -- pièces rendues pour un doublon, par rareté
 
 Config.DAILY = {                                  -- série de 7 jours
-	{ coins = 200 }, { box = "std" }, { coins = 350 }, { dance = "disco", coins = 150 },
-	{ coins = 500 }, { box = "prem" }, { box = "prem", coins = 1000 },
+	{ coins = 40 }, { coins = 60 }, { coins = 80 }, { dance = "disco", coins = 40 },
+	{ coins = 120 }, { coins = 150 }, { box = "std", coins = 200 },
 }
 
 Config.DANCES = {                                 -- remplace animationId par tes propres animations (Animation Editor)
@@ -138,8 +139,9 @@ Config.WEAPONS = {
 Config.GUN_GAME_LADDER = { "glock", "p250", "fiveseven", "deagle", "mac10", "mp9", "ump", "nova", "xm", "galil", "famas", "ak", "m4", "sg553", "ssg", "awp", "knife" }
 
 -- Récompenses de progression
+-- Économie réaliste (identique au jeu web) : ~4 parties pour le niveau 3, ~28 pour le niveau 10, ~260 pour le niveau 30
 function Config.xpNeeded(level: number): number
-	return 100 + level * 55
+	return 300 + level * 80 + level * level * 2
 end
 
 return Config
