@@ -10,7 +10,7 @@
 // en ligne par défaut quand le jeu est publié (GitHub Pages…), « Même PC » quand il est ouvert en local
 const NET_WEB=/^https?:$/.test(location.protocol)&&!/^(localhost|127\.|\[::1\]|0\.0\.0\.0)/.test(location.hostname);
 const NET={role:null,mode:NET_WEB?'online':'local',room:'',myId:'',tr:null,players:new Map(),ev:[],sendT:0,inT:0,myEnt:-1,peerLib:false,status:'',teams:'coop',lastSnap:0,hostId:'host',view:new Map()};
-const NET_OK_MODES={bomb:1,rapid:1,tdm:1,ffa:1,gg:1,koth:1};
+const NET_OK_MODES={bomb:1,rapid:1,tdm:1,ffa:1,gg:1,koth:1,zombies:1};
 const netId=()=>Math.random().toString(36).slice(2,8);
 function netEvent(e){if(NET.role==='host')NET.ev.push(e);}
 /* ---------- transports ---------- */
@@ -117,12 +117,14 @@ function netHostStart(){
  let n=0;for(const p of NET.players.values()){p.ent=null;netAttach(p,n++);}
 }
 function netAttach(p,n){
- let team=MODE().team?(NET.teams==='coop'?P.team:((n||0)%2===0?1-P.team:P.team)):null;
- if(team!==null&&(p.pref===0||p.pref===1))team=p.pref;
+ const zm=G.variant==='zombies';
+ let team=zm?P.team:MODE().team?(NET.teams==='coop'?P.team:((n||0)%2===0?1-P.team:P.team)):null;
+ if(!zm&&team!==null&&(p.pref===0||p.pref===1))team=p.pref;
  let e=ents.find(b=>!b.isPlayer&&!b.remote&&!b.zombie&&!b.dummy&&(team===null||b.team===team));
  if(!e){
   const id=ents.reduce((m,x)=>Math.max(m,x.id),0)+1;
   e=newEnt(p.name,team===null?id:team,false,id);e.id=id;e.money=P.money;giveWeapon(e,e.team===0?'glock':'usp');ents.push(e);attachRig(e);
+  if(zm){e.pts=500;e.perks={};}
   if(G.mode!=='bomb')respawn(e);else{e.alive=false;e.keep=false;}
  }
  e.remote=p.id;e.name=p.name;p.ent=e;e.tp=(e.tp||0)+1;
@@ -142,14 +144,18 @@ function netEntUpdate(e,dt){
  e.yaw=m.yaw;e.pitch=m.pitch;e.crouch=!!m.cr;e.speed=m.sp;e.vx=m.vx;e.vz=m.vz;e.onGround=!!m.og;e.ads=m.ads||0;
  if(e.wp[m.cur]&&e.cur!==m.cur)switchTo(e,m.cur);
  handleUse(e,dt,!!m.use&&e.speed<1.2);
+ if(G.variant==='zombies')zInteract(dt,e,!!m.use);
 }
 function netHostTick(dt){
  NET.sendT-=dt;if(NET.sendT>0||!NET.players.size)return;NET.sendT=1/15;
  const es=ents.filter(e=>!e.dummy).map(e=>{const o={i:e.id,n:e.name,tm:e.team,x:+e.x.toFixed(2),y:+e.y.toFixed(2),z:+e.z.toFixed(2),yw:+e.yaw.toFixed(3),pt:+e.pitch.toFixed(3),a:e.alive?1:0,hp:Math.round(e.hp),ar:Math.round(e.armor),sh:Math.round(e.shield),cw:curWi(e).k,fa:+(e.fireAnim||0).toFixed(2),cr:e.crouch?1:0,sp:+(e.speed||0).toFixed(2),k:e.kills,d:e.deaths,dm:e.dmg,tp:e.tp||0,m:e.money};
-  if(e.zombie){o.z=1;if(e.ztype&&e.ztype!=='normal')o.zt=e.ztype;}if(e.remote){o.r=e.remote;o.wp=['p','s'].map(s=>e.wp[s]?[e.wp[s].k,e.wp[s].mag,e.wp[s].res]:null);o.nd=[e.nade.f,e.nade.fl,e.nade.sm,e.nade.mn||0];o.pg=e.prog||0;o.pm=e.progMsg||'';o.um=e.useMsg||'';o.kit=e.kit?1:0;}
+  if(e.zombie){o.zb=1;if(e.ztype&&e.ztype!=='normal')o.zt=e.ztype;}
+  if(e.downed){o.dn=1;o.dt=Math.ceil(e.downT||0);o.rv=+(e.revP||0).toFixed(2);}
+  if(e.remote){o.r=e.remote;o.wp=['p','s'].map(s=>e.wp[s]?[e.wp[s].k,e.wp[s].mag,e.wp[s].res,e.wp[s].pap?1:0]:null);if(G.variant==='zombies'){o.zp=e.pts||0;o.pk=Object.keys(e.perks||{}).filter(k=>e.perks[k]).join(',');}o.nd=[e.nade.f,e.nade.fl,e.nade.sm,e.nade.mn||0];o.pg=e.prog||0;o.pm=e.progMsg||'';o.um=e.useMsg||'';o.kit=e.kit?1:0;}
   return o;});
  const g={st:G.state,tm:+(G.timer||0).toFixed(2),tl:+(G.timeLeft||0).toFixed(1),sc:G.score,rd:G.round,pr:G.pistolRound?1:0,lim:G.limit,ko:typeof KO!=='undefined'?KO.idx:0,kp:typeof KO!=='undefined'?KO.pts:null,
   bm:{s:BM.state,x:BM.x,y:BM.y,z:BM.z,t:BM.timer,c:BM.carrier}};
+ if(G.variant==='zombies')g.zm=netZombieState();
  netSend({t:'snap',g,e:es,ev:NET.ev});NET.ev=[];
 }
 /* ---------- CLIENT ---------- */
@@ -166,12 +172,14 @@ function netClientStart(m){
  for(const e of ents)if(e!==P&&e.rig)scene.remove(e.rig.root);
  ents=[P];NET.view.clear();NET.myEnt=m.ent;P.id=m.ent;
  if(P.team!==m.team){P.team=m.team;if(P.rig)scene.remove(P.rig.root);attachRig(P);P.rig.root.visible=false;}
- P.tp=-1;G.netClient=true;
+ P.tp=-1;G.netClient=true;NET.zDrops='';
  netStatus('En partie (client)');
+ // la souris ne peut être capturée qu'après un clic : sans ça la caméra du joueur invité ne bouge pas
+ if(!document.pointerLockElement){$('pause').classList.add('show');uiToast('Clique sur REPRENDRE pour jouer');}
 }
 function netEnt(o){
  let e=NET.view.get(o.i);
- if(!e){e=newEnt(o.n,o.tm,false,o.i);e.id=o.i;if(o.z){e.zombie=true;e.ztype=o.zt||'normal';e.tone='#7ba35a';}e.wp={p:null,s:null,k:{k:'knife',mag:0,res:0}};const sl=slotOf(o.cw);e.wp[sl]={k:o.cw,mag:30,res:90};e.cur=sl;ents.push(e);attachRig(e);e.netT={x:o.x,y:o.y,z:o.z,yw:o.yw};e.x=o.x;e.y=o.y;e.z=o.z;NET.view.set(o.i,e);}
+ if(!e){e=newEnt(o.n,o.tm,false,o.i);e.id=o.i;if(o.zb){e.zombie=true;e.ztype=o.zt||'normal';e.tone='#7ba35a';}e.wp={p:null,s:null,k:{k:'knife',mag:0,res:0}};const sl=slotOf(o.cw);e.wp[sl]={k:o.cw,mag:30,res:90};e.cur=sl;ents.push(e);attachRig(e);e.netT={x:o.x,y:o.y,z:o.z,yw:o.yw};e.x=o.x;e.y=o.y;e.z=o.z;NET.view.set(o.i,e);}
  return e;
 }
 function netApplySnap(m){
@@ -188,9 +196,12 @@ function netApplySnap(m){
    const wasAlive=P.alive;P.alive=!!o.a;P.hp=o.hp;P.armor=o.ar;P.shield=o.sh;P.money=o.m;P.kills=o.k;P.deaths=o.d;P.dmg=o.dm;P.kit=!!o.kit;
    if(o.tp!==P.tp){P.tp=o.tp;P.x=o.x;P.y=o.y;P.z=o.z;P.yaw=o.yw;P.vx=P.vz=0;}
    if(o.wp)['p','s'].forEach((s,i)=>{const w=o.wp[i];if(!w){if(P.wp[s]){P.wp[s]=null;if(P.cur===s)P.cur=bestSlot(P);}return;}
-    if(!P.wp[s]||P.wp[s].k!==w[0]){P.wp[s]={k:w[0],mag:w[1],res:w[2]};}else if(Math.abs(P.wp[s].mag-w[1])>2&&P.reload<=0){P.wp[s].mag=w[1];P.wp[s].res=w[2];}});
+    if(!P.wp[s]||P.wp[s].k!==w[0]){P.wp[s]={k:w[0],mag:w[1],res:w[2]};}else if(Math.abs(P.wp[s].mag-w[1])>2&&P.reload<=0){P.wp[s].mag=w[1];P.wp[s].res=w[2];}
+    P.wp[s].pap=!!w[3];});
    if(o.nd)P.nade={f:o.nd[0],fl:o.nd[1],sm:o.nd[2],mn:o.nd[3]};
    P.prog=o.pg;P.progMsg=o.pm;P.netUseMsg=o.um;
+   P.downed=!!o.dn;P.seated=o.dn?1:0;if(o.dn){P.downT=o.dt;P.revP=o.rv;}
+   if(o.zp!==undefined){P.pts=o.zp;const pk={};if(o.pk)o.pk.split(',').forEach(k=>pk[k]=true);const sig=o.pk||'';if(sig!==NET.zPerks){NET.zPerks=sig;P.perks=pk;zPerkHud();}}
    if(wasAlive&&!P.alive){P.rig&&(P.rig.root.visible=true);}
    continue;
   }
@@ -199,10 +210,11 @@ function netApplySnap(m){
   if(e.alive&&!o.a){e.dieDir=Math.floor(Math.random()*4);if(e.rig)e.rig.dieT=-1;}
   if(!e.alive&&o.a){e.x=o.x;e.y=o.y;e.z=o.z;}
   if(o.tp!==e.tp){e.tp=o.tp;e.x=o.x;e.y=o.y;e.z=o.z;e.yaw=o.yw;}
-  e.alive=!!o.a;e.crouch=!!o.cr;e.speed=o.sp;e.fireAnim=Math.max(e.fireAnim||0,o.fa);
+  e.alive=!!o.a;e.downed=!!o.dn;e.seated=o.dn?1:0;e.crouch=!!o.cr;e.speed=o.sp;e.fireAnim=Math.max(e.fireAnim||0,o.fa);
   {const cw=curWi(e);if(!cw||cw.k!==o.cw){const sl=slotOf(o.cw);e.wp[sl]={k:o.cw,mag:30,res:90};e.cur=sl;}}
  }
  for(const [id,e] of NET.view)if(!seen.has(id)){if(e.rig)scene.remove(e.rig.root);ents.splice(ents.indexOf(e),1);NET.view.delete(id);}
+ if(g.zm)netZombieApply(g.zm);
  for(const ev of m.ev||[])netClientEvent(ev);
 }
 function netById(id){return id===NET.myEnt?P:NET.view.get(id);}
@@ -212,6 +224,7 @@ function netClientEvent(ev){
   case 'feed':{const a=netById(ev.a),v=netById(ev.v),w=W[ev.w]||W.knife;if(a&&v){uiFeed(a,v,w,ev.hs);rpKill(a,v,w,ev.hs);if(a===P&&v!==P){uiKillMsg(v,ev.hs,1);sfx('kill');}if(v===P)uiDeath(a);}break;}
   case 'hurt':if(ev.to===NET.myEnt){const a=netById(ev.f);if(a)uiDamage(a);sfx('dmg');G.shake=Math.max(G.shake,.25);}break;
   case 'ban':uiBanner(ev.a[0],ev.a[1],ev.a[2],ev.a[3]);break;
+  case 'msg':if(ev.to===NET.myEnt){if(ev.b)uiBanner(ev.b[0],ev.b[1],ev.b[2],ev.b[3]);if(ev.m)uiToast(ev.m);if(ev.s)sfx(ev.s);}break;
   case 'rend':{const mine=ev.w===P.team;uiBanner(mine?'MANCHE GAGNÉE':'MANCHE PERDUE',ev.r,4600,mine?'#7dff9f':'#ff6b6b');sfx(mine?'win':'lose');uiRoundEnd();closeBuy(true);rpStart();break;}
   case 'rr':clearNades();resetFX();uiRoundStart();rpReset();break;
   case 'nx':{const o=netById(ev.o)||P;explodeNade({type:ev.k,x:ev.x,y:ev.y,z:ev.z,owner:o});break;}
@@ -231,6 +244,30 @@ function netClientTick(dt){
   netSend({t:'in',x:+P.x.toFixed(2),y:+P.y.toFixed(2),z:+P.z.toFixed(2),yaw:+P.yaw.toFixed(3),pitch:+P.pitch.toFixed(3),cr:P.crouch?1:0,sp:+P.speed.toFixed(2),vx:P.vx,vz:P.vz,og:P.onGround?1:0,ads:P.ads,cur:P.cur,use:K('use')?1:0,tp:P.tp},'host');
  }
  if(P.netUseMsg!==undefined)P.useMsg=P.netUseMsg;
+ if(G.variant==='zombies'){zHudUpdate();netZDownHud();if(ZB.pap&&ZB.pap.userData.rollers)ZB.pap.userData.rollers.rotation.x+=dt*2;for(const d of ZB.drops){d.m.position.y=d.y+1+Math.sin(G.t*3)*.15;}}
+}
+/* ---------- ZOMBIES à plusieurs : manche, bonus, portes, boîte et bonus au sol ---------- */
+// la disposition (armes murales, atouts, boîte, portes) est calculée pareil chez tous à partir de la carte
+function netZDownHud(){
+ if(!ZD.hud){ZD.hud=document.createElement('div');ZD.hud.style.cssText='position:absolute;left:0;right:0;top:30%;text-align:center;font:900 2rem Bahnschrift,Arial;color:#ff4655;text-shadow:0 0 18px #000;letter-spacing:6px;display:none';$('hud').appendChild(ZD.hud);}
+ ZD.hud.style.display=P.downed?'block':'none';
+ if(P.downed)ZD.hud.innerHTML='À TERRE<small style="display:block;font-size:1rem;letter-spacing:3px;color:#fff">'+Math.ceil(P.downT||0)+' s — réanimation '+Math.round((P.revP||0)/3*100)+' %</small>';
+}
+function netZombieState(){
+ return {w:Z.wave,i:Math.max(0,+(ZB.insta-G.t).toFixed(1)),d:Math.max(0,+(ZB.dbl-G.t).toFixed(1)),f:Math.max(0,+(ZB.fire-G.t).toFixed(1)),
+  dr:ZD.doors.filter(d=>d.open).map(d=>d.idx),bx:ZB.boxIdx||0,bs:ZB.box?[ZB.box.state,ZB.box.state==='ready'?ZB.box.k:0]:0,dp:ZB.drops.map(d=>[d.key,+d.x.toFixed(1),+d.z.toFixed(1)])};
+}
+function netZombieApply(s){
+ Z.wave=s.w;ZB.insta=G.t+s.i;ZB.dbl=G.t+s.d;ZB.fire=G.t+s.f;
+ for(const d of ZD.doors)if(!d.open&&s.dr.includes(d.idx))zOpenDoor(d);
+ if(ZB.boxSpots&&ZB.boxSpots.length&&s.bx!==ZB.boxIdx)zMoveBox(s.bx);
+ // boîte mystère : on montre l'arme tirée quand elle est prête
+ if(ZB.box&&s.bs){const b=ZB.box,[st,k]=s.bs;if(st!==b.state||k!==b.k){b.state=st;b.k=k;if(b.show){scene.remove(b.show);b.show=null;}if(st==='ready'&&k)zBoxShow(k);else if(st==='roll')sfx('jingle',b.spot.x,b.spot.z);}}
+ const sig=JSON.stringify(s.dp);
+ if(sig!==NET.zDrops){NET.zDrops=sig;
+  for(const d of ZB.drops)scene.remove(d.m);ZB.drops=[];
+  for(const [key,x,z] of s.dp){const m=new THREE.Sprite(new THREE.SpriteMaterial({map:dropTex(DROPS[key]),transparent:true,depthWrite:false,toneMapped:false}));const y=groundH(x,z);m.position.set(x,y+1,z);scene.add(m);ZB.drops.push({key,m,x,z,y,t:99});}
+ }
 }
 /* tir local du client : visuel immédiat, les dégâts sont calculés par l'hôte */
 function netShot(e){netSend({t:'shot',yaw:e.yaw+(e.punchY||0)*RAD,pitch:e.pitch+(e.punchP||0)*RAD},'host');}
@@ -251,7 +288,7 @@ function netMatchOver(){if(NET.role==='host'&&NET.players.size){netSend({t:'snap
   '<div class="csec"><h4>COMMENT JOUER À PLUSIEURS</h4><div style="font-size:.74rem;color:#b8c5da;line-height:1.6">'+
   '<b>Même PC :</b> ouvre le jeu dans plusieurs onglets / fenêtres, crée un salon dans l\'un et rejoins-le dans les autres.<br>'+
   '<b>En ligne :</b> publie le dossier sur <b>GitHub Pages</b> (ou n\'importe quel hébergeur), envoie le lien à tes amis, crée un salon et donne-leur le code. Connexion directe entre navigateurs (WebRTC).<br>'+
-  'L\'hôte choisit le mode et la carte dans « Partie solo ». Modes disponibles : Compétitif, Désamorçage rapide, Match à mort (équipe ou libre), Course aux armes, Capture de zone.</div></div></div></div>';
+  'L\'hôte choisit le mode et la carte dans « Partie solo ». Modes disponibles : Compétitif, Désamorçage rapide, Match à mort (équipe ou libre), Course aux armes, Capture de zone, Zombies (tous ensemble).</div></div></div></div>';
  $('tab-keys').parentNode.appendChild(p);
 })();
 function netLobbyDraw(){
@@ -275,7 +312,7 @@ function netLobbyWire(){
  $('mpLeave').onclick=()=>{sfxUI();netLeave();};
  $('mpStart').onclick=()=>{
   initAudio();sfxUI();
-  if(!NET_OK_MODES[cfg.mode]){uiToast('Choisis un mode compatible dans « Partie solo » (pas Zombies / Bataille royale / Entraînement)');return;}
+  if(!NET_OK_MODES[cfg.mode]){uiToast('Choisis un mode compatible dans « Partie solo » (pas Bataille royale / Entraînement)');return;}
   cfg.cine=0;startMatch();buildRadarMap();netHostStart();
  };
  netLobbyDraw();

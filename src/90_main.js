@@ -88,7 +88,8 @@ let last=performance.now()/1000;
 function frame(){
  requestAnimationFrame(frame);
  const now=performance.now()/1000;let dt=Math.min(.05,now-last);last=now;
- if(G.running&&!G.paused)update(dt);else if(!G.running)immersionUpdate(dt);
+ // en multijoueur la pause n'arrête pas la partie (les autres joueurs continuent)
+ if(G.running&&(!G.paused||NET.role))update(dt);else if(!G.running)immersionUpdate(dt);
  if(pvOn&&pvR&&pvPivot&&!G.running){if(!pvHold)pvPivot.rotation.y+=dt*.7*pvSpin;pvR.render(pvS,pvC);}
  if(lkOn&&!G.running)lkFrame(dt,now);
  render(G.paused?0:dt,now);

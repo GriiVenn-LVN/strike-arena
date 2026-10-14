@@ -74,7 +74,7 @@ function zPts(e,n,x,z){
  if(!e||e.zombie)return;n=Math.round(n*(ZB.dbl>G.t?2:1));e.pts=(e.pts||0)+n;
  if(e.isPlayer){const el=zHud();const s=document.createElement('span');s.className='zgain';s.textContent='+'+n;el.pts.appendChild(s);setTimeout(()=>s.remove(),900);}
 }
-function zSpend(e,n){if((e.pts||0)<n){if(e.isPlayer){sfx('deny');uiToast('Pas assez de points ('+n+')');}return false;}e.pts-=n;return true;}
+function zSpend(e,n){if((e.pts||0)<n){zTell(e,'Pas assez de points ('+n+')','deny');return false;}e.pts-=n;return true;}
 
 /* ---------- crochets appelés par le jeu ---------- */
 function zHurtHook(v,att,raw,w){
@@ -347,11 +347,14 @@ function wonderFire(e,w,wi){
  if(wi.mag===0&&!e.isPlayer)startReload(e);
 }
 /* ---------- interactions (touche Utiliser) ---------- */
-function zInteract(dt){
+// who = le joueur qui interagit : le joueur local par défaut, ou un joueur distant (appelé par l'hôte)
+function zInteract(dt,who,use){zInteractFor(dt,who||P,use===undefined?K('use'):use);}
+function zInteractFor(dt,P,use){
+ const me=P&&P.isPlayer;
  if(!P||!P.alive){return;}
  if(P.downed){P.useMsg='';return;}
  {const dn=ents.find(e=>!e.zombie&&e!==P&&e.alive&&e.downed&&Math.hypot(e.x-P.x,e.z-P.z)<1.9);
-  if(dn){P.useMsg='[E] Maintiens : réanimer '+dn.name+' ('+Math.round(dn.revP/(P.perks.revive?1.5:3)*100)+' %)';if(K('use'))dn.revP+=dt*(P.perks.revive?2:1);if(dn.revP>=3)zRevive(dn,P);return;}}
+  if(dn){P.useMsg='[E] Maintiens : réanimer '+dn.name+' ('+Math.round(dn.revP/(P.perks.revive?1.5:3)*100)+' %)';if(use)dn.revP+=dt*(P.perks.revive?2:1);if(dn.revP>=3)zRevive(dn,P);return;}}
  let best=null,bd=1e9;
  const fx=-Math.sin(P.yaw),fz=-Math.cos(P.yaw);
  for(const it of ZB.inter){
@@ -360,13 +363,13 @@ function zInteract(dt){
   if(d<bd){bd=d;best=it;}
  }
  let msg='';
- const press=K('use')&&!ZB.useLatch;ZB.useLatch=K('use');
+ const press=use&&!P.zUseLatch;P.zUseLatch=use;
  if(best){
-  const kb='['+String(cfg.binds.use||'E').replace('Key','')+']';
+  const kb='['+(me?String(cfg.binds.use||'E').replace('Key',''):'E')+']';
   if(best.kind==='wall'){
    const own=(P.wp.p&&P.wp.p.k===best.k)||(P.wp.s&&P.wp.s.k===best.k),pr=own?Math.round(best.price/2):best.price;
    msg=kb+' '+(own?'Munitions '+W[best.k].n:'Acheter '+W[best.k].n)+' — '+pr+' pts';
-   if(press&&zSpend(P,pr)){if(own){const wi=P.wp[slotOf(best.k)];wi.mag=magMax(P,best.k);wi.res=W[best.k].res*(wi.pap?2:1);uiToast('Munitions rechargées');sfx('pickup');}else{zGive(P,best.k);sfx('buy');}}
+   if(press&&zSpend(P,pr)){if(own){const wi=P.wp[slotOf(best.k)];wi.mag=magMax(P,best.k);wi.res=W[best.k].res*(wi.pap?2:1);zTell(P,'Munitions rechargées','pickup');}else{zGive(P,best.k);zTell(P,'','buy');}}
   }else if(best.kind==='box'){
    const b=ZB.box;
    if(b.state==='idle'){const pr=ZB.fire>G.t?10:BOX_PRICE;msg=kb+' Boîte mystère — '+pr+' pts';if(press)zRollBox(P);}
@@ -375,7 +378,7 @@ function zInteract(dt){
   }else if(best.kind==='perk'){
    const p=PERKS[best.key];
    if(P.perks[best.key])msg=p.n+' (déjà bu)';
-   else{msg=kb+' '+p.n+' — '+p.price+' pts · '+p.d;if(press&&zSpend(P,p.price)){P.perks[best.key]=true;sfx('perk');uiBanner(p.n.toUpperCase(),p.d,1800,p.c);zPerkHud();}}
+   else{msg=kb+' '+p.n+' — '+p.price+' pts · '+p.d;if(press&&zSpend(P,p.price)){P.perks[best.key]=true;zTell(P,'','perk',[p.n.toUpperCase(),p.d,1800,p.c]);if(me)zPerkHud();}}
   }else if(best.kind==='door'){
    msg=kb+' Dégager les débris — '+best.door.price+' pts';if(press&&zSpend(P,best.door.price))zOpenDoor(best.door);
   }else if(best.kind==='pap'){
@@ -383,11 +386,16 @@ function zInteract(dt){
    if(!wi||P.cur==='k')msg='Forge Arcane : prends une arme en main';
    else if(wi.pap)msg=W[wi.k].n+' est déjà améliorée';
    else{msg=kb+' Forge Arcane : améliorer '+W[wi.k].n+' — '+PAP_PRICE+' pts';
-    if(press&&zSpend(P,PAP_PRICE)){wi.pap=true;wi.mag=magMax(P,wi.k);wi.res=W[wi.k].res*2;sfx('pap',best.x,best.z);uiBanner('ARME AMÉLIORÉE',W[wi.k].n+' ★ — dégâts ×2, chargeur +50 %',2400,'#c77dff');
+    if(press&&zSpend(P,PAP_PRICE)){wi.pap=true;wi.mag=magMax(P,wi.k);wi.res=W[wi.k].res*2;sfx('pap',best.x,best.z);zTell(P,'','',['ARME AMÉLIORÉE',W[wi.k].n+' ★ — dégâts ×2, chargeur +50 %',2400,'#c77dff']);
      if(fxReady)for(let k=0;k<40;k++)fxA.emit(best.x,1.4,best.z,rand(-2,2),rand(1,4),rand(-2,2),rand(.4,.9),.15,.05,.75,.4,1,1,-1,1);}}
   }
  }
  P.useMsg=msg;
+}
+// retour au joueur concerné : directement s'il est local, par le réseau s'il est distant
+function zTell(e,msg,snd,ban){
+ if(e.isPlayer){if(msg)uiToast(msg);if(snd)sfx(snd);if(ban)uiBanner(ban[0],ban[1],ban[2],ban[3]);}
+ else if(e.remote)netEvent({t:'msg',to:e.id,m:msg||'',s:snd||'',b:ban||null});
 }
 /* ---------- HUD ---------- */
 function zHud(){
