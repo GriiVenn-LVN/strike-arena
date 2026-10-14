@@ -83,12 +83,13 @@ const hasAtt=(e,k,a)=>attList(k,attSel(e,k)).includes(a);
 /* ---------- profil de l'arme (hauteur du dessus / du dessous le long du canon) ---------- */
 const GPROF={};
 function gunProfile(g,k){
- const key=k+(g.userData.glb?'g':'p');if(GPROF[key])return GPROF[key];
+ const key=k+(g.userData.real?'r':g.userData.glb?'g':'p');if(GPROF[key])return GPROF[key];
  g.updateMatrixWorld(true);
  const inv=new THREE.Matrix4().copy(g.matrixWorld).invert(),v=new THREE.Vector3(),pts=[];
- g.traverse(o=>{if(!o.isMesh||!o.geometry||!o.geometry.attributes.position)return;
-  const m=new THREE.Matrix4().multiplyMatrices(inv,o.matrixWorld),p=o.geometry.attributes.position,st=Math.max(1,Math.floor(p.count/4000));
-  for(let i=0;i<p.count;i+=st){v.fromBufferAttribute(p,i).applyMatrix4(m);pts.push(v.x,v.y,v.z);}});
+ g.traverse(o=>{if(!o.isMesh||!o.geometry||!o.geometry.attributes.position||o.userData.builtinOptic||o.userData.att)return;
+  // géométrie indexée (pièce découpée d'un modèle) : seulement les sommets de ses triangles
+  const m=new THREE.Matrix4().multiplyMatrices(inv,o.matrixWorld),p=o.geometry.attributes.position,ix=o.geometry.index,n=ix?ix.count:p.count,st=Math.max(1,Math.floor(n/4000));
+  for(let i=0;i<n;i+=st){v.fromBufferAttribute(p,ix?ix.getX(i):i).applyMatrix4(m);pts.push(v.x,v.y,v.z);}});
  let z0=1e9,z1=-1e9;for(let i=2;i<pts.length;i+=3){z0=Math.min(z0,pts[i]);z1=Math.max(z1,pts[i]);}
  const NB=160,top=new Array(NB).fill(-1e9),bot=new Array(NB).fill(1e9),bin=z=>clamp(Math.floor((z-z0)/(z1-z0+1e-6)*NB),0,NB-1);
  for(let i=0;i<pts.length;i+=3){const b=bin(pts[i+2]);top[b]=Math.max(top[b],pts[i+1]);bot[b]=Math.min(bot[b],pts[i+1]);}
@@ -144,6 +145,15 @@ function attBuild(g,k,sel,opt){
  const ORD=['barrel','muzzle','optic','under','mag','stock'];
  const todo=list.slice().sort((a,b)=>ORD.indexOf(ATTS[a].s)-ORD.indexOf(ATTS[b].s));
  const add=(o,tag)=>{o.userData.att=tag;g.add(o);return o;};
+ // optique : masque le viseur intégré du modèle ; si une pièce de l'arme (hausse, poignée de transport…) passe
+ // devant l'œil entre l'optique et la joue, l'optique est rehaussée sur une embase pour garder la vue dégagée
+ const clearOpt=(o,base,z,zb,cy)=>{
+  if(pistol)return cy;
+  const occ=pr.topR(zb,.27);if(occ<=cy-.008)return cy;
+  const dy=occ+.014-cy;o.position.y+=dy;
+  const m=boxA(.022,dy+.004,.04,AM.dark,0,base+dy/2,z);g.add(m);m.userData.att='riser';o.userData.riser=m;
+  return cy+dy;};
+ if(u.builtinOptic)u.builtinOptic.visible=!list.some(a=>ATTS[a].s==='optic');
  for(const a of todo){
   switch(a){
    case 'sil':{const L=pistol?.13:.19,r=pistol?.017:.022,z=u.muzzle-L/2+.01;const o=new THREE.Group();
@@ -159,44 +169,44 @@ function attBuild(g,k,sel,opt){
    case 'flash':{const L=.045*S,r=.014*S,o=new THREE.Group();o.add(cylZ(r,r*.9,L*.5,AM.blk,0,0,L*.25,12));
     for(let i=0;i<4;i++){const an=i*Math.PI/2+Math.PI/4,p=boxA(.005,.005,L*.6,AM.blk,Math.cos(an)*r*.8,Math.sin(an)*r*.8,-L*.2);o.add(p);}
     o.position.set(0,bore,u.muzzle-L/2+.005);add(o,a);u.muzzle-=L-.005;break;}
-   case 'reddot':{const z=clamp(u.muzzle*.28,-.2,-.03),base=pr.topR(z-.04,z+.04)-.002,k2=pistol?.62:1;
+   case 'reddot':{const z=u.optSlot?u.optSlot.z:clamp(u.muzzle*.28,-.2,-.03),base=u.optSlot?u.optSlot.y:pr.topR(z-.04,z+.04)-.002,k2=pistol?.62:1;
     // redDot() construit à z=-.15 au-dessus de y=0 : réduit sur pistolet puis recalé sur la glissière / le rail
     const o=redDot({sight:1e-6});o.scale.setScalar(k2);o.position.set(0,base,z+.15*k2);o.userData.att=a;g.add(o);
     retSwapDot(o,'reddot',.018);
-    u.sight=base+.034*k2;u.optic=a;break;}
-   case 'mini':{let z=clamp(u.muzzle*(pistol?.2:.26),-.18,-.02),base=pr.topR(z-.03,z+.03)-.002,o=new THREE.Group(),cy=base+.02;
+    u.sight=clearOpt(o,base,z,z+.03,base+.034*k2);u.optic=a;break;}
+   case 'mini':{let z=u.optSlot?u.optSlot.z:clamp(u.muzzle*(pistol?.2:.26),-.18,-.02),base=u.optSlot?u.optSlot.y:pr.topR(z-.03,z+.03)-.002,o=new THREE.Group(),cy=base+.02;
     // mini réflex : semelle basse + fenêtre inclinée
     o.add(boxA(.026,.008,.04,AM.dark,0,base+.004,z+.004));
     o.add(boxA(.004,.026,.012,AM.blk,-.013,cy-.002,z-.01),boxA(.004,.026,.012,AM.blk,.013,cy-.002,z-.01),boxA(.03,.004,.014,AM.blk,0,cy+.012,z-.01));
     const lens=new THREE.Mesh(new THREE.PlaneGeometry(.022,.022),AM.lensB);lens.position.set(0,cy,z-.016);o.add(lens);
     const ret=retMesh('mini',.012);ret.position.set(0,cy,z-.017);o.add(ret);
-    if(pistol)cy=pistolOptic(o,base,z,cy);add(o,a);u.sight=cy;u.optic=a;break;}
+    if(pistol)cy=pistolOptic(o,base,z,cy);add(o,a);u.sight=clearOpt(o,base,z,z+.02,cy);u.optic=a;break;}
    case 'sc4':case 'sc6':case 'sc8':case 'sc10':{
     if(w.cat==='sniper'||u.scope){u.optic=a;break;}  // le sniper garde sa lunette : seul le grossissement change
-    let L=a==='sc4'?.17:.21,r=a==='sc4'?.019:.022,z=clamp(u.muzzle*.32,-.26,-.08),base=pr.topR(z-L/2,z+L/2),cy=base+r+.022,o=new THREE.Group();
+    let L=a==='sc4'?.17:.21,r=a==='sc4'?.019:.022,z=u.optSlot?u.optSlot.z:clamp(u.muzzle*.32,-.26,-.08),base=u.optSlot?u.optSlot.y:pr.topR(z-L/2,z+L/2),cy=base+r+.022,o=new THREE.Group();
     const tube=new THREE.MeshStandardMaterial({color:C(0x15171b),roughness:.45,metalness:.75,side:THREE.DoubleSide});
     o.add(cylZ(r*.8,r*.8,L,tube,0,cy,z,22,true));
     o.add(cylZ(r*1.3,r*.8,.045,tube,0,cy,z-L/2-.012,22,true),cylZ(r*.8,r*1.15,.035,tube,0,cy,z+L/2+.01,22,true));
     o.add(cylZ(r*.95,r*.95,.03,AM.blk,0,cy+r*.95,z,14),cylZ(r*.95,r*.95,.03,AM.blk,r*.95,cy,z,14));
     for(const dz of [-L*.28,L*.28]){o.add(boxA(.012,cy-base,.016,AM.dark,0,base+(cy-base)/2,z+dz));o.add(new THREE.Mesh(new THREE.TorusGeometry(r*.85,.004,6,18),AM.blk).translateX(0).translateY(cy).translateZ(z+dz));}
     const lens=new THREE.Mesh(new THREE.CircleGeometry(r*1.2,22),AM.lensB);lens.position.set(0,cy,z-L/2-.034);o.add(lens);
-    if(pistol)cy=pistolOptic(o,base,z,cy);add(o,a);u.sight=cy;u.optic=a;break;}
-   case 'holo':{let z=clamp(u.muzzle*.3,-.22,-.05),base=pr.topR(z-.05,z+.05),o=new THREE.Group(),h=.04,cy=base+.026;
+    if(pistol)cy=pistolOptic(o,base,z,cy);add(o,a);u.sight=clearOpt(o,base,z,z+L/2+.03,cy);u.optic=a;break;}
+   case 'holo':{let z=u.optSlot?u.optSlot.z:clamp(u.muzzle*.3,-.22,-.05),base=u.optSlot?u.optSlot.y:pr.topR(z-.05,z+.05),o=new THREE.Group(),h=.04,cy=base+.026;
     o.add(boxA(.034,.012,.085,AM.dark,0,base+.006,z));
     // cadre ouvert (fenêtre rectangulaire)
     o.add(boxA(.005,h,.05,AM.blk,-.02,cy+.003,z),boxA(.005,h,.05,AM.blk,.02,cy+.003,z),boxA(.045,.006,.054,AM.blk,0,cy+h/2+.003,z));
     o.add(boxA(.045,.006,.034,AM.dark,0,base+.012,z+.016));
     const lens=new THREE.Mesh(new THREE.PlaneGeometry(.035,.034),AM.lensB);lens.position.set(0,cy,z-.023);o.add(lens);
     const ret=retMesh('holo',.017);ret.position.set(0,cy,z-.024);o.add(ret);
-    if(pistol)cy=pistolOptic(o,base,z,cy);add(o,a);u.sight=cy;u.optic=a;break;}
-   case 'acog':{let z=clamp(u.muzzle*.3,-.24,-.06),base=pr.topR(z-.06,z+.06),o=new THREE.Group(),r=.021,cy=base+.036;
+    if(pistol)cy=pistolOptic(o,base,z,cy);add(o,a);u.sight=clearOpt(o,base,z,z+.045,cy);u.optic=a;break;}
+   case 'acog':{let z=u.optSlot?u.optSlot.z:clamp(u.muzzle*.3,-.24,-.06),base=u.optSlot?u.optSlot.y:pr.topR(z-.06,z+.06),o=new THREE.Group(),r=.021,cy=base+.036;
     o.add(boxA(.028,.016,.07,AM.dark,0,base+.008,z));
     o.add(cylZ(r,r,.12,new THREE.MeshStandardMaterial({color:C(0x1a1c20),roughness:.5,metalness:.7,side:THREE.DoubleSide}),0,cy,z,22,true));
     o.add(cylZ(r*1.25,r,.03,AM.blk,0,cy,z-.07,22,true),cylZ(r,r*1.15,.02,AM.blk,0,cy,z+.065,22,true));
     o.add(boxA(.014,.014,.02,AM.blk,0,cy+r+.004,z),boxA(.014,.014,.02,AM.blk,r+.004,cy,z));
     const lens=new THREE.Mesh(new THREE.CircleGeometry(r*.95,22),AM.lensB);lens.position.set(0,cy,z-.05);o.add(lens);
     const ret=retMesh('acog',.022);ret.position.set(0,cy,z-.051);o.add(ret);
-    if(pistol)cy=pistolOptic(o,base,z,cy);add(o,a);u.sight=cy;u.optic=a;break;}
+    if(pistol)cy=pistolOptic(o,base,z,cy);add(o,a);u.sight=clearOpt(o,base,z,z+.075,cy);u.optic=a;break;}
    case 'long':{const L=.09*S,r=.012*S,o=new THREE.Group();o.add(cylZ(r,r,L,AM.blk,0,0,0,14));o.add(cylZ(r*1.5,r*1.5,.025,AM.dark,0,0,L/2-.012,14));
     o.position.set(0,bore,u.muzzle-L/2+.005);add(o,a);u.muzzle-=L-.005;break;}
    case 'heavy':{const L=.07*S,r=.016*S,o=new THREE.Group();o.add(cylZ(r,r,L,AM.dark,0,0,0,14));

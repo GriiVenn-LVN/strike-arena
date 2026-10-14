@@ -59,6 +59,14 @@ function glbTemplate(k,real){
 /* modèle réaliste texturé : seulement avec la finition d'usine (un skin repasse sur le modèle stylisé, qu'il peut peindre) */
 let GLB_ICON=0;
 function useRealGun(k,sk){return !GLB_ICON&&cfg.realGuns!==0&&typeof GLB_REAL_DATA!=='undefined'&&!!GLB_REAL_DATA[k]&&(!sk||sk.def);}
+/* sépare les triangles d'une géométrie indexée : ceux entre z0 et z1 posés au-dessus du rail (hauteur y0), et le reste */
+function glbSplit(geo,b){
+ const P=geo.attributes.position,I=geo.index.array,A=[],B=[];
+ const inb=t=>{let lo=1e9,hi=-1e9;for(let j=0;j<3;j++){const i=I[t+j],z=P.getZ(i),y=P.getY(i);if(z<b[0]||z>b[1])return false;lo=Math.min(lo,y);hi=Math.max(hi,y);}return lo>b[2]-.007&&hi>b[2]+.001;};
+ for(let t=0;t<I.length;t+=3)(inb(t)?B:A).push(I[t],I[t+1],I[t+2]);
+ const mk=ix=>{const g=new THREE.BufferGeometry();for(const n in geo.attributes)g.setAttribute(n,geo.attributes[n]);g.setIndex(ix);return g;};
+ return [mk(A),mk(B)];
+}
 /* couleur source -> rôle du matériau (pour appliquer le skin) */
 function glbRole(c){
  const r=c[0],g=c[1],b=c[2],lum=.3*r+.59*g+.11*b,mx=Math.max(r,g,b),mn=Math.min(r,g,b),sat=mx>0?(mx-mn)/mx:0;
@@ -72,8 +80,14 @@ function glbGun(k,M,sk,real){
  const tpl=glbTemplate(k,real);if(!tpl)return null;
  const info=(real?GLB_REAL_INFO[k]:GLB_INFO[k])||{},w=W[k],g=new THREE.Group();
  const keepMat={};
+ let builtin=null;
  const copy=(src,dst)=>{for(const c of src.children){
-  if(c.isMesh&&c.userData.real){const m=new THREE.Mesh(c.geometry,c.material);m.castShadow=true;dst.add(m);}
+  if(c.isMesh&&c.userData.real&&info.optic&&src.name==='body'){
+   // viseur intégré au modèle (ex. holographique du M4) : pièce séparée, masquée quand on monte une optique
+   const sp=c.userData.split||(c.userData.split=glbSplit(c.geometry,info.optic));
+   const m=new THREE.Mesh(sp[0],c.material);m.castShadow=true;dst.add(m);
+   builtin=new THREE.Mesh(sp[1],c.material);builtin.castShadow=true;builtin.userData.builtinOptic=1;dst.add(builtin);}
+  else if(c.isMesh&&c.userData.real){const m=new THREE.Mesh(c.geometry,c.material);m.castShadow=true;dst.add(m);}
   else if(c.isMesh){const role=glbRole(c.userData.col);let mt=M[role];
    if(role==='keep'||!mt){const key=c.userData.col.join();mt=keepMat[key]||(keepMat[key]=new THREE.MeshStandardMaterial({color:new THREE.Color(c.userData.col[0],c.userData.col[1],c.userData.col[2]),metalness:Math.max(.3,c.userData.metal),roughness:Math.min(.6,c.userData.rough)}));}
    const m=new THREE.Mesh(c.geometry,mt);m.castShadow=true;dst.add(m);}
@@ -86,11 +100,12 @@ function glbGun(k,M,sk,real){
  // ligne de visée : on vise par-dessus les organes de visée (sinon la hausse pleine du modèle masque le centre)
  if(!tpl.userData.top){const bb=new THREE.Box3().setFromObject(tpl);tpl.userData.top=bb.max.y;}
  // modèles réalistes : ligne de visée réglée à la préparation (centre du viseur holographique / de la lunette)
- const sightY=real&&info.sight?info.sight:Math.max(info.sight||.06,tpl.userData.top+.004);
+ const sightY=info.ads!==undefined?info.ads:real&&info.sight?info.sight:Math.max(info.sight||.06,tpl.userData.top+.004);
  return finishGun(g,{len:info.len||w.len,muzzle:info.muzzle||-.4,glb:true,
   right:V3(0,-.03,.012),left:pistol?V3(-.012,-.04,.02):V3(L[0],L[1]-.012,L[2]),
   sight:sightY,eject:V3(.025,sightY*.6,(info.muzzle||-.4)*.18),
-  mag:mag,slide:pistol?bolt:null,bolt:pistol?null:bolt,twoHand:true,real:!!real});
+  mag:mag,slide:pistol?bolt:null,bolt:pistol?null:bolt,twoHand:true,real:!!real,builtinOptic:builtin,
+  optSlot:builtin?{z:(info.optic[0]+info.optic[1])/2,y:info.optic[2]-.002}:null});
 }
 /* icônes (HUD, listes) : toujours le modèle stylisé — les textures du modèle réaliste se chargent en différé et l'icône, mise en cache, resterait noire */
 {const wi0=weaponIcon;weaponIcon=function(k,s){GLB_ICON=1;try{return wi0(k,s);}finally{GLB_ICON=0;}};}
