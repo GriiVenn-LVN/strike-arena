@@ -4842,7 +4842,7 @@ function variantPostSpawn(){
  const v=G.variant;
  if(v==='br'){for(const e of ents){e.wp.p=null;e.wp.s=null;e.cur='k';e.armor=0;e.shield=0;e.nade={f:0,fl:0,sm:0};}}
  if(v==='train'){trPlaceDummies();P.wp.p&&(P.wp.p.res=999);}
- if(v==='zombies'){const sp=shuffle(MAP.spawnCT.slice());ents.forEach((e,i)=>{if(e.zombie)return;const c=nearestFree(sp[i%sp.length][0],sp[i%sp.length][1]);e.x=cc(c[0]);e.z=cc(c[1]);e.y=groundH(e.x,e.z);e.tp=(e.tp||0)+1;});for(const e of ents){e.nade={f:2,fl:0,sm:0,mn:1};if(e.isPlayer){e.wp.p=null;giveWeapon(e,'p250');e.cur='s';}e.pts=500;e.perks={};}}
+ if(v==='zombies'){const sp=shuffle(MAP.spawnCT.slice());ents.forEach((e,i)=>{if(e.zombie)return;const c=nearestFree(sp[i%sp.length][0],sp[i%sp.length][1]);e.x=cc(c[0]);e.z=cc(c[1]);e.y=groundH(e.x,e.z);e.tp=(e.tp||0)+1;});for(const e of ents){e.nade={f:2,fl:0,sm:0,mn:1};if(e.isPlayer){e.wp.p=null;giveWeapon(e,'p250');e.cur='s';}if(e.wp.s)e.wp.s.res=ZSTART_RES;e.pts=500;e.perks={};}}
 }
 function variantRespawn(v){ // délai de réapparition (Infinity = jamais)
  const g=G.variant;
@@ -4901,7 +4901,7 @@ function zStartWave(){
  uiBanner('MANCHE '+Z.wave,Z.wave===1?'Gagne des points, achète des armes aux murs, tente la boîte mystère':'Ils sont plus nombreux…',2600,'#d0202a');sfx('alarm');
  const humans=ents.filter(e=>e.team===0);
  for(const h of humans){
-  if(!h.alive){const f=humans.find(x=>x.alive&&x!==h);const c=f?[Math.floor(f.x/S),Math.floor(f.z/S)]:MAP.spawnCT[0];const n=nearestFree(c[0]+1,c[1]);respawn(h);if(h.isPlayer){h.wp.p=null;giveWeapon(h,'p250');h.cur='s';}h.perks={};h.x=cc(n[0]);h.z=cc(n[1]);h.y=groundH(h.x,h.z);h.hp=60;}
+  if(!h.alive){const f=humans.find(x=>x.alive&&x!==h);const c=f?[Math.floor(f.x/S),Math.floor(f.z/S)]:MAP.spawnCT[0];const n=nearestFree(c[0]+1,c[1]);respawn(h);if(h.isPlayer){h.wp.p=null;giveWeapon(h,'p250');h.wp.s.res=ZSTART_RES;h.cur='s';}h.perks={};h.x=cc(n[0]);h.z=cc(n[1]);h.y=groundH(h.x,h.z);h.hp=60;}
   else h.hp=Math.min(100,h.hp+35);
   h.nade.f=Math.max(2,h.nade.f||0);if(!h.perks)h.perks={};if(h.isPlayer)h.invuln=1.5;
  }
@@ -6597,7 +6597,8 @@ const PERKS={
  revive:{n:'Second Souffle',price:1500,c:'#4aa3ff',ic:'♥',d:'Te relève une fois quand tu tombes'},
  stamin:{n:'Pas de Course',price:2000,c:'#ff9a3a',ic:'»',d:'Course 18 % plus rapide'}
 };
-const WALLBUYS=[['mp9',1000],['ump',1200],['nova',900],['famas',1500],['galil',1400],['m4',2000],['xm',1800],['deagle',800]];
+const ZSTART_RES=104;          // réserve du pistolet de départ (8 chargeurs de P250 au lieu de 2)
+const WALLBUYS=[['mac10',500],['mp9',1000],['ump',1200],['nova',900],['famas',1500],['galil',1400],['m4',2000],['xm',1800],['deagle',800]];
 const BOXPOOL=['mac10','mp9','ump','p90','nova','xm','sawedoff','galil','famas','ak','m4','sg553','aug','ssg','awp','scar','negev','m249','deagle','fiveseven','raygun','raygun','thunder','winter','winter'];
 const PAP_PRICE=5000,BOX_PRICE=950;
 const zOn=()=>G.variant==='zombies';
@@ -6734,7 +6735,10 @@ function zSetup(){
  const sp=MAP.spawnCT[0],home={x:cc(sp[0]),z:cc(sp[1])};
  // armes murales proches du départ, puis tout le reste réparti sur la carte
  const near=spots.slice().sort((a,b)=>Math.hypot(a.x-home.x,a.z-home.z)-Math.hypot(b.x-home.x,b.z-home.z));
- const walls=zPickSpread(near.slice(0,Math.max(10,near.length>>1)),Math.min(WALLBUYS.length,6),[]);
+ // MAC-10 à 500 : le mur le plus proche du départ, dans la zone accessible dès la manche 1
+ const inStart=s=>!ZD.reach||!!ZD.reach[Math.floor(s.z/S)*N+Math.floor(s.x/S)];
+ const first=near.find(s=>inStart(s)&&Math.hypot(s.x-home.x,s.z-home.z)>2)||near.find(inStart)||near[0];
+ const walls=first?[first].concat(zPickSpread(near.slice(0,Math.max(10,near.length>>1)).filter(s=>s!==first),Math.min(WALLBUYS.length,7)-1,[first])):[];
  const rest=spots.filter(s=>!walls.includes(s));
  const boxSpots=zPickSpread(rest,3,walls);
  // la boîte mystère démarre dans la zone de départ (avant d'ouvrir les portes)
@@ -6827,7 +6831,7 @@ function zDrop(x,z){
 function zApplyDrop(key,who){
  const d=DROPS[key];uiBanner(d.n,'',1800,'#'+d.c.toString(16).padStart(6,'0'));sfx('powerup');
  const humans=ents.filter(e=>!e.zombie);
- if(key==='ammo'){for(const h of humans)for(const s of ['p','s']){const wi=h.wp[s];if(wi){wi.mag=magMax(h,wi.k);wi.res=W[wi.k].res*(wi.pap?2:1);}}}
+ if(key==='ammo'){for(const h of humans)for(const s of ['p','s']){const wi=h.wp[s];if(wi){wi.mag=magMax(h,wi.k);wi.res=Math.max(wi.res,W[wi.k].res*(wi.pap?2:1));}}}
  if(key==='insta')ZB.insta=G.t+30;
  if(key==='dbl')ZB.dbl=G.t+30;
  if(key==='fire')ZB.fire=G.t+30;
@@ -10291,6 +10295,45 @@ const _zUpdateRegen=zUpdate;
 zUpdate=function(dt){
  _zUpdateRegen(dt);
  zRegenUpdate(dt);
+};
+/* =====================================================================
+   ZOMBIES : PORTEURS DE MUNITIONS
+   - À chaque manche, quelques zombies (un par humain, bots compris,
+     5 au maximum) brillent en jaune.
+   - Celui qui en tue un récupère des chargeurs pleins et la réserve
+     maximale pour toutes ses armes.
+   - Les porteurs sont répartis sur toute la manche (pas tous au début).
+   ===================================================================== */
+const ZAMMO={left:0,max:5};
+const _zOnWaveAmmo=zOnWave;
+zOnWave=function(){
+ _zOnWaveAmmo();
+ ZAMMO.left=Math.min(ZAMMO.max,ents.filter(e=>!e.zombie&&e.team===0).length);
+};
+const _zStyleAmmo=zStyleZombie;
+zStyleZombie=function(z){
+ _zStyleAmmo(z);
+ // chance = porteurs restants / zombies restants à faire apparaître : tous sortent avant la fin
+ if(ZAMMO.left>0&&z.ztype!=='boss'&&Math.random()<ZAMMO.left/Math.max(1,Z.queue)){
+  ZAMMO.left--;z.ammoCarrier=true;
+  if(z.rig){const g=zGlow(0xffd23a,1.3);if(g){g.position.y=1.15;z.rig.root.add(g);z._ammoGlow=g;}}
+ }
+};
+function zRefillAll(h){
+ for(const s of ['p','s']){const wi=h.wp[s];if(wi){wi.mag=magMax(h,wi.k);wi.res=Math.max(wi.res,W[wi.k].res*(wi.pap?2:1),s==='s'&&wi.k==='p250'?ZSTART_RES:0);}}
+}
+const _zKillAmmo=zKillHook;
+zKillHook=function(att,v,w,hs){
+ _zKillAmmo(att,v,w,hs);
+ if(!v.zombie||!v.ammoCarrier)return;
+ v.ammoCarrier=false;if(v._ammoGlow){v._ammoGlow.parent&&v._ammoGlow.parent.remove(v._ammoGlow);v._ammoGlow=null;}
+ // tué par une explosion ou un piège : le survivant le plus proche en profite
+ let h=att&&!att.zombie&&att.alive?att:null;
+ if(!h){let bd=1e9;for(const e of ents)if(!e.zombie&&e.alive){const d=Math.hypot(e.x-v.x,e.z-v.z);if(d<bd){bd=d;h=e;}}}
+ if(!h)return;
+ zRefillAll(h);sfx('pickup',v.x,v.z);
+ if(fxReady)for(let i=0;i<14;i++)fxA.emit(v.x,v.y+rand(.4,1.6),v.z,rand(-1,1),rand(.5,2),rand(-1,1),.7,.15,.05,1,.82,.23,1,-2,1);
+ if(h.isPlayer)uiBanner('MUNITIONS RECHARGÉES','Zombie porteur éliminé',1600,'#ffd23a');
 };
 /* =====================================================================
    BOUCLE PRINCIPALE

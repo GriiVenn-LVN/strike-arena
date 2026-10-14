@@ -84,7 +84,7 @@ function variantPostSpawn(){
  const v=G.variant;
  if(v==='br'){for(const e of ents){e.wp.p=null;e.wp.s=null;e.cur='k';e.armor=0;e.shield=0;e.nade={f:0,fl:0,sm:0};}}
  if(v==='train'){trPlaceDummies();P.wp.p&&(P.wp.p.res=999);}
- if(v==='zombies'){const sp=shuffle(MAP.spawnCT.slice());ents.forEach((e,i)=>{if(e.zombie)return;const c=nearestFree(sp[i%sp.length][0],sp[i%sp.length][1]);e.x=cc(c[0]);e.z=cc(c[1]);e.y=groundH(e.x,e.z);e.tp=(e.tp||0)+1;});for(const e of ents){e.nade={f:2,fl:0,sm:0,mn:1};if(e.isPlayer){e.wp.p=null;giveWeapon(e,'p250');e.cur='s';}e.pts=500;e.perks={};}}
+ if(v==='zombies'){const sp=shuffle(MAP.spawnCT.slice());ents.forEach((e,i)=>{if(e.zombie)return;const c=nearestFree(sp[i%sp.length][0],sp[i%sp.length][1]);e.x=cc(c[0]);e.z=cc(c[1]);e.y=groundH(e.x,e.z);e.tp=(e.tp||0)+1;});for(const e of ents){e.nade={f:2,fl:0,sm:0,mn:1};if(e.isPlayer){e.wp.p=null;giveWeapon(e,'p250');e.cur='s';}if(e.wp.s)e.wp.s.res=ZSTART_RES;e.pts=500;e.perks={};}}
 }
 function variantRespawn(v){ // délai de réapparition (Infinity = jamais)
  const g=G.variant;
@@ -143,7 +143,7 @@ function zStartWave(){
  uiBanner('MANCHE '+Z.wave,Z.wave===1?'Gagne des points, achète des armes aux murs, tente la boîte mystère':'Ils sont plus nombreux…',2600,'#d0202a');sfx('alarm');
  const humans=ents.filter(e=>e.team===0);
  for(const h of humans){
-  if(!h.alive){const f=humans.find(x=>x.alive&&x!==h);const c=f?[Math.floor(f.x/S),Math.floor(f.z/S)]:MAP.spawnCT[0];const n=nearestFree(c[0]+1,c[1]);respawn(h);if(h.isPlayer){h.wp.p=null;giveWeapon(h,'p250');h.cur='s';}h.perks={};h.x=cc(n[0]);h.z=cc(n[1]);h.y=groundH(h.x,h.z);h.hp=60;}
+  if(!h.alive){const f=humans.find(x=>x.alive&&x!==h);const c=f?[Math.floor(f.x/S),Math.floor(f.z/S)]:MAP.spawnCT[0];const n=nearestFree(c[0]+1,c[1]);respawn(h);if(h.isPlayer){h.wp.p=null;giveWeapon(h,'p250');h.wp.s.res=ZSTART_RES;h.cur='s';}h.perks={};h.x=cc(n[0]);h.z=cc(n[1]);h.y=groundH(h.x,h.z);h.hp=60;}
   else h.hp=Math.min(100,h.hp+35);
   h.nade.f=Math.max(2,h.nade.f||0);if(!h.perks)h.perks={};if(h.isPlayer)h.invuln=1.5;
  }
