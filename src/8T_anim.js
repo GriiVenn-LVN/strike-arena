@@ -155,6 +155,8 @@ animateSoldier=function(R,st,dt,t){
  if(L>.5&&w.fxT<=0){w.fxT=.045;fxDust(px-Math.sin(R.vyaw||st.yaw)*.4,y+.04,pz-Math.cos(R.vyaw||st.yaw)*.4,2,.14);}
  if(D>.4&&w.fxT<=0){w.fxT=.03;const L2=Math.hypot(e.vx||0,e.vz||0)||1;for(let i=0;i<2;i++)anStreak(px+rand(-.25,.25),y+rand(.5,1.6),pz+rand(-.25,.25),(e.vx||0)/L2,(e.vz||0)/L2,rand(.6,1.2));}
  if(S+T>.6&&st.onGround){const sg=s(ph)>0;if(sg!==w.stepS){w.stepS=sg;if(Math.random()<.5)fxDust(px,y+.03,pz,1,.08);}}
+ // modèle réaliste (fil Décors 3D) : il recopie la pose du rig, on le resynchronise après nos retouches
+ if(R.rb&&typeof syncRealBody==='function')syncRealBody(R);
 };
 const _anSync=syncRigs;
 syncRigs=function(dt,t){_anSync(dt,t);anFxUpdate(dt);};
