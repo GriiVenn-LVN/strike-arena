@@ -8,7 +8,8 @@
 import bpy, bmesh, json, math, os
 from mathutils import Vector, Matrix
 
-def run(KEY, REAL_LEN, OUT_DIR, FLIP=False, GRIP_OVERRIDE=None, CAT='rifle', INVERT=False):
+def run(KEY, REAL_LEN, OUT_DIR, FLIP=False, GRIP_OVERRIDE=None, CAT='rifle', INVERT=False, TEX=False, TEX_MAX=1024, JPEG_Q=82):
+    # TEX=True : modèle texturé (série « réaliste ») -> on garde UV, normales et textures (réduites à TEX_MAX px, JPEG)
     scn = bpy.context.scene
     meshes = [o for o in scn.objects if o.type == 'MESH' and o.name != 'Icosphere']
     # --- 1. figer la pose et séparer les pièces selon l'os dominant ---
@@ -28,7 +29,7 @@ def run(KEY, REAL_LEN, OUT_DIR, FLIP=False, GRIP_OVERRIDE=None, CAT='rifle', INV
             if deform:
                 for v in f.verts:
                     for gi, wt in v[deform].items(): w[gi] = w.get(gi, 0) + wt
-            gname = groups.get(max(w, key=w.get), 'body') if w else 'body'
+            gname = groups.get(max(w, key=w.get), 'body') if w else (o.name if not groups else 'body')
             lname = gname.lower()
             role = 'mag' if ('mag' in lname and 'release' not in lname) or 'bullet' in lname else 'bolt' if ('bolt' in lname or 'charg' in lname or 'slide' in lname) else 'body'
             buckets.setdefault(role, []).append(f.index)
@@ -148,15 +149,26 @@ def run(KEY, REAL_LEN, OUT_DIR, FLIP=False, GRIP_OVERRIDE=None, CAT='rifle', INV
         for o in objs.values():
             d = o.modifiers.new('Dec', 'DECIMATE'); d.ratio = 18000/tri
             bpy.context.view_layer.objects.active = o; bpy.ops.object.modifier_apply(modifier='Dec')
-    for o in objs.values():
-        for p in o.data.polygons: p.use_smooth = False
-    # fusion des sommets en double (le modèle source est découpé face par face)
-    for o in objs.values():
-        bm = bmesh.new(); bm.from_mesh(o.data); bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=.0002); bm.to_mesh(o.data); bm.free()
+    if not TEX:
+        for o in objs.values():
+            for p in o.data.polygons: p.use_smooth = False
+        # fusion des sommets en double (le modèle source est découpé face par face)
+        for o in objs.values():
+            bm = bmesh.new(); bm.from_mesh(o.data); bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=.0002); bm.to_mesh(o.data); bm.free()
+    else:
+        # textures réduites (le HTML embarque les modèles en base64)
+        for img in bpy.data.images:
+            if img.size[0] > TEX_MAX or img.size[1] > TEX_MAX:
+                k = TEX_MAX / max(img.size); img.scale(max(1, int(img.size[0]*k)), max(1, int(img.size[1]*k)))
     # --- 6. export ---
     os.makedirs(OUT_DIR, exist_ok=True)
     bpy.ops.object.select_all(action='SELECT')
-    bpy.ops.export_scene.gltf(filepath=os.path.join(OUT_DIR, KEY + '.glb'), export_format='GLB', use_selection=True, export_yup=True, export_apply=True, export_normals=False, export_texcoords=False)
+    opts = dict(export_normals=False, export_texcoords=False)
+    if TEX:
+        opts = dict(export_normals=True, export_texcoords=True, export_jpeg_quality=JPEG_Q)
+        fmts = [i.identifier for i in bpy.ops.export_scene.gltf.get_rna_type().properties['export_image_format'].enum_items]
+        if 'JPEG' in fmts: opts['export_image_format'] = 'JPEG'
+    bpy.ops.export_scene.gltf(filepath=os.path.join(OUT_DIR, KEY + '.glb'), export_format='GLB', use_selection=True, export_yup=True, export_apply=True, **opts)
     # coordonnées glTF : x = x, y = z, z = -y
     g = lambda v: [round(v[0], 4), round(v[2], 4), round(-v[1], 4)]
     info = {'key': KEY, 'parts': list(objs.keys()), 'tris': tri, 'muzzle': round(-muzzle_y, 4), 'left': g(left), 'right': [0, 0, 0], 'sight': round(sight, 4),
