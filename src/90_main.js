@@ -92,7 +92,7 @@ function frame(){
  if(G.running&&(!G.paused||NET.role))update(dt);else if(!G.running)immersionUpdate(dt);
  if(pvOn&&pvR&&pvPivot&&!G.running){if(!pvHold)pvPivot.rotation.y+=dt*.7*pvSpin;pvR.render(pvS,pvC);}
  if(lkOn&&!G.running)lkFrame(dt,now);
- render(G.paused?0:dt,now);
+ render(G.paused&&!NET.role?0:dt,now);
 }
 /* ---------- démarrage avec écran de chargement ---------- */
 (function boot(){

@@ -4368,7 +4368,8 @@ function killEnt(v,att,w,hs){
  rpKill(att,v,w,hs);
  v.alive=false;v.hp=0;v.deaths++;v.scoped=false;v.prog=0;v.streak=0;v.shield=0;v.ads=0;
  v.dieDir=Math.floor(Math.random()*4);
- if(att!==v){att.kills++;att.streak++;if(hs)att.hsKills++;att.bestStreak=Math.max(att.bestStreak||0,att.streak);
+ if(att!==v&&att.team!==v.team){att.kills++;att.streak++; // un allié tué (baril, mine) ne compte pas comme une élimination
+ if(hs)att.hsKills++;att.bestStreak=Math.max(att.bestStreak||0,att.streak);
   if(att.isPlayer){const wk=Object.keys(W).find(k=>W[k]===w);if(wk)MS.wkills[wk]=(MS.wkills[wk]||0)+1;metaEvent('kills');if(hs)metaEvent('hs');if(w===NADEW)metaEvent('nade');if(w.melee)metaEvent('knife');}}
  if(v.rig)v.rig.dieT=-1;
  if(v.rig&&v.isPlayer)v.rig.root.visible=true;
@@ -4378,7 +4379,7 @@ function killEnt(v,att,w,hs){
  if(att.isPlayer&&att!==v){uiKillMsg(v,hs,att.streak);sfx('kill');}
  if(v.isPlayer){G.spec=null;uiDeath(att);}
  if(G.mode==='bomb'){
-  if(att!==v)att.money=Math.min(16000,att.money+(w.kill||300));
+  if(att!==v&&att.team!==v.team)att.money=Math.min(16000,att.money+(w.kill||300));
   extrasKill(att,w);if(cfg.gore&&!v.zombie)stain(v.x,groundH(v.x,v.z)+.03,v.z,6);
   if(G.state==='live')checkEnd();
  }else{
@@ -4546,7 +4547,7 @@ function updatePickups(dt,t){
    let used=false;
    if(p.type==='shield'&&e.shield<SHIELDMAX){e.shield=Math.min(SHIELDMAX,e.shield+25);used=true;}
    else if(p.type==='health'&&e.hp<100){e.hp=Math.min(100,e.hp+35);used=true;}
-   else if(p.type==='ammo'){for(const k of ['p','s']){const wi=e.wp[k];if(wi){const w=W[wi.k];wi.mag=w.mag;wi.res=w.res;}}used=true;}
+   else if(p.type==='ammo'){for(const k of ['p','s']){const wi=e.wp[k];if(wi){wi.mag=magMax(e,wi.k);wi.res=Math.max(wi.res,W[wi.k].res);}}used=true;}
    else if(p.type==='armor'&&e.armor<100){e.armor=100;used=true;}
    else if(p.type==='weapon'){const slot=slotOf(p.key);if(!e.wp[slot]||e.wp[slot].k!==p.key){giveWeapon(e,p.key);used=true;}}
    if(used){
@@ -4678,8 +4679,9 @@ function explode(){
  netEvent({t:'boom',x:BM.x,y:BM.y,z:BM.z});
  BM.state='exploded';if(BM.mesh)BM.mesh.visible=false;
  sfx('boom',BM.x,BM.z,1.6);fxExplosion(BM.x,BM.y+.3,BM.z,2.2);G.shake=1;uiFlashBlind(.4);
+ // dégâts AVANT la fin de manche : un joueur tué par l'explosion perd son équipement (e.keep)
+ for(const v of ents){if(!v.alive)continue;const d=Math.hypot(v.x-BM.x,v.z-BM.z);if(d<16){v.hp-=Math.round(240*(1-d/16));if(v.hp<=0){v.alive=false;v.hp=0;v.deaths++;v.scoped=false;v.ads=0;v.dieDir=Math.floor(Math.random()*4);if(v.rig){v.rig.dieT=-1;if(v.isPlayer)v.rig.root.visible=true;}if(v.isPlayer){G.spec=null;uiDeath(null);}}}}
  endRound(0,'La bombe a explosé');
- for(const v of ents){if(!v.alive)continue;const d=Math.hypot(v.x-BM.x,v.z-BM.z);if(d<16){v.hp-=Math.round(240*(1-d/16));if(v.hp<=0){v.alive=false;v.hp=0;v.deaths++;v.scoped=false;v.dieDir=Math.floor(Math.random()*4);if(v.rig)v.rig.dieT=-1;}}}
 }
 function handleUse(e,dt,holding){
  if(NET.role==='client'&&e.isPlayer&&G.netClient){e.useMsg='';return;}
@@ -4710,7 +4712,7 @@ function resetRound(){
     else if(ld.s&&W[ld.s].price<=300)giveWeapon(e,ld.s);
    }
   }
-  for(const s of ['p','s']){const wi=e.wp[s];if(wi){const w=W[wi.k];wi.mag=w.mag;wi.res=w.res;}}
+  for(const s of ['p','s']){const wi=e.wp[s];if(wi){wi.mag=magMax(e,wi.k);wi.res=Math.max(wi.res,W[wi.k].res);}}
   if(!cfg.eco)e.money=16000;
   const sp=(e.team===0?ts:cts).pop()||[20,20];
   e.x=cc(sp[0]);e.z=cc(sp[1]);e.y=groundH(e.x,e.z);e.vy=0;e.onGround=true;e.alive=true;e.hp=100;e.reload=0;e.switchT=0;e.scoped=false;e.vx=e.vz=0;e.crouch=false;e.eyeH=1.6;e.speed=0;e.mv=null;e.slide=null;e.mantle=null;
@@ -4777,7 +4779,7 @@ function updatePlayer(dt){
  const w=curW(p);
  const dr=(G.t-p.lastShot<.2)?3.5:9;
  p.punchP-=p.punchP*Math.min(1,dt*dr);p.punchY-=p.punchY*Math.min(1,dt*dr);
- if(buyOpen){p.speed=0;return;}
+ if(buyOpen||G.paused){p.speed=0;return;}
  let fx=0,fz=0;
  if(K('forward'))fz+=1;if(K('back'))fz-=1;if(K('right'))fx+=1;if(K('left'))fx-=1;
  const L=Math.hypot(fx,fz)||1;fx/=L;fz/=L;
@@ -8442,7 +8444,7 @@ function botUpdate(b,dt){
 
  if(b.target){
   b.seeT+=dt;
-  const t=b.target,dx=t.x-b.x,dz=t.z-b.z,dist=Math.hypot(dx,dz);
+  const t=b.target,dx=t.x-b.x,dz=t.z-b.z,dist=Math.hypot(dx,dz)||.01; // jamais 0 : sinon position NaN
   const ty=t.y+(b.aimHead?1.64:1.1)*(t.crouch?.75:1);
   const wy=Math.atan2(-dx,-dz),wp=Math.atan2(ty-(b.y+eyeOf(b)),dist);
   const ready=b.seeT>=d.react;
@@ -8582,13 +8584,14 @@ function uiMatchStart(){
 function uiMatchOver(){
  hudEl.classList.remove('show');$('sb').style.display='none';
  let win=false,title='',sub='';
- if(G.variant==='train'){const acc=MS.shots?Math.round(MS.hits/MS.shots*100):0;win=true;title='ENTRAÎNEMENT';sub='Score '+TR.score+'  •  précision '+acc+' %  •  série max '+TR.best;}
+ if(G.variant==='train'){const acc=MS.shots?Math.round(MS.hits/MS.shots*100):0;win=false; // pas une victoire : ne gonfle plus le taux de victoire ni l'XP
+ title='ENTRAÎNEMENT';sub='Score '+TR.score+'  •  précision '+acc+' %  •  série max '+TR.best;}
  else if(G.variant==='zombies'){win=G.winner===0;title=win?'VICTOIRE':'DÉFAITE';sub='Vague '+Z.wave+' / '+G.limit;}
  else if(G.variant==='br'){win=G.winner===P;title=win?'VICTOIRE ROYALE':(G.winner?G.winner.name+' GAGNE':'ÉGALITÉ');sub='Éliminations : '+P.kills;}
  else if(G.mode==='bomb'){win=G.score[P.team]>G.score[1-P.team];title=win?'VICTOIRE':'DÉFAITE';sub=G.score[P.team]+'  –  '+G.score[1-P.team];}
  else if(G.mode==='tdm'){win=G.winner===P.team;title=G.winner===-1?'ÉGALITÉ':win?'VICTOIRE':'DÉFAITE';sub=G.score[P.team]+'  –  '+G.score[1-P.team];}
  else{win=G.winner===P;title=win?'VICTOIRE':(G.winner?G.winner.name+' GAGNE':'ÉGALITÉ');sub=P.kills+' éliminations';}
- $('oT').textContent=title;$('oT').style.color=win?'#7dff9f':G.winner===-1?'#ffd75e':'#ff6b6b';
+ $('oT').textContent=title;$('oT').style.color=win||G.variant==='train'?'#7dff9f':G.winner===-1?'#ffd75e':'#ff6b6b';
  $('oS').textContent=sub+'   •   '+MODE().n+'   •   '+MAP.n+'   •   '+DIFFS[cfg.diff].n;
  $('oTable').innerHTML=scoreTable(true);showMatchRewards(win);
  $('over').classList.add('show');
@@ -8600,7 +8603,7 @@ function scoreTable(final){
  const head='<tr><th>Joueur</th><th>K</th><th>D</th><th>K/D</th><th>HS</th><th>Dégâts</th><th>'+(G.mode==='gg'?'Niv.':'$')+'</th></tr>';
  if(MODE().team){
   const mk=team=>'<h4 style="color:'+TEAMCSS[team]+'"><span>'+(team===0?'ATTAQUANTS':'DÉFENSEURS')+'</span><span>'+G.score[team]+'</span></h4><table>'+head+ents.filter(e=>e.team===team&&!e.zombie&&!e.dummy).sort((a,b)=>b.kills-a.kills).map(row).join('')+'</table>';
-  return mk(P.team)+mk(1-P.team);
+  return mk(P.team)+(G.variant==='zombies'?'':mk(1-P.team)); // en Zombies, pas d'équipe adverse à lister
  }
  return '<table>'+head+ents.filter(e=>!e.dummy&&!e.zombie).sort((a,b)=>(b.ggLevel-a.ggLevel)||(b.kills-a.kills)).map(row).join('')+'</table>';
 }
@@ -8921,7 +8924,8 @@ function drawMenu(){
  chipsRow('cSide',[['Attaquants (T)','t'],['Défenseurs (CT)','ct'],['Aléatoire','rnd']],()=>cfg.side,v=>cfg.side=v);
  if(m.team){
   $('lSize').textContent='Joueurs par équipe';
-  const mx=(cfg.mode==='bomb'||cfg.mode==='rapid')?5:8;chipsRow('cSize',Array.from({length:mx},(_,i)=>[(i+1)+' v '+(i+1),i+1]),()=>Math.min(cfg.size,mx),v=>cfg.size=v);
+  const mx=(cfg.mode==='bomb'||cfg.mode==='rapid')?5:8;if(cfg.size>mx)cfg.size=mx; // sinon le menu affiche 5 v 5 mais la partie se lance en 8 v 8
+  chipsRow('cSize',Array.from({length:mx},(_,i)=>[(i+1)+' v '+(i+1),i+1]),()=>Math.min(cfg.size,mx),v=>cfg.size=v);
  }else{
   $('lSize').textContent='Nombre de joueurs';
   chipsRow('cSize',[4,6,8,10,12].map(n=>[n+'',n]),()=>cfg.ffa,v=>cfg.ffa=v);
@@ -11255,6 +11259,34 @@ updateFX=function(dt,t){
 };
 window.__adm={ADM,admOpen,admClose,admKick,admAddBot,admVisionWhy,admCheck,admAimWhy};
 /* =====================================================================
+   CORRECTIFS DE L'AUDIT (2026-10-14)
+   - Points d'apparition / d'errance placés dans un décor (caisse sous
+     un toit au Port, haut de mur à l'Entrepôt et au Métro) : déplacés
+     automatiquement sur la case libre la plus proche au chargement de
+     la carte. Avant, on pouvait réapparaître coincé dans une caisse et
+     les bots marchaient vers un mur jusqu'à abandonner.
+   ===================================================================== */
+function mapPointOk(cx,cz){
+ if(cx<0||cz<0||cx>=N||cz>=N||!walkableCell(cz*N+cx))return false;
+ const x=cc(cx),z=cc(cz);return !blocked(x,z,groundH(x,z),PR);
+}
+function mapPointFix(c){
+ if(mapPointOk(c[0],c[1]))return;
+ for(let r=1;r<8;r++)for(let dz=-r;dz<=r;dz++)for(let dx=-r;dx<=r;dx++){
+  if(Math.max(Math.abs(dx),Math.abs(dz))!==r)continue;
+  if(mapPointOk(c[0]+dx,c[1]+dz)){c[0]+=dx;c[1]+=dz;return;}
+ }
+}
+const _buildWorldAudit=buildWorld;
+buildWorld=function(id){
+ const r=_buildWorldAudit(id);
+ if(MAP&&!MAP._ptsOk){
+  for(const L of ['spawnT','spawnCT','spawnDM','roam','holdCT'])if(MAP[L])for(const c of MAP[L])mapPointFix(c);
+  MAP._ptsOk=true;
+ }
+ return r;
+};
+/* =====================================================================
    BOUCLE PRINCIPALE
    ===================================================================== */
 function update(dt){
@@ -11348,7 +11380,7 @@ function frame(){
  if(G.running&&(!G.paused||NET.role))update(dt);else if(!G.running)immersionUpdate(dt);
  if(pvOn&&pvR&&pvPivot&&!G.running){if(!pvHold)pvPivot.rotation.y+=dt*.7*pvSpin;pvR.render(pvS,pvC);}
  if(lkOn&&!G.running)lkFrame(dt,now);
- render(G.paused?0:dt,now);
+ render(G.paused&&!NET.role?0:dt,now);
 }
 /* ---------- démarrage avec écran de chargement ---------- */
 (function boot(){

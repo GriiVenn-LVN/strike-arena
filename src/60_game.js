@@ -231,7 +231,8 @@ function killEnt(v,att,w,hs){
  rpKill(att,v,w,hs);
  v.alive=false;v.hp=0;v.deaths++;v.scoped=false;v.prog=0;v.streak=0;v.shield=0;v.ads=0;
  v.dieDir=Math.floor(Math.random()*4);
- if(att!==v){att.kills++;att.streak++;if(hs)att.hsKills++;att.bestStreak=Math.max(att.bestStreak||0,att.streak);
+ if(att!==v&&att.team!==v.team){att.kills++;att.streak++; // un allié tué (baril, mine) ne compte pas comme une élimination
+ if(hs)att.hsKills++;att.bestStreak=Math.max(att.bestStreak||0,att.streak);
   if(att.isPlayer){const wk=Object.keys(W).find(k=>W[k]===w);if(wk)MS.wkills[wk]=(MS.wkills[wk]||0)+1;metaEvent('kills');if(hs)metaEvent('hs');if(w===NADEW)metaEvent('nade');if(w.melee)metaEvent('knife');}}
  if(v.rig)v.rig.dieT=-1;
  if(v.rig&&v.isPlayer)v.rig.root.visible=true;
@@ -241,7 +242,7 @@ function killEnt(v,att,w,hs){
  if(att.isPlayer&&att!==v){uiKillMsg(v,hs,att.streak);sfx('kill');}
  if(v.isPlayer){G.spec=null;uiDeath(att);}
  if(G.mode==='bomb'){
-  if(att!==v)att.money=Math.min(16000,att.money+(w.kill||300));
+  if(att!==v&&att.team!==v.team)att.money=Math.min(16000,att.money+(w.kill||300));
   extrasKill(att,w);if(cfg.gore&&!v.zombie)stain(v.x,groundH(v.x,v.z)+.03,v.z,6);
   if(G.state==='live')checkEnd();
  }else{
@@ -409,7 +410,7 @@ function updatePickups(dt,t){
    let used=false;
    if(p.type==='shield'&&e.shield<SHIELDMAX){e.shield=Math.min(SHIELDMAX,e.shield+25);used=true;}
    else if(p.type==='health'&&e.hp<100){e.hp=Math.min(100,e.hp+35);used=true;}
-   else if(p.type==='ammo'){for(const k of ['p','s']){const wi=e.wp[k];if(wi){const w=W[wi.k];wi.mag=w.mag;wi.res=w.res;}}used=true;}
+   else if(p.type==='ammo'){for(const k of ['p','s']){const wi=e.wp[k];if(wi){wi.mag=magMax(e,wi.k);wi.res=Math.max(wi.res,W[wi.k].res);}}used=true;}
    else if(p.type==='armor'&&e.armor<100){e.armor=100;used=true;}
    else if(p.type==='weapon'){const slot=slotOf(p.key);if(!e.wp[slot]||e.wp[slot].k!==p.key){giveWeapon(e,p.key);used=true;}}
    if(used){
@@ -541,8 +542,9 @@ function explode(){
  netEvent({t:'boom',x:BM.x,y:BM.y,z:BM.z});
  BM.state='exploded';if(BM.mesh)BM.mesh.visible=false;
  sfx('boom',BM.x,BM.z,1.6);fxExplosion(BM.x,BM.y+.3,BM.z,2.2);G.shake=1;uiFlashBlind(.4);
+ // dégâts AVANT la fin de manche : un joueur tué par l'explosion perd son équipement (e.keep)
+ for(const v of ents){if(!v.alive)continue;const d=Math.hypot(v.x-BM.x,v.z-BM.z);if(d<16){v.hp-=Math.round(240*(1-d/16));if(v.hp<=0){v.alive=false;v.hp=0;v.deaths++;v.scoped=false;v.ads=0;v.dieDir=Math.floor(Math.random()*4);if(v.rig){v.rig.dieT=-1;if(v.isPlayer)v.rig.root.visible=true;}if(v.isPlayer){G.spec=null;uiDeath(null);}}}}
  endRound(0,'La bombe a explosé');
- for(const v of ents){if(!v.alive)continue;const d=Math.hypot(v.x-BM.x,v.z-BM.z);if(d<16){v.hp-=Math.round(240*(1-d/16));if(v.hp<=0){v.alive=false;v.hp=0;v.deaths++;v.scoped=false;v.dieDir=Math.floor(Math.random()*4);if(v.rig)v.rig.dieT=-1;}}}
 }
 function handleUse(e,dt,holding){
  if(NET.role==='client'&&e.isPlayer&&G.netClient){e.useMsg='';return;}
@@ -573,7 +575,7 @@ function resetRound(){
     else if(ld.s&&W[ld.s].price<=300)giveWeapon(e,ld.s);
    }
   }
-  for(const s of ['p','s']){const wi=e.wp[s];if(wi){const w=W[wi.k];wi.mag=w.mag;wi.res=w.res;}}
+  for(const s of ['p','s']){const wi=e.wp[s];if(wi){wi.mag=magMax(e,wi.k);wi.res=Math.max(wi.res,W[wi.k].res);}}
   if(!cfg.eco)e.money=16000;
   const sp=(e.team===0?ts:cts).pop()||[20,20];
   e.x=cc(sp[0]);e.z=cc(sp[1]);e.y=groundH(e.x,e.z);e.vy=0;e.onGround=true;e.alive=true;e.hp=100;e.reload=0;e.switchT=0;e.scoped=false;e.vx=e.vz=0;e.crouch=false;e.eyeH=1.6;e.speed=0;e.mv=null;e.slide=null;e.mantle=null;
@@ -640,7 +642,7 @@ function updatePlayer(dt){
  const w=curW(p);
  const dr=(G.t-p.lastShot<.2)?3.5:9;
  p.punchP-=p.punchP*Math.min(1,dt*dr);p.punchY-=p.punchY*Math.min(1,dt*dr);
- if(buyOpen){p.speed=0;return;}
+ if(buyOpen||G.paused){p.speed=0;return;}
  let fx=0,fz=0;
  if(K('forward'))fz+=1;if(K('back'))fz-=1;if(K('right'))fx+=1;if(K('left'))fx-=1;
  const L=Math.hypot(fx,fz)||1;fx/=L;fz/=L;
