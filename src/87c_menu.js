@@ -25,7 +25,7 @@ function menuSimplify(){
  // Réglages › Général
  const tp=$('tab-opts');
  if(tp){
-  const main=['cGfx','rSens','rFov','rVol'].map(grpOf),more=['cFx','cFps','cBob','cCine'].map(grpOf);
+  const main=['cGfx','rSens','rFov','rVol'].map(grpOf),more=['cFx','cFps','cBob','cCine','cGunReal'].map(grpOf);
   const box=document.createElement('div');box.className='optmain';box.id='optMain';main.forEach(g=>g&&box.appendChild(g));
   const adv=document.createElement('details');adv.className='adv';adv.innerHTML='<summary>PLUS D\'OPTIONS</summary><div class="advgrid"><div class="advL"></div><div class="advR" id="ambBox"></div></div>';
   more.forEach(g=>g&&adv.querySelector('.advL').appendChild(g));

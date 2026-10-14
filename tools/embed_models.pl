@@ -23,4 +23,15 @@ if (opendir(my $cd, 'models/characters')) {
   closedir $cd;
 }
 print "};\n";
-if (open(my $f, '<:raw', "$dir/credits.json")) { local $/; my $c = <$f>; close $f; $c =~ s/\s+$//; print "const GLB_CREDITS=$c;\n"; } else { print "const GLB_CREDITS=[];\n"; }
+# modèles réalistes texturés (optionnels) : models/weapons_real/*.glb + .json + credits_real.json
+my $rd = 'models/weapons_real';
+my @rk = ();
+if (opendir(my $r, $rd)) { @rk = sort map { /^(\w+)\.glb$/ ? $1 : () } readdir($r); closedir $r; }
+print "const GLB_REAL_DATA={\n";
+for my $k (@rk) { open(my $f, '<:raw', "$rd/$k.glb") or die; local $/; my $b = <$f>; close $f; print " $k:'", encode_base64($b, ''), "',\n"; }
+print "};\nconst GLB_REAL_INFO={\n";
+for my $k (@rk) { open(my $f, '<:raw', "$rd/$k.json") or next; local $/; my $j = <$f>; close $f; $j =~ s/\s+$//; print " $k:$j,\n"; }
+print "};\n";
+sub readcred { my ($p) = @_; open(my $f, '<:raw', $p) or return ''; local $/; my $c = <$f>; close $f; $c =~ s/^\s*\[//; $c =~ s/\]\s*$//; $c =~ s/^\s+|\s+$//g; return $c; }
+my @cr = grep { length } (readcred("$rd/credits_real.json"), readcred("$dir/credits.json"));
+print "const GLB_CREDITS=[", join(',', @cr), "];\n";
