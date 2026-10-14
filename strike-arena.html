@@ -7193,7 +7193,9 @@ function rpOverlay(on,prog){
    CLIENT gère son propre déplacement et envoie ses tirs / achats / actions,
    puis affiche l'état reçu de l'hôte (15 fois par seconde).
    ===================================================================== */
-const NET={role:null,mode:'local',room:'',myId:'',tr:null,players:new Map(),ev:[],sendT:0,inT:0,myEnt:-1,peerLib:false,status:'',teams:'coop',lastSnap:0,hostId:'host',view:new Map()};
+// en ligne par défaut quand le jeu est publié (GitHub Pages…), « Même PC » quand il est ouvert en local
+const NET_WEB=/^https?:$/.test(location.protocol)&&!/^(localhost|127\.|\[::1\]|0\.0\.0\.0)/.test(location.hostname);
+const NET={role:null,mode:NET_WEB?'online':'local',room:'',myId:'',tr:null,players:new Map(),ev:[],sendT:0,inT:0,myEnt:-1,peerLib:false,status:'',teams:'coop',lastSnap:0,hostId:'host',view:new Map()};
 const NET_OK_MODES={bomb:1,rapid:1,tdm:1,ffa:1,gg:1,koth:1};
 const netId=()=>Math.random().toString(36).slice(2,8);
 function netEvent(e){if(NET.role==='host')NET.ev.push(e);}
@@ -7203,24 +7205,42 @@ function trLocal(room,onMsg){
  bc.onmessage=ev=>{const m=ev.data;if(!m||m._from===NET.myId)return;if(m._to&&m._to!==NET.myId)return;onMsg(m,m._from);};
  return {send:(m,to)=>{m._from=NET.myId;if(to)m._to=to;else delete m._to;bc.postMessage(m);},close:()=>bc.close()};
 }
-function loadPeer(cb){
- if(window.Peer)return cb(true);
- const s=document.createElement('script');s.src='https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
- s.onload=()=>cb(!!window.Peer);s.onerror=()=>cb(false);document.head.appendChild(s);
+const PEER_SRC=['https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js','https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js'];
+function loadPeer(cb,i){
+ i=i||0;if(window.Peer)return cb(true);if(i>=PEER_SRC.length)return cb(false);
+ const s=document.createElement('script');s.src=PEER_SRC[i];
+ s.onload=()=>cb(!!window.Peer);s.onerror=()=>{s.remove();loadPeer(cb,i+1);};document.head.appendChild(s);
 }
+// serveurs pour traverser les box / pare-feux : STUN (trouver son adresse publique) + TURN de PeerJS (relais si le direct est bloqué)
+const PEER_OPT={debug:1,config:{iceServers:[
+ {urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']},{urls:'stun:stun.cloudflare.com:3478'},
+ {urls:['turn:eu-0.turn.peerjs.com:3478','turn:us-0.turn.peerjs.com:3478'],username:'peerjs',credential:'peerjsp'}]}};
+const PEER_ERR={'peer-unavailable':'Salon introuvable : vérifie le code (et que l\'hôte est bien en mode « En ligne »)','unavailable-id':'Ce code de salon est déjà pris, recrée un salon',
+ 'network':'Serveur de mise en relation injoignable (connexion internet ou réseau filtré ?)','server-error':'Serveur de mise en relation indisponible, réessaie dans un instant',
+ 'socket-error':'Serveur de mise en relation injoignable (réseau filtré ?)','socket-closed':'Connexion au serveur de mise en relation perdue','browser-incompatible':'Ton navigateur ne gère pas le jeu en ligne (essaie Chrome, Edge ou Firefox)',
+ 'webrtc':'Connexion directe impossible : ton réseau bloque le jeu en ligne (réseau d\'entreprise, école, 4G…)','negotiation-failed':'Connexion directe impossible : ton réseau bloque le jeu en ligne'};
+const netErrTxt=e=>PEER_ERR[e&&e.type]||('Erreur réseau : '+((e&&(e.type||e.message))||e));
 function trOnline(room,host,onMsg,onReady){
- const conns=new Map();let peer;
- const wire=c=>{c.on('data',m=>{if(m&&m._from)onMsg(m,m._from);});c.on('close',()=>{for(const [id,cc] of conns)if(cc===c){conns.delete(id);onMsg({t:'bye'},id);}});};
+ const conns=new Map();let peer,dead=false,ready=false;
+ const done=(ok,e)=>{if(!ok&&!dead)netStatus(netErrTxt(e));if(!ready||!ok){ready=ok;onReady(ok,e);}};
+ const wire=c=>{
+  c.on('data',m=>{if(m&&m._from)onMsg(m,m._from);});
+  c.on('close',()=>{for(const [id,cc] of conns)if(cc===c){conns.delete(id);onMsg({t:'bye'},id);}});
+  c.on('error',e=>{if(!host)done(false,e);});
+  c.on('iceStateChanged',st=>{if(st==='failed'&&!host)done(false,{type:'webrtc'});});
+ };
  if(host){
-  peer=new Peer('strikearena-'+room);
-  peer.on('open',()=>onReady(true));
+  peer=new Peer('strikearena-'+room,PEER_OPT);
+  peer.on('open',()=>done(true));
   peer.on('connection',c=>{c.on('open',()=>{conns.set(c.label||c.peer,c);});wire(c);c.on('data',m=>{if(m&&m._from&&!conns.has(m._from))conns.set(m._from,c);});});
+  // le serveur de mise en relation coupe parfois : l'hôte s'y réinscrit pour que son salon reste trouvable
+  peer.on('disconnected',()=>{if(!dead)setTimeout(()=>{if(!dead&&peer.disconnected)try{peer.reconnect();}catch(e){}},1500);});
  }else{
-  peer=new Peer();
-  peer.on('open',()=>{const c=peer.connect('strikearena-'+room,{reliable:true,label:NET.myId});c.on('open',()=>{conns.set('host',c);onReady(true);});wire(c);});
+  peer=new Peer(PEER_OPT);
+  peer.on('open',()=>{const c=peer.connect('strikearena-'+room,{reliable:true,label:NET.myId,serialization:'json'});c.on('open',()=>{conns.set('host',c);done(true);});wire(c);});
  }
- peer.on('error',e=>{netStatus('Erreur réseau : '+(e.type||e));onReady(false);});
- return {send:(m,to)=>{m._from=NET.myId;if(to){const c=conns.get(to)||conns.get('host');if(c&&c.open)c.send(m);}else for(const c of conns.values())if(c.open)c.send(m);},close:()=>{try{peer.destroy();}catch(e){}}};
+ peer.on('error',e=>{if(ready&&(e.type==='network'||e.type==='server-error'||e.type==='socket-error'||e.type==='socket-closed'))return;done(false,e);});
+ return {send:(m,to)=>{m._from=NET.myId;if(to){const c=conns.get(to)||conns.get('host');if(c&&c.open)c.send(m);}else for(const c of conns.values())if(c.open)c.send(m);},close:()=>{dead=true;try{peer.destroy();}catch(e){}}};
 }
 function netSend(m,to){if(NET.tr)NET.tr.send(m,to);}
 /* ---------- salon ---------- */
@@ -7228,18 +7248,25 @@ function netHost(){
  netLeave();NET.role='host';NET.myId='host';NET.room=Math.random().toString(36).slice(2,7).toUpperCase();NET.players.clear();
  const go=()=>{netStatus('Salon ouvert — code '+NET.room);netLobbyDraw();};
  if(NET.mode==='local'){NET.tr=trLocal(NET.room,netOnMsg);go();}
- else{netStatus('Connexion au service en ligne…');loadPeer(ok=>{if(!ok){netStatus('Impossible de charger le module en ligne (connexion internet ?)');return;}NET.tr=trOnline(NET.room,true,netOnMsg,r=>{if(r)go();});});}
+ else{netStatus('Connexion au service en ligne…');loadPeer(ok=>{if(NET.role!=='host')return;if(!ok){netStatus('Impossible de charger le module en ligne (connexion internet ?)');return;}NET.tr=trOnline(NET.room,true,netOnMsg,r=>{if(r)go();});});}
 }
 function netJoin(code){
  code=(code||'').trim().toUpperCase();if(code.length<4){netStatus('Entre le code du salon');return;}
- netLeave();NET.role='client';NET.myId=netId();NET.room=code;
- const hello=()=>{netSend({t:'hello',name:cfg.name||'Joueur'});netStatus('Connecté au salon '+code+' — en attente de l\'hôte…');netLobbyDraw();};
+ netLeave();NET.role='client';NET.myId=netId();NET.room=code;NET.joined=false;
+ const tok=NET.myId;
+ // on n'affiche « connecté » que quand l'hôte a répondu ; sinon on abandonne avec un message clair
+ const fail=txt=>{if(NET.myId!==tok||NET.role!=='client'||NET.joined)return;netLeave();netStatus(txt);};
+ const hello=()=>{netSend({t:'hello',name:cfg.name||'Joueur'});netStatus(NET.mode==='local'?'Recherche du salon '+code+'…':'Salon trouvé, en attente de réponse de l\'hôte…');netLobbyDraw();
+  setTimeout(()=>fail(NET.mode==='local'?'Aucun salon '+code+' sur ce PC. Pour jouer sur deux ordinateurs, choisis « En ligne » des deux côtés.':'L\'hôte ne répond pas : réessaie, ou recrée le salon'),NET.mode==='local'?4000:8000);};
  if(NET.mode==='local'){NET.tr=trLocal(code,netOnMsg);hello();}
- else{netStatus('Connexion…');loadPeer(ok=>{if(!ok){netStatus('Impossible de charger le module en ligne');return;}NET.tr=trOnline(code,false,netOnMsg,r=>{if(r)hello();else netStatus('Salon introuvable');});});}
+ else{netStatus('Recherche du salon '+code+'…');
+  setTimeout(()=>fail('Connexion impossible au salon '+code+' : vérifie le code. Si le code est bon, un des deux réseaux bloque le jeu en ligne (réseau d\'entreprise, école…)'),20000);
+  loadPeer(ok=>{if(NET.myId!==tok)return;if(!ok){fail('Impossible de charger le module en ligne (connexion internet ?)');return;}
+   NET.tr=trOnline(code,false,netOnMsg,(r,e)=>{if(r)hello();else if(!NET.joined)fail(netErrTxt(e));else{uiToast('Connexion à l\'hôte perdue');if(G.running)toMenu();netLeave();netStatus('Connexion à l\'hôte perdue');}});});}
 }
 function netLeave(){
  if(NET.tr){try{netSend({t:'bye'});}catch(e){}NET.tr.close();}
- NET.tr=null;NET.role=null;NET.players.clear();NET.view.clear();NET.myEnt=-1;
+ NET.tr=null;NET.role=null;NET.joined=false;NET.players.clear();NET.view.clear();NET.myEnt=-1;
  for(const e of ents)if(e.remote)e.remote=null;
  netLobbyDraw();
 }
@@ -7314,7 +7341,7 @@ function netHostTick(dt){
 /* ---------- CLIENT ---------- */
 function netClientMsg(m){
  if(m.t==='chat'){chatAdd(m.n,m.m,m.c);return;}
- if(m.t==='lobby'){NET.lobby=m.players;netLobbyDraw();return;}
+ if(m.t==='lobby'){if(!NET.joined){NET.joined=true;netStatus('Connecté au salon '+NET.room+' — l\'hôte lancera la partie');}NET.lobby=m.players;netLobbyDraw();return;}
  if(m.t==='bye'){uiToast('L\'hôte a fermé le salon');if(G.running)toMenu();netLeave();netStatus('Salon fermé');return;}
  if(m.t==='start'){netClientStart(m);return;}
  if(m.t==='snap'&&G.running&&NET.myEnt>=0){netApplySnap(m);}
@@ -7417,7 +7444,7 @@ function netLobbyDraw(){
  const host=NET.role==='host',cli=NET.role==='client';
  const md=$('mpMode');if(!md)return;
  chipsRow('mpMode',[['Même PC (onglets)','local'],['En ligne (code)','online']],()=>NET.mode,v=>{if(NET.role)netLeave();NET.mode=v;},netLobbyDraw);
- $('mpModeTxt').textContent=NET.mode==='local'?'Pour tester ou jouer à plusieurs sur le même ordinateur (plusieurs onglets ouverts).':'Pour jouer avec des amis sur d\'autres ordinateurs : il faut une connexion internet (service gratuit PeerJS pour se trouver, puis connexion directe).';
+ $('mpModeTxt').textContent=NET.mode==='local'?'Pour tester ou jouer à plusieurs sur le même ordinateur (plusieurs onglets ouverts).':'Pour jouer avec des amis sur d\'autres ordinateurs : choisissez tous « En ligne ». Il faut une connexion internet ; certains réseaux (entreprise, école) bloquent le jeu en ligne.';
  chipsRow('mpTeams',[['Ensemble contre les bots','coop'],['Les uns contre les autres','versus']],()=>NET.teams,v=>NET.teams=v,netLobbyDraw);
  if(!$('mpPref')){const d=document.createElement('div');d.className='chips';d.id='mpPref';d.style.marginTop='8px';$('mpTeams').parentNode.appendChild(d);}
  chipsRow('mpPref',[['Mon équipe : auto',-1],['Attaquants',0],['Défenseurs',1]],()=>NET.pref===undefined?-1:NET.pref,v=>{NET.pref=v;if(NET.role==='client')netSend({t:'pref',v},'host');},netLobbyDraw);
@@ -9898,6 +9925,136 @@ update=function(dt){
 document.addEventListener('pointerlockchange',()=>{if(POTG.playing&&!document.pointerLockElement){G.paused=false;$('pause').classList.remove('show');potgFinish();}});
 addEventListener('pointerdown',()=>{if(POTG.playing&&performance.now()>POTG.skipAt)potgFinish();});
 addEventListener('touchstart',()=>{if(POTG.playing&&performance.now()>POTG.skipAt)potgFinish();},{passive:true});
+/* =====================================================================
+   TEMPS DE MANCHE / DURÉE DE PARTIE
+   - Réglage « Durée » dans le menu pour chaque mode (sauf Zombies).
+   - Bataille royale : la zone suit la durée choisie, la partie se termine
+     à la fin du chrono (le survivant le plus en forme gagne).
+   - Chrono qui passe en rouge dans les 30 dernières secondes, alerte
+     sonore et tic-tac sur les 10 dernières.
+   - Compétitif : changement de camp à la mi-temps.
+   - Zombies : durée de survie affichée en fin de partie.
+   ===================================================================== */
+const RTIME={
+ bomb:{l:'Durée d\'une manche',o:[60,100,115],d:100,u:'s'},
+ rapid:{l:'Durée d\'une manche',o:[30,45,60],d:45,u:'s'},
+ duel:{l:'Durée d\'une manche',o:[45,60,90],d:60,u:'s'},
+ tdm:{l:'Durée de la partie',o:[5,8,10,15],d:8,u:'min'},
+ ffa:{l:'Durée de la partie',o:[5,8,10,15],d:8,u:'min'},
+ gg:{l:'Durée de la partie',o:[5,8,10,15],d:10,u:'min'},
+ koth:{l:'Durée de la partie',o:[5,10,15],d:10,u:'min'},
+ br:{l:'Durée maximale',o:[3,5,8],d:5,u:'min'},
+ train:{l:'Durée',o:[30,60,120],d:60,u:'s'}
+};
+function rtVal(mode){const r=RTIME[mode];if(!r)return 0;const v=cfg.rt&&cfg.rt[mode];return r.o.includes(v)?v:r.d;}
+function rtSec(mode){const r=RTIME[mode];return r?rtVal(mode)*(r.u==='min'?60:1):0;}
+function rtLabel(mode){const r=RTIME[mode];return r?rtVal(mode)+(r.u==='min'?' min':' s'):'';}
+
+/* ---------- application au lancement ---------- */
+const BR_BASE=BR_PHASES.map(p=>({wait:p.wait,shrink:p.shrink}));
+const BR_BASE_T=BR_BASE.reduce((a,p)=>a+p.wait+p.shrink,0);
+const _variantInitRT=variantInit;
+variantInit=function(){
+ G.halfDone=false;G.rtWarn=false;G.rtTick=-1;G.rtTotal=0;
+ const v=G.variant;
+ if(v==='br'){ // la zone se ferme vers 80 % du chrono, il reste ensuite la zone finale
+  const T=rtSec('br'),k=T*.8/BR_BASE_T;
+  BR_PHASES.forEach((p,i)=>{p.wait=Math.round(BR_BASE[i].wait*k);p.shrink=Math.round(BR_BASE[i].shrink*k);});
+ }
+ _variantInitRT();
+ if(!RTIME[v])return;
+ if(G.mode==='bomb'){G.roundT=rtSec(v);G.rtTotal=G.roundT;}
+ else{G.timeLeft=rtSec(v);G.rtTotal=G.timeLeft;}
+};
+const _variantSubRT=variantSub;
+variantSub=function(){
+ const v=G.variant;
+ if(v==='train')return 'Touche un maximum de cibles en '+rtLabel('train');
+ const s=_variantSubRT();
+ return RTIME[v]&&G.mode!=='bomb'?s+' — '+rtLabel(v):s;
+};
+
+/* ---------- fin du chrono ---------- */
+const _variantTimeUpRT=variantTimeUp;
+variantTimeUp=function(){
+ if(G.variant==='br'){
+  let b=null,bs=-1;for(const e of ents)if(e.alive){const s=e.hp+e.armor+(e.shield||0);if(s>bs){bs=s;b=e;}}
+  G.winner=b;uiToast('Temps écoulé !');endDM();return true;
+ }
+ return _variantTimeUpRT();
+};
+
+/* ---------- mi-temps (Compétitif et Désamorçage rapide) ---------- */
+function halfTimeDue(){
+ return G.mode==='bomb'&&G.variant!=='duel'&&!G.netClient&&!G.halfDone&&G.limit>1&&
+  G.round===G.limit-1&&G.score[0]<G.limit&&G.score[1]<G.limit;
+}
+const _afterEndRT=afterEnd;
+afterEnd=function(){
+ if(!halfTimeDue())return _afterEndRT();
+ G.halfDone=true;
+ for(const e of ents){e.team=1-e.team;e.keep=false;if(cfg.eco&&G.variant!=='rapid')e.money=800;}
+ G.score=[G.score[1],G.score[0]];G.loss=[0,0];
+ for(const e of ents)attachRig(e);
+ _afterEndRT();
+ if(cfg.eco&&G.variant!=='rapid')G.pistolRound=true;
+ const side=P.team===0?'ATTAQUANTS':'DÉFENSEURS';
+ uiBanner('MI-TEMPS','Changement de camp — vous êtes maintenant '+side+(G.pistolRound?' · manche au pistolet':''),3600,'#ffd75e');
+ sfx('round');
+};
+
+/* ---------- alerte de fin de chrono ---------- */
+function rtRemaining(){
+ if(G.state!=='live')return null;
+ if(G.mode==='bomb')return BM.state==='planted'?null:G.timer;
+ if(G.variant==='zombies'||G.variant==='br'||G.timeLeft>1e8)return null;
+ return G.timeLeft;
+}
+const _updateHUDRT=updateHUD;
+updateHUD=function(dt,t){
+ _updateHUDRT(dt,t);
+ const el=$('timer');if(!el)return;
+ const r=rtRemaining(),hurry=r!==null&&r>0&&r<=30&&G.rtTotal>30;
+ el.classList.toggle('hurry',hurry);
+ if(r===null||r<=0)return;
+ if(r<=30&&!G.rtWarn&&G.rtTotal>=60){G.rtWarn=true;uiToast(G.mode==='bomb'?'30 secondes !':'Plus que 30 secondes !');sfx('alarm');}
+ if(r<=10){const n=Math.ceil(r);if(n!==G.rtTick){G.rtTick=n;sfx('tick');}}
+ if(G.mode==='bomb'&&r>30){G.rtWarn=false;G.rtTick=-1;}
+ if(G.variant==='br'&&G.timeLeft<=60&&!G.rtWarn){G.rtWarn=true;uiToast('Plus qu\'une minute !');sfx('alarm');}
+};
+
+/* ---------- écran de fin ---------- */
+const _uiMatchOverRT=uiMatchOver;
+uiMatchOver=function(){
+ _uiMatchOverRT();
+ const m=MODES[G.variant];
+ let s=$('oS').textContent;
+ if(m&&MODE()!==m)s=s.replace(MODE().n,m.n); // nom de la variante (Capture de zone…) au lieu du mode de base
+ if(G.variant==='zombies')s+='   •   survie '+fmt(G.t);
+ $('oS').textContent=s;
+};
+
+/* ---------- menu : réglage Durée ---------- */
+function rtMenu(){
+ const lim=$('gLimit');if(!lim)return;
+ let g=$('gTime');
+ if(!g){g=document.createElement('div');g.className='grp';g.id='gTime';g.innerHTML='<label id="lTime"></label><div class="chips" id="cTime"></div>';}
+ if(g.previousElementSibling!==lim)lim.parentNode.insertBefore(g,lim.nextSibling);
+ const r=RTIME[cfg.mode];g.style.display=r?'':'none';if(!r)return;
+ $('lTime').textContent=r.l;cfg.rt=cfg.rt||{};
+ chipsRow('cTime',r.o.map(n=>[n+(r.u==='min'?' min':' s'),n]),()=>rtVal(cfg.mode),v=>{cfg.rt[cfg.mode]=v;});
+}
+const _drawMenuRT=drawMenu;
+drawMenu=function(){_drawMenuRT();try{rtMenu();}catch(e){console.error(e);}};
+const _updSummaryRT=updSummary;
+updSummary=function(){
+ _updSummaryRT();
+ const e=$('sumbar');if(e&&RTIME[cfg.mode]){const b=e.querySelector('br');const t=' · '+rtLabel(cfg.mode)+(['bomb','rapid','duel'].includes(cfg.mode)?' par manche':'');if(b)b.insertAdjacentText('beforebegin',t);else e.insertAdjacentText('beforeend',t);}
+};
+(function(){const s=document.createElement('style');s.textContent=`
+#timer.hurry{color:#ff5050!important;animation:rtPulse 1s ease-in-out infinite}
+@keyframes rtPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+`;document.head.appendChild(s);})();
 /* =====================================================================
    MÉDAILLES ET ASSISTANCES (façon Call of Duty / Halo / Phantom Forces)
    - Médailles affichées en jeu : Premier sang, Vengeance, Tir lointain,
