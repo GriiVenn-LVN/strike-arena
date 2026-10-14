@@ -1,5 +1,5 @@
 /* =====================================================================
-   PANNEAU ADMIN (touche F2, ou bouton ADMIN du menu pause)
+   PANNEAU ADMIN (touche Insert, F2 en secours, ou bouton ADMIN du menu pause)
    - Joueurs : liste en direct (humains + bots), ping, expulser / bannir /
      rendre muet, tuer, soigner, faire réapparaître, changer d'équipe,
      ajouter / retirer des bots, observer.
@@ -365,7 +365,7 @@ function admDraw(){
  const ann=$('admAnn'),annVal=ann?ann.value:'',focus=document.activeElement&&document.activeElement.id==='admAnn';
  const tabs=[['players','Joueurs'],['game','Partie'],['vision','Triche'],['log','Journal']];
  const body=ADM.tab==='players'?admPlayersHTML():ADM.tab==='game'?admGameHTML():ADM.tab==='vision'?admVisionHTML():admLogHTML();
- const html='<h3>PANNEAU ADMIN <span>'+admChip('lock','Verrouiller',{tip:'Oublier le code sur ce navigateur'})+' '+admChip('close','Fermer (F2) ✕')+'</span></h3>'+
+ const html='<h3>PANNEAU ADMIN <span>'+admChip('lock','Verrouiller',{tip:'Oublier le code sur ce navigateur'})+' '+admChip('close','Fermer (Inser) ✕')+'</span></h3>'+
   '<div class="chips">'+tabs.map(t=>admChip('tab',t[1],{t:t[0],on:ADM.tab===t[0]})).join('')+'</div>'+
   '<div id="admBody" style="margin-top:6px">'+body+'</div>'+
   (ADM.tab==='game'&&NET.role!=='client'?'<div class="sec"><h4>ANNONCE À TOUS</h4><div style="display:flex;gap:6px"><input type="text" id="admAnn" maxlength="90" placeholder="Message affiché en grand à tout le monde" style="flex:1"><button class="chip" data-a="announce">Envoyer</button></div></div>':'');
@@ -384,8 +384,8 @@ function admClose(){
 // le panneau ne met pas le jeu en pause (en salon, ça figerait tout le monde)
 document.addEventListener('pointerlockchange',()=>{if(ADM.on&&!document.pointerLockElement&&G.running){G.paused=false;$('pause').classList.remove('show');}});
 addEventListener('keydown',e=>{
- // sans code mémorisé ni #admin dans l'adresse, F2 ne fait rien : le panneau reste invisible pour les autres
- if(e.code==='F2'&&(ADM.on||ADM.ok||admAsked())){e.preventDefault();e.stopPropagation();if(ADM.on)admClose();else admOpen();return;}
+ // sans code mémorisé ni #admin dans l'adresse, Insert et F2 ne font rien : le panneau reste invisible pour les autres
+ if((e.code==='Insert'||e.code==='F2')&&(ADM.on||ADM.ok||admAsked())){e.preventDefault();e.stopPropagation();if(ADM.on)admClose();else admOpen();return;}
  if(!ADM.on)return;
  if(e.code==='Escape'){e.preventDefault();e.stopPropagation();admClose();return;}
  if(e.code==='Enter'||e.code==='NumpadEnter'){const id=e.target&&e.target.id;if(id==='admCode')admUnlock();if(id==='admAnn'){admAnnounce(e.target.value);e.target.value='';}}
@@ -395,7 +395,7 @@ addEventListener('keydown',e=>{
 function admPauseBtn(){
  if(!ADM.ok||$('admPauseBtn'))return;
  const row=$('resume')&&$('resume').parentNode;if(!row)return;
- const b=document.createElement('button');b.className='btn alt cut';b.id='admPauseBtn';b.textContent='ADMIN (F2)';b.onclick=()=>{$('pause').classList.remove('show');admOpen();};row.appendChild(b);
+ const b=document.createElement('button');b.className='btn alt cut';b.id='admPauseBtn';b.textContent='ADMIN (Inser)';b.onclick=()=>{$('pause').classList.remove('show');admOpen();};row.appendChild(b);
 }
 admPauseBtn();
 /* ---------- boucle : ping des joueurs, vision, rafraîchissement ---------- */
