@@ -76,8 +76,16 @@ DECOR.jungle=function(th){
  mapBanners(3.6);
  for(const [px,pz,s] of [[1,1,1.2],[38,1,1.3],[12,1,1],[25,1,1.1],[1,38,1.2],[38,38,1.2],[13,38,1],[26,38,1.1],[12,13,1.3],[27,13,1.2],[13,28,1.1],[26,28,1.2],[1,20,1.1],[38,20,1.2],[10,31,1],[30,31,1.1]])palmTree(px,pz,s);
  for(const [cx,cz] of [[16,3],[23,3],[3,8],[8,6],[34,3],[37,3],[28,9],[6,29],[33,29]])lantern(cc(cx),3.0,cc(cz),0xff9a30);
- // lianes
- const vine=stdMat(0x2f6a2a,{roughness:1});for(let i=0;i<26;i++){const x=cc(rand(28,38)),z=cc(rand(1,5)),h=rand(1.5,3.2);const v=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,h,5),vine);v.position.set(x,3.6-h/2,z);worldG.add(v);worldAnim.push(t=>{v.rotation.z=Math.sin(t*1.2+x)*.05;});}
+ // sous-bois : fougères et feuilles larges au pied des murs (décor, sans collision)
+ let nf=0;for(let i=0;i<NC&&nf<110;i++){if(G_TYPE[i]||G_RAMP[i])continue;const x=i%N,z=(i/N)|0;
+  for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]]){const j=(z+dz)*N+x+dx;if(x+dx<0||z+dz<0||x+dx>=N||z+dz>=N||G_TYPE[j]!==TY.WALL||Math.random()>.3)continue;
+   fernClump(cc(x)+dx*(S/2-.45)+rand(-.5,.5),cc(z)+dz*(S/2-.45)+rand(-.5,.5),rand(.9,1.4),Math.random()<.3?'broad':'fern');nf++;break;}}
+ // lianes : chapelets de feuilles qui pendent des murs
+ const vm=leafMat('broad'),vg=leafGeo(.32,.2,.3,2),stem=stdMat(0x3d5a26,{roughness:1});
+ for(let i=0;i<22;i++){const x=cc(rand(28,38)),z=cc(rand(1,5)),h=rand(1.5,3.2),g=new THREE.Group();g.position.set(x,3.6,z);
+  const st=new THREE.Mesh(new THREE.CylinderGeometry(.015,.015,h,4),stem);st.position.y=-h/2;g.add(st);
+  for(let y=.2;y<h;y+=rand(.18,.3))addLeaf(g,vg,vm,rand(-.03,.03),-y,0,rand(0,TAU),-rand(1.8,2.6));
+  mergeLeaves(g);worldG.add(g);const ph=rand(0,TAU);worldAnim.push(t=>{g.rotation.z=Math.sin(t*1.2+ph)*.05;});}
  // idole d'or au sommet de la pyramide
  const gold=new THREE.MeshStandardMaterial({color:C(0xf3c040),metalness:1,roughness:.2});
  const ped=new THREE.Mesh(GBOX,stdMat(0x8a8a7a));ped.scale.set(1.4,.6,1.4);ped.position.set(40,3.9,37);worldG.add(ped);
