@@ -13,10 +13,12 @@ code **Luau** prêt à coller / synchroniser avec **Rojo**, données de cartes e
 
 ```
 ReplicatedStorage/Shared/Config.lua      armes, raretés, caisses, récompenses, danses, skins (valeurs du prototype)
+ReplicatedStorage/Shared/ShopCatalog.lua catalogue de la boutique (armes, skins, viseurs, tenues, produits Robux)
 ReplicatedStorage/Shared/MapData.lua     3 cartes exportées du prototype (généré par tools/export_maps_lua.pl)
 ServerScriptService/DataService.lua      DataStore : profil, XP, pièces, inventaire, stats, défis, série quotidienne
 ServerScriptService/RewardService.lua    niveaux, récompense quotidienne, défis du jour, récompenses de fin de partie
-ServerScriptService/LootService.server.lua  caisses : tirage pondéré + pitié + doublons + achat Robux (DevProducts)
+ServerScriptService/LootService.server.lua  caisses : tirage pondéré + pitié + doublons
+ServerScriptService/ShopService.server.lua  boutique : achats en pièces, offres du jour, équiper, achats Robux (seul ProcessReceipt du jeu)
 ServerScriptService/WeaponService.lua    tir hitscan validé serveur : cadence, munitions, bouclier → gilet → santé
 ServerScriptService/MapBuilder.lua       construit la carte (Parts, rampes en escaliers, plafonds, spawns, sites)
 ServerScriptService/RoundService.lua     mode compétitif 5v5 : cinématique → achat → manche → fin, bombe (ProximityPrompt)
@@ -24,6 +26,7 @@ ServerScriptService/Main.server.lua      point d'entrée + RemoteFunctions (prof
 StarterPlayerScripts/CinematicController.client.lua   cinématique d'arrivée en hélicoptère (caméra scriptée, barres de cinéma)
 StarterPlayerScripts/EmoteController.client.lua       danses (touche T) via Animator
 StarterPlayerScripts/LobbyUI.client.lua  UI minimale : profil, récompense quotidienne, caisses (avec probabilités)
+StarterPlayerScripts/ShopUI.client.lua   écran boutique : 5 onglets, offres du jour, Acheter / Équiper
 ```
 
 Régénérer les cartes après modification du prototype : `perl tools/export_maps_lua.pl > roblox/ReplicatedStorage/Shared/MapData.lua`
@@ -44,7 +47,19 @@ Régénérer les cartes après modification du prototype : `perl tools/export_ma
 | Touches personnalisables | `ContextActionService` + `profile.binds` (sauvegardé dans le DataStore) |
 | Statistiques | `profile.stats` / `profile.history` (déjà alimentés par `RewardService.finishMatch`) |
 
-## 3. À créer dans Studio (le code ne peut pas le faire à ta place)
+## 3. Boutique
+
+- **Monnaie** : les pièces gagnées en jouant (niveaux, récompense du jour, défis, succès, passe de combat) achètent tout le catalogue. Les Robux achètent seulement des pièces, des caisses ou le passe Premium : aucun objet n'est réservé aux joueurs qui paient.
+- **Onglets** : Armes (débloquées pour toujours ; 8 armes de départ gratuites), Skins (par arme), Viseurs (modèle d'optique par arme + réticule commun, purement visuels), Tenues & style (tenues, traînées, titres), Pièces (Robux).
+- **Prix** : par rareté (`ShopCatalog.PRICE_BY_RARITY`) ; armes = 40 % de leur prix en partie (`ShopCatalog.weaponPrice`). 4 **offres du jour** à -25 % (une par onglet), identiques pour tous les joueurs, renouvelées à minuit UTC.
+- **Menu d'achat en partie** (à faire) : ne proposer que les armes débloquées avec `ShopCatalog.ownsWeapon(profile, key)`.
+
+**Activer les achats Robux** (quand tu auras un compte Roblox et un jeu publié) :
+1. Creator Hub → ton expérience → **Monetization → Developer Products** → crée un produit par ligne de `ConfigExtra.SHOP` (même nom, même prix en Robux).
+2. Copie l'identifiant de chaque produit dans le champ `productId` de la ligne correspondante. Tant qu'il vaut 0, le bouton affiche « Bientôt ».
+3. Teste dans Studio : les achats y sont simulés, aucun Robux n'est débité.
+
+## 4. À créer dans Studio (le code ne peut pas le faire à ta place)
 
 - **Hélicoptère** : modèle dans `ReplicatedStorage/Assets/Helicopter` (PrimaryPart = fuselage, une pièce nommée `Rotor`). Un modèle de secours simple est généré sinon.
 - **Armes** : un `Tool` par arme de `Config.WEAPONS`, avec `Handle`, sons (tir, recharge) et animations.
@@ -53,14 +68,14 @@ Régénérer les cartes après modification du prototype : `perl tools/export_ma
 - **Sons / musique** : mixe-les toi-même ou prends ceux de la Toolbox *en vérifiant la licence*.
 - **Interface finale** : le prototype web est ta maquette (menus, HUD, boutique, casier, caisses).
 
-## 4. Règles Roblox à respecter (important)
+## 5. Règles Roblox à respecter (important)
 
 - **Caisses payantes (Robux)** : les objets aléatoires payants exigent d'**afficher les probabilités** (déjà fait dans `LobbyUI`), de respecter les restrictions d'âge/région de Roblox et de ne jamais promettre de valeur réelle. Garde aussi une voie 100 % gratuite (pièces gagnées en jouant), comme dans ce kit.
 - **Autorité serveur** : le client ne décide jamais des dégâts, de l'argent, de l'inventaire ni des récompenses.
 - **Contenu** : évite les marques d'armes réelles si tu publies (les noms CS:GO du prototype sont à remplacer : « Glock-18 » → « Pistolet G18 », « AK-47 » → « Fusil K47 », etc.) ; vérifie les règles de contenu violent de Roblox (pas de sang réaliste, ton « bon enfant »).
 - **Performance** : < 10 000 Parts visibles (utilise `StreamingEnabled`), `Anchored = true` pour tout le décor, réutilise les `ParticleEmitter`.
 
-## 5. Idées de fonctionnalités à ajouter (classées par impact)
+## 6. Idées de fonctionnalités à ajouter (classées par impact)
 
 **Rétention (donner envie de revenir)**
 1. **Passe de combat saisonnier** (50 paliers gratuits + premium) : skins, danses, traînées, sprays.

@@ -3,8 +3,6 @@
 -- Ouverture des caisses : tirage pondéré + système de pitié, doublons convertis en pièces.
 -- Les probabilités DOIVENT être affichées dans l'interface (règle Roblox pour les objets aléatoires payants).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local MarketplaceService = game:GetService("MarketplaceService")
-local Players = game:GetService("Players")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local DataService = require(script.Parent.DataService)
@@ -104,17 +102,4 @@ remote.OnServerInvoke = function(player: Player, boxType: any)
 	return openBox(player, boxType)
 end
 
--- Achat de caisses avec des Robux (Developer Products) — à compléter avec tes ProductId.
-local PRODUCTS: { [number]: { box: string, amount: number } } = {
-	-- [123456789] = { box = "std", amount = 5 },
-}
-MarketplaceService.ProcessReceipt = function(info)
-	local player = Players:GetPlayerByUserId(info.PlayerId)
-	local prod = PRODUCTS[info.ProductId]
-	if not player or not prod then return Enum.ProductPurchaseDecision.NotProcessedYet end
-	local profile = DataService.get(player)
-	if not profile then return Enum.ProductPurchaseDecision.NotProcessedYet end
-	profile.boxes[prod.box] = (profile.boxes[prod.box] or 0) + prod.amount
-	DataService.save(player)
-	return Enum.ProductPurchaseDecision.PurchaseGranted
-end
+-- Les caisses achetées en Robux passent par ShopService (un seul ProcessReceipt possible par jeu) : voir ConfigExtra.SHOP.

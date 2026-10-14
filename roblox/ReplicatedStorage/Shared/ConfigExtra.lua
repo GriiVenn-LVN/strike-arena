@@ -33,6 +33,28 @@ X.ATTACHMENTS = {
 	ext = { name = "Chargeur étendu", minLevel = 2, magMult = 1.3 },
 	grip = { name = "Poignée verticale", minLevel = 4, recoilMult = 0.82 },
 }
+
+-- ---------- Viseurs personnalisables (boutique) ----------
+-- Purement visuels : l'effet de jeu reste celui de l'accessoire « Point rouge » (X.ATTACHMENTS.opt), pour ne rien vendre qui donne un avantage.
+-- SIGHTS = modèle d'optique posé sur l'arme (un par arme), RETICLES = forme et couleur du point de visée (un pour toutes les armes).
+X.SIGHTS = {
+	{ id = "reddot", name = "Point rouge", rarity = 1 },
+	{ id = "holo", name = "Holographique", rarity = 1 },
+	{ id = "mini", name = "Mini-reflex", rarity = 2 },
+	{ id = "tube", name = "Tube tactique", rarity = 2 },
+	{ id = "x2", name = "Lunette x2", rarity = 3 },
+	{ id = "acog", name = "ACOG x4", rarity = 3 },
+	{ id = "neon", name = "Néon", rarity = 4 },
+}
+X.RETICLES = {
+	{ id = "dot_red", name = "Point rouge", shape = "dot", color = Color3.fromRGB(255, 60, 60), rarity = 1 },
+	{ id = "cross_green", name = "Croix verte", shape = "cross", color = Color3.fromRGB(80, 255, 120), rarity = 1 },
+	{ id = "circle_cyan", name = "Cercle cyan", shape = "circle", color = Color3.fromRGB(60, 230, 255), rarity = 2 },
+	{ id = "chevron_yellow", name = "Chevron jaune", shape = "chevron", color = Color3.fromRGB(255, 220, 60), rarity = 2 },
+	{ id = "tdot_white", name = "T blanc", shape = "t", color = Color3.fromRGB(255, 255, 255), rarity = 2 },
+	{ id = "circledot_pink", name = "Cercle-point rose", shape = "circledot", color = Color3.fromRGB(255, 90, 200), rarity = 3 },
+	{ id = "skull_gold", name = "Crâne doré", shape = "skull", color = Color3.fromRGB(255, 185, 56), rarity = 4 },
+}
 X.TRAILS = { "", "cyan", "red", "lime", "gold", "violet", "rainbow" }
 X.CHARMS = { "", "cube", "heart", "star", "bear", "orb", "skull", "bolt" }
 X.SPRAYS = { "smile", "heart", "skull", "bolt", "flame", "crown", "target", "ghost" }
@@ -97,14 +119,16 @@ X.WEATHER = {
 }
 X.TIME_OF_DAY = { day = 14, dusk = 18.2, night = 23 } -- Lighting.ClockTime
 
--- ---------- Boutique cosmétique (aucun avantage de gameplay) ----------
+-- ---------- Boutique : produits Robux (Developer Products) ----------
+-- Le reste du catalogue (armes, skins, viseurs, tenues) est construit dans Shared/ShopCatalog et se paie en pièces.
+-- Renseigne productId après création de chaque produit dans le Creator Hub (0 = bouton désactivé). Voir README_ROBLOX.md.
 X.SHOP = {
-	{ id = "pass_premium", kind = "devproduct", robux = 499, name = "Passe de combat Premium", productId = 0 },
+	{ id = "pass_premium", kind = "devproduct", robux = 499, name = "Passe de combat Premium", productId = 0, premium = true },
 	{ id = "coins_s", kind = "devproduct", robux = 99, name = "500 pièces", productId = 0, coins = 500 },
 	{ id = "coins_m", kind = "devproduct", robux = 249, name = "1500 pièces", productId = 0, coins = 1500 },
 	{ id = "coins_l", kind = "devproduct", robux = 599, name = "4000 pièces", productId = 0, coins = 4000 },
-	{ id = "title_pack", kind = "coins", price = 800, name = "Pack de titres de profil" },
-	{ id = "trail_gold", kind = "coins", price = 1200, name = "Traînée Or" },
+	{ id = "boxes_std5", kind = "devproduct", robux = 199, name = "5 Caisses Standard", productId = 0, box = "std", boxes = 5 },
+	{ id = "boxes_prem3", kind = "devproduct", robux = 349, name = "3 Caisses Premium", productId = 0, box = "prem", boxes = 3 },
 }
 
 return X
