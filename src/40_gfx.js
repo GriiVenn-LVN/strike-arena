@@ -79,12 +79,12 @@ const THEMES={
  },
  snow:{
   sky:[[0,'#4a6aa5'],[.25,'#8fa6cf'],[.42,'#d7c9d8'],[.48,'#f6d9c6'],[.5,'#f7e3d6'],[.52,'#e6ecf4'],[1,'#d9e2ee']],
-  fog:0xc3d3e6,fogN:55,fogF:190,hemiS:0xa8c0ee,hemiG:0xd5e2f5,hemiI:.62,sunC:0xffe0c8,sunI:2.4,sunPos:[62,36,30],exp:.95,env:.8,cloud:'255,236,236',
+  fog:0xc3d3e6,fogN:55,fogF:190,hemiS:0xa8c0ee,hemiG:0xd5e2f5,hemiI:.62,sunC:0xffe0c8,sunI:2.4,sunPos:[62,36,30],exp:.95,env:.8,cloud:'255,236,236',cov:.6,
  },
  industrial:{
   sky:[[0,'#2b2f5e'],[.22,'#6a4a86'],[.38,'#e0775a'],[.47,'#ffb066'],[.5,'#ffd9a0'],[.52,'#5b4a52'],[1,'#2a2530']],
   fog:0xd9966a,fogN:50,fogF:200,hemiS:0x9aa6e8,hemiG:0x6b5a4a,hemiI:.4,sunC:0xffa860,sunI:3.0,sunPos:[75,34,40],exp:.9,env:.6,
-  cloud:'255,190,140',
+  cloud:'255,190,140',cov:.48,
  }
 };
 
@@ -105,6 +105,41 @@ function makeEnv(rend){
  sd.position.copy(new THREE.Vector3(...th.sunPos).normalize()).multiplyScalar(40);es.add(sd);
  const pm=new THREE.PMREMGenerator(rend),t=pm.fromScene(es,.02).texture;pm.dispose();return t;
 }
+// ciel « réel » : dégradé du thème + diffusion autour du soleil + disque solaire + couche de nuages
+// (bruit fractal projeté sur un plafond, éclairée côté soleil, assombrie dessous, qui dérive au vent)
+function skyMaterial(th,st,sdir){
+ const cc=th.cloud.split(',').map(v=>+v/255),hq=cfg.gfx>=1?1:0;
+ return new THREE.ShaderMaterial({depthWrite:false,fog:false,toneMapped:false,side:THREE.BackSide,
+  uniforms:{uSky:{value:st},uSun:{value:sdir.clone()},uSunC:{value:new THREE.Color(th.sunC)},uCl:{value:new THREE.Vector3(...cc)},
+   uCov:{value:th.cov!==undefined?th.cov:.42},uT:{value:0},uSeed:{value:Math.random()*50}},
+  vertexShader:'varying vec3 vD;varying vec2 vU;void main(){vD=position;vU=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);gl_Position.z=gl_Position.w*.9999;}',
+  fragmentShader:`uniform sampler2D uSky;uniform vec3 uSun,uSunC,uCl;uniform float uCov,uT,uSeed;varying vec3 vD;varying vec2 vU;
+float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+1.),f.x),f.y);}
+float fbm(vec2 p){float v=0.,a=.5;for(int k=0;k<${hq?6:4};k++){v+=a*n(p);p=mat2(1.6,1.2,-1.2,1.6)*p;a*=.5;}return v;}
+vec3 lin(vec3 c){return pow(c,vec3(2.2));}
+void main(){
+ vec3 d=normalize(vD);vec3 col=texture2D(uSky,vU).rgb;
+ float mu=max(dot(d,uSun),0.),up=clamp(d.y,0.,1.);
+ vec3 sc=uSunC*(.5+.5*uSun.y);
+ // halo de diffusion (Mie) + éclaircissement de l'horizon du côté du soleil
+ col+=sc*(pow(mu,6.)*.16+pow(mu,48.)*.32)+sc*pow(1.-up,6.)*pow(mu,2.)*.18;
+ col+=sc*smoothstep(.99955,.9998,mu)*2.5;
+ if(d.y>0.){
+  vec2 p=d.xz/(d.y+.12)*1.4+vec2(uT*.006,uT*.002)+uSeed;
+  float c=fbm(p*1.3),c2=fbm(p*1.3+uSun.xz*.09);
+  float cov=uCov,dn=smoothstep(1.-cov-.08,1.-cov+.28,c);
+  dn*=smoothstep(.0,.16,d.y);
+  float lit=clamp(1.-(c2-c)*5.,.25,1.15);            // face au soleil plus claire, dessous plus sombre
+  vec3 base=uCl*mix(.55,1.,cov<.55?1.:.7);
+  vec3 cl=mix(base*.62*mix(vec3(.85,.9,1.),vec3(1.),uSun.y),base,lit);
+  cl+=sc*pow(mu,10.)*(1.-dn)*1.4*.6;                 // liseré argenté près du soleil
+  cl=mix(cl,col,pow(1.-up,8.)*.6);                   // brume vers l'horizon
+  col=mix(col,cl,dn*.94);
+ }
+ gl_FragColor=linearToOutputTexel(vec4(lin(clamp(col,0.,4.)),1.));
+}`});
+}
 function buildSky(th){
  if(skyG){scene.remove(skyG);}
  skyG=new THREE.Group();
@@ -114,13 +149,8 @@ function buildSky(th){
  const sdir=new THREE.Vector3(...th.sunPos).normalize();
  const sunS=new THREE.Sprite(new THREE.SpriteMaterial({map:GLOW.white,fog:false,depthWrite:false,transparent:true,blending:THREE.AdditiveBlending,toneMapped:false,color:new THREE.Color(th.sunC)}));
  sunS.scale.set(95,95,1);sunS.position.copy(sdir).multiplyScalar(180);skyG.add(sunS);
- const cloudTex=canvasTex(256,96,(c)=>{for(let i=0;i<26;i++){const x=rand(30,226),y=rand(30,66),r=rand(14,34),g=c.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,'rgba('+th.cloud+',.5)');g.addColorStop(1,'rgba('+th.cloud+',0)');c.fillStyle=g;c.fillRect(x-r,y-r,r*2,r*2);}});
- for(let i=0;i<14;i++){
-  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:cloudTex,fog:false,depthWrite:false,transparent:true,opacity:rand(.5,.9),toneMapped:false}));
-  const a=rand(0,TAU),el=rand(.12,.6);s.scale.set(rand(70,130),rand(25,45),1);
-  s.position.set(Math.cos(a)*170*Math.cos(el),170*Math.sin(el),Math.sin(a)*170*Math.cos(el));skyG.add(s);
-  s.userData.drift=rand(.002,.01);s.userData.ang=a;s.userData.el=el;
- }
+ // nuages volumétriques procéduraux (ciel peint en shader, plus de nuages en sprites)
+ dome.material=skyMaterial(th,st,sdir);dome.onBeforeRender=()=>{dome.material.uniforms.uT.value=performance.now()*.001;};
  scene.add(skyG);
  curTheme=th;
  if(envTex)envTex.dispose();
@@ -502,27 +532,45 @@ function buildWorld(id){
  {const seen=new Set(),tc=th.tint?C(th.tint):null;worldG.traverse(o=>{if(!o.material)return;(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{if(m.isMeshStandardMaterial){m.envMapIntensity=th.env;if(tc&&!seen.has(m)&&m.map){seen.add(m);m.color.multiply(tc);}}});});}
  sun.shadow.needsUpdate=true;
 }
+// relief lointain réaliste : anneau de terrain (bruit fractal en crêtes), couleurs selon l'altitude et la pente
+function terrainRing(o){
+ const AS=180,RS=34,cx=N*S/2,cz=N*S/2,sd=o.seed||1;
+ const hs=(x,y)=>{const v=Math.sin(x*127.1+y*311.7+sd*17.3)*43758.5453;return v-Math.floor(v);};
+ const vn=(x,y)=>{const ix=Math.floor(x),iy=Math.floor(y);let fx=x-ix,fy=y-iy;fx=fx*fx*(3-2*fx);fy=fy*fy*(3-2*fy);
+  return lerp(lerp(hs(ix,iy),hs(ix+1,iy),fx),lerp(hs(ix,iy+1),hs(ix+1,iy+1),fx),fy);};
+ const ridge=(x,y)=>{let v=0,a=.5,f=1;for(let k=0;k<6;k++){const n=1-Math.abs(vn(x*f,y*f)*2-1);v+=a*n*n;a*=.5;f*=2.03;}return v;};
+ const pos=[],col=[],idx=[],c=new THREE.Color(),cr=new THREE.Color(o.rock),H=[];
+ for(let j=0;j<=RS;j++){const k=j/RS,r=lerp(o.r0,o.r1,Math.pow(k,1.3));
+  for(let i=0;i<=AS;i++){const a=i/AS*TAU,x=Math.cos(a)*r,z=Math.sin(a)*r;
+   // enveloppe : nul au pied, crêtes au milieu, plus bas au loin (le brouillard fait le reste)
+   const env=Math.sin(Math.min(1,k*1.25)*Math.PI*.5)*(1-.35*k);
+   const u=Math.cos(a)*3.2*o.rough+sd,v=Math.sin(a)*3.2*o.rough+k*2.4;
+   const h=Math.max(0,ridge(u,v)-.18)*1.4*o.hMax*env+(k>0?0:-2);
+   H.push(h);pos.push(cx+x,h-1.5,cz+z);}}
+ for(let j=0;j<RS;j++)for(let i=0;i<AS;i++){const a=j*(AS+1)+i,b=a+AS+1;idx.push(a,b,a+1,a+1,b,b+1);}
+ const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setIndex(idx);g.computeVertexNormals();
+ const nr=g.attributes.normal;
+ for(let n=0;n<H.length;n++){const t=clamp(H[n]/o.hMax,0,1),ny=nr.getY(n);
+  let ci=0;while(ci<o.cols.length-2&&t>o.cols[ci+1][0])ci++;const A=o.cols[ci],B=o.cols[ci+1];
+  c.set(A[1]).lerp(new THREE.Color(B[1]),clamp((t-A[0])/(B[0]-A[0]),0,1));
+  const steep=clamp((.82-ny)*3.5,0,1);c.lerp(cr,o.snowSlope&&t>.45?steep*.85:steep*.7);
+  const jit=.92+hs(n*.37,n*.11)*.16;col.push(c.r*jit,c.g*jit,c.b*jit);}
+ g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+ const m=new THREE.Mesh(g,new THREE.MeshStandardMaterial({vertexColors:true,roughness:1,flatShading:false}));
+ m.frustumCulled=false;worldG.add(m);return m;
+}
 function buildSkyline(th,sand){
  if(MAP.base==='haunt')return;
- if(MAP.theme==='jungle'){
-  const base=new THREE.MeshStandardMaterial({color:C(0x3f6a45),roughness:1}),capM=new THREE.MeshStandardMaterial({color:C(0x5f8a55),roughness:1});
-  for(let i=0;i<40;i++){const a=rand(0,TAU),r=rand(70,125),x=N*S/2+Math.cos(a)*r,z=N*S/2+Math.sin(a)*r,hh=rand(20,48),rr=hh*rand(.6,.9);
-   const m=new THREE.Mesh(new THREE.ConeGeometry(rr,hh,7),base);m.position.set(x,hh/2-2,z);m.rotation.y=rand(0,3);worldG.add(m);const c=new THREE.Mesh(new THREE.ConeGeometry(rr*.5,hh*.35,7),capM);c.position.set(x,hh*.82-2,z);worldG.add(c);}
-  return;
- }
- if(MAP.base==='snow'){
-  const base=new THREE.MeshStandardMaterial({color:C(0x7f8da6),roughness:1}),capM=new THREE.MeshStandardMaterial({color:C(0xf5f8fd),roughness:1});
-  for(let i=0;i<46;i++){const a=rand(0,TAU),r=rand(70,125),x=N*S/2+Math.cos(a)*r,z=N*S/2+Math.sin(a)*r,hh=rand(22,52),rr=hh*rand(.55,.8);
-   const m=new THREE.Mesh(new THREE.ConeGeometry(rr,hh,7),base);m.position.set(x,hh/2-2,z);m.rotation.y=rand(0,3);worldG.add(m);
-   const c=new THREE.Mesh(new THREE.ConeGeometry(rr*.46,hh*.38,7),capM);c.position.set(x,hh*.81-2,z);c.rotation.y=m.rotation.y;worldG.add(c);}
-  return;
- }
+ if(MAP.theme==='jungle'){terrainRing({r0:68,r1:210,hMax:46,rough:1,cols:[[0,0x2e4a2a],[.45,0x3d6236],[.8,0x5b7a46],[1,0x7a7f6a]],rock:0x5d5a4c,seed:3});return;}
+ if(MAP.base==='snow'){terrainRing({r0:70,r1:215,hMax:58,rough:1.2,cols:[[0,0x58627a],[.35,0x6d7890],[.5,0xe8eef8],[1,0xffffff]],rock:0x55606f,snowSlope:1,seed:7});return;}
  const list=[];for(let i=0;i<90;i++){const a=rand(0,TAU),r=rand(58,115);list.push({x:N*S/2+Math.cos(a)*r,z:N*S/2+Math.sin(a)*r,w:rand(6,14),h:rand(sand?6:8,sand?18:30),d:rand(6,14)});}
  const sk=new THREE.InstancedMesh(GBOX,new THREE.MeshStandardMaterial({color:0xffffff,roughness:1}),list.length);
  const mt=new THREE.Matrix4(),q=new THREE.Quaternion(),col=new THREE.Color();
  list.forEach((b,i)=>{mt.compose(new THREE.Vector3(b.x,b.h/2-1,b.z),q,new THREE.Vector3(b.w,b.h,b.d));sk.setMatrixAt(i,mt);
   if(sand)col.setHSL(.09+rand(-.01,.02),rand(.25,.4),rand(.55,.72));else col.setHSL(.62+rand(-.03,.03),rand(.05,.15),rand(.22,.4));sk.setColorAt(i,col);});
  sk.frustumCulled=false;worldG.add(sk);
+ if(MAP.theme!=='metro')terrainRing(sand?{r0:125,r1:230,hMax:30,rough:.8,cols:[[0,0xb59a72],[.6,0xa58660],[1,0x8e7556]],rock:0x8a6a4c,seed:5}:
+  {r0:125,r1:230,hMax:34,rough:.9,cols:[[0,0x4c4a52],[.6,0x5a5560],[1,0x6a6470]],rock:0x403c44,seed:9});
  if(sand){
   for(let i=0;i<8;i++){const a=rand(0,TAU),r=rand(62,100),x=N*S/2+Math.cos(a)*r,z=N*S/2+Math.sin(a)*r;
    const t=new THREE.Mesh(new THREE.CylinderGeometry(1.2,1.7,28,12),stdMat(0xe9dfc8));t.position.set(x,13,z);worldG.add(t);

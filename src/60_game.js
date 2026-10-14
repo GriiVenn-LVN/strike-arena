@@ -300,8 +300,8 @@ function safeSpawn(e){
  let best=null,bs=-1e9;
  for(let i=0;i<8;i++){
   const c=pick(list),x=cc(c[0]),z=cc(c[1]);let md=1e9;
-  for(const o of ents){if(o===e||!o.alive||o.team===e.team)continue;md=Math.min(md,Math.hypot(o.x-x,o.z-z));}
-  let sc=Math.min(md,60)+Math.random()*6;if(visibleFromEnemies(x,z,e.team))sc-=40;
+  let busy=0;for(const o of ents){if(o===e||!o.alive)continue;const dd=Math.hypot(o.x-x,o.z-z);if(dd<1.2)busy=1;if(o.team===e.team)continue;md=Math.min(md,dd);}
+  let sc=Math.min(md,60)+Math.random()*6-busy*100;if(visibleFromEnemies(x,z,e.team))sc-=40;   // busy : pas deux joueurs sur la même case
   if(sc>bs){bs=sc;best=c;}
  }
  return best;

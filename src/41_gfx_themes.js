@@ -2,11 +2,11 @@
    THÈMES ET DÉCORS : nuit (port), métro, jungle, stand de tir
    ===================================================================== */
 THEMES.night={base:'industrial',sky:[[0,'#03050c'],[.28,'#091028'],[.45,'#1b2c58'],[.5,'#2c4284'],[.52,'#0b1220'],[1,'#05080f']],
- fog:0x0b1426,fogN:22,fogF:120,hemiS:0x4a5aa0,hemiG:0x141a2a,hemiI:.36,sunC:0x9ab4ff,sunI:.95,sunPos:[-55,60,35],exp:1.15,env:.35,cloud:'90,110,170'};
+ fog:0x0b1426,fogN:22,fogF:120,hemiS:0x4a5aa0,hemiG:0x141a2a,hemiI:.36,sunC:0x9ab4ff,sunI:.95,sunPos:[-55,60,35],exp:1.15,env:.35,cloud:'90,110,170',cov:.32};
 THEMES.metro={base:'industrial',sky:[[0,'#0a0c12'],[.5,'#1a1e28'],[1,'#0a0c12']],
- fog:0x161a22,fogN:18,fogF:90,hemiS:0xdfe8ff,hemiG:0x40454f,hemiI:1.05,sunC:0xdde6ff,sunI:.2,sunPos:[10,80,10],exp:1.3,env:.5,cloud:'60,70,90'};
+ fog:0x161a22,fogN:18,fogF:90,hemiS:0xdfe8ff,hemiG:0x40454f,hemiI:1.05,sunC:0xdde6ff,sunI:.2,sunPos:[10,80,10],exp:1.3,env:.5,cloud:'60,70,90',cov:0};
 THEMES.jungle={base:'sand',sky:[[0,'#1f78d8'],[.3,'#58b0ee'],[.46,'#bfe6f4'],[.5,'#e8f6e0'],[.52,'#a8c898'],[1,'#6f9a6a']],
- fog:0xa6cfa0,fogN:30,fogF:145,hemiS:0xcfe8ff,hemiG:0x4a6a3a,hemiI:.78,sunC:0xfff4d0,sunI:2.5,sunPos:[40,85,30],exp:.95,env:.6,cloud:'255,255,255',tint:0xdde8cf};
+ fog:0xa6cfa0,fogN:30,fogF:145,hemiS:0xcfe8ff,hemiG:0x4a6a3a,hemiI:.78,sunC:0xfff4d0,sunI:2.5,sunPos:[40,85,30],exp:.95,env:.6,cloud:'255,255,255',tint:0xdde8cf,cov:.5};
 THEMES.range={base:'industrial',sky:[[0,'#4a86d0'],[.3,'#8cbcea'],[.46,'#dfeaf4'],[.5,'#f2f2ee'],[.52,'#c8c8c4'],[1,'#a0a09a']],
  fog:0xd3dee8,fogN:55,fogF:195,hemiS:0xdfe9ff,hemiG:0x8a8f96,hemiI:.72,sunC:0xfff6e0,sunI:2.3,sunPos:[50,80,30],exp:.95,env:.7,cloud:'255,255,255'};
 

@@ -2,7 +2,7 @@
    ASILE HANTÉ (carte Zombies) : orage, brume verdâtre, lune, bougies
    ===================================================================== */
 THEMES.haunt={base:'haunt',sky:[[0,'#020406'],[.3,'#08120f'],[.44,'#16261f'],[.5,'#2c4236'],[.52,'#08100c'],[1,'#030605']],
- fog:0x0b1512,fogN:8,fogF:78,hemiS:0x5a7a8c,hemiG:0x0a0d09,hemiI:.28,sunC:0xb8ccff,sunI:.38,sunPos:[-45,62,-55],exp:1,env:.12,cloud:'45,60,58',tint:0x8f9a92};
+ fog:0x0b1512,fogN:8,fogF:78,hemiS:0x5a7a8c,hemiG:0x0a0d09,hemiI:.28,sunC:0xb8ccff,sunI:.38,sunPos:[-45,62,-55],exp:1,env:.12,cloud:'45,60,58',cov:.72,tint:0x8f9a92};
 function texBrick(hm){return cached('brick'+hm,()=>canvasTex(128,Math.round(PX*hm),(c,w,h)=>{
  c.fillStyle='#3a2620';c.fillRect(0,0,w,h);const bh=10,bw=32;
  for(let y=0,r=0;y<h;y+=bh,r++)for(let x=-(r&1)*bw/2;x<w;x+=bw){c.fillStyle='hsl('+rand(6,16)+','+rand(25,40)+'%,'+rand(18,28)+'%)';c.fillRect(x+1,y+1,bw-2,bh-2);}
