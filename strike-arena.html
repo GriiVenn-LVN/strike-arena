@@ -10344,17 +10344,22 @@ updateFX=function(dt,t){
  lowHpUpdate(rdt);
 };
 /* =====================================================================
-   ZOMBIES : RÉGÉNÉRATION DE SANTÉ
-   - Après 3 s sans subir de dégâts, les PV des humains (joueur et
-     alliés) remontent de 20 PV/s jusqu'à 100.
+   RÉGÉNÉRATION DE SANTÉ
+   - Après 3 s sans subir de dégâts, les PV remontent de 20 PV/s
+     jusqu'à 100 (joueur, bots, alliés).
+   - Zombies et tous les modes à réapparition (match à mort, équipes,
+     roi de la colline, bataille royale…).
+   - Pas dans les modes à manches sans réapparition (Compétitif,
+     Désamorçage rapide, Duel) : la santé y reste tactique.
    - Coupé quand on est à terre ; le timer repart à chaque dégât
-     (coups de zombies, chute, explosions…).
+     (coups, chute, explosions…). En multijoueur, seul l'hôte calcule.
    ===================================================================== */
 const REGEN_DELAY=3,REGEN_RATE=20,REGEN_MAX=100;
-function zRegenUpdate(dt){
- if(!zOn()||!G.running)return;
+const regenOn=()=>G.running&&G.mode!=='bomb'&&G.variant!=='train'&&NET.role!=='client';
+function regenUpdate(dt){
+ if(!regenOn())return;
  for(const h of ents){
-  if(h.zombie||!h.alive||h.downed)continue;
+  if(h.zombie||h.dummy||!h.alive||h.downed)continue;
   if(h._rgHp===undefined||h.hp<h._rgHp)h._rgT=G.t; // tout dégât relance le délai
   if(h.hp<REGEN_MAX&&G.t-Math.max(h._rgT,h.lastHurtT||-9)>=REGEN_DELAY)h.hp=Math.min(REGEN_MAX,h.hp+REGEN_RATE*dt);
   h._rgHp=h.hp;
@@ -10363,7 +10368,7 @@ function zRegenUpdate(dt){
 const _zUpdateRegen=zUpdate;
 zUpdate=function(dt){
  _zUpdateRegen(dt);
- zRegenUpdate(dt);
+ regenUpdate(dt);
 };
 /* =====================================================================
    ZOMBIES : PORTEURS DE MUNITIONS
@@ -10419,12 +10424,15 @@ const ZDIFF=[
  {hp:1.15,spd:1.05,dmg:1.2,atk:.75,n:1.15},// Pro
  {hp:1.3,spd:1.1,dmg:1.4, atk:.65,n:1.3}  // Légende
 ];
+// tous les zombies un peu plus lents (-12 %), et jamais plus vite que 90 % de la course
+// du joueur : on peut les faire tourner en rond (« training » façon Call of Duty)
+const ZSLOW=.88;
 const zDiff=()=>ZDIFF[clamp(cfg.diff|0,0,ZDIFF.length-1)];
 const _zStyleDiff=zStyleZombie;
 zStyleZombie=function(z){
  _zStyleDiff(z);
  const d=zDiff();
- z.hp=Math.max(1,Math.round(z.hp*d.hp));z.zspeed*=d.spd;z.zdmg=Math.max(1,Math.round(z.zdmg*d.dmg));z.zatk=d.atk;
+ z.hp=Math.max(1,Math.round(z.hp*d.hp));z.zspeed=Math.min(z.zspeed*ZSLOW*d.spd,RUN*.9*d.spd);z.zdmg=Math.max(1,Math.round(z.zdmg*d.dmg));z.zatk=d.atk;
 };
 const _zOnWaveDiff=zOnWave;
 zOnWave=function(){
