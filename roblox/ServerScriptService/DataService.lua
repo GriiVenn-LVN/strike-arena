@@ -19,8 +19,9 @@ local function template()
 		coins = 500,
 		lastLoginDay = 0,            -- jour UTC (os.time() // 86400)
 		streak = 0,
-		inv = { skins = {}, dances = { "wave", "clap" } },   -- skins[weaponKey] = { skinIndex, ... }
+		inv = { skins = {}, dances = { "wave", "clap" }, weapons = {}, outfits = {}, sights = {}, reticles = {}, misc = {} },   -- skins[weaponKey] = { skinIndex, ... } ; voir Shared/ShopCatalog
 		equippedDance = "wave",
+		equipped = { outfit = 1, reticle = "dot_red", trail = "", sights = {} },   -- sights[weaponKey] = id de ConfigExtra.SIGHTS
 		boxes = { std = 2, prem = 0 },
 		pity = { epic = 0, legend = 0 },
 		opened = 0,
