@@ -11169,6 +11169,431 @@ buildWorld=function(id){
  return r;
 };
 /* =====================================================================
+   DÉFIS DU JOUR ET DE LA SEMAINE
+   - Les défis du jour (3 par jour, 62_meta.js) gagnent de nouveaux
+     objectifs : éliminations par type d'arme, victoires par mode,
+     manches de Zombies, survie en Infecté.
+   - Nouveau : 3 défis de la semaine, plus longs et mieux payés, tirés
+     chaque lundi. Affichés sous les défis du jour (Progression).
+   ===================================================================== */
+MPOOL.push(
+ {id:'k_shotgun',n:'Élimine {t} adversaires au fusil à pompe',t:8,coins:180,xp:70},
+ {id:'k_sniper',n:'Élimine {t} adversaires au fusil de précision',t:5,coins:200,xp:80},
+ {id:'k_smg',n:'Élimine {t} adversaires au pistolet-mitrailleur',t:12,coins:160,xp:60},
+ {id:'k_pistol',n:'Élimine {t} adversaires au pistolet',t:8,coins:180,xp:70},
+ {id:'k_rifle',n:'Élimine {t} adversaires au fusil d\'assaut',t:15,coins:160,xp:60},
+ {id:'w_duel',n:'Gagne {t} Duel',t:1,coins:220,xp:90},
+ {id:'w_dom',n:'Gagne {t} partie de Domination',t:1,coins:220,xp:90},
+ {id:'w_gg',n:'Gagne {t} Course aux armes',t:1,coins:250,xp:100},
+ {id:'z_wave',n:'Survis à {t} manches de Zombies',t:5,coins:200,xp:80},
+ {id:'inf_surv',n:'Termine {t} partie d\'Infecté sans être infecté',t:1,coins:250,xp:100}
+);
+const WPOOL=[
+ {id:'kills',n:'Élimine {t} adversaires',t:150,coins:800,xp:300},
+ {id:'hs',n:'Fais {t} headshots',t:40,coins:700,xp:280},
+ {id:'win',n:'Gagne {t} parties',t:8,coins:900,xp:350},
+ {id:'matches',n:'Joue {t} parties',t:15,coins:700,xp:250},
+ {id:'k_sniper',n:'Élimine {t} adversaires au fusil de précision',t:25,coins:800,xp:300},
+ {id:'k_shotgun',n:'Élimine {t} adversaires au fusil à pompe',t:30,coins:800,xp:300},
+ {id:'knife',n:'Élimine {t} adversaires au couteau',t:5,coins:900,xp:350},
+ {id:'w_duel',n:'Gagne {t} Duels',t:3,coins:800,xp:300},
+ {id:'w_dom',n:'Gagne {t} parties de Domination',t:3,coins:800,xp:300},
+ {id:'z_wave',n:'Survis à {t} manches de Zombies',t:20,coins:900,xp:350},
+ {id:'dmg',n:'Inflige {t} dégâts',t:15000,coins:700,xp:280},
+ {id:'inf_surv',n:'Termine {t} parties d\'Infecté sans être infecté',t:3,coins:900,xp:350}
+];
+const wDef=id=>WPOOL.find(m=>m.id===id);
+// semaine commençant le lundi (même calcul que le mode de la semaine)
+function weekKey(){const d=new Date();return 'w'+Math.floor((Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())/864e5+3)/7);}
+function weekLeft(){const d=new Date(),dow=(d.getDay()+6)%7,end=new Date(d.getFullYear(),d.getMonth(),d.getDate()+7-dow);const h=Math.ceil((end-d)/36e5);return h>48?Math.ceil(h/24)+' j':h+' h';}
+function ensureWeekly(){
+ const k=weekKey();
+ if(!PROF.wmis||PROF.wmis.wk!==k){PROF.wmis={wk:k,list:shuffle(WPOOL.slice()).slice(0,3).map(m=>({id:m.id,p:0,done:false,claimed:false}))};saveProf();}
+}
+const _metaEventWk=metaEvent;
+metaEvent=function(id,n){
+ _metaEventWk(id,n);
+ ensureWeekly();let ch=false;
+ for(const m of PROF.wmis.list){if(m.id===id&&!m.done){const d=wDef(id);m.p+=n||1;if(m.p>=d.t){m.p=d.t;m.done=true;uiToast('Défi de la semaine terminé : '+d.n.replace('{t}',d.t));sfx('pickup');}ch=true;}}
+ if(ch)saveProf();
+};
+function claimWeekly(i){
+ ensureWeekly();const m=PROF.wmis.list[i];if(!m||!m.done||m.claimed)return null;
+ m.claimed=true;const d=wDef(m.id);applyReward({coins:d.coins});const ups=addXP(d.xp);saveProf();return {d,ups};
+}
+
+/* ---------- ce qui fait avancer les nouveaux défis ---------- */
+const _killEntDefis=killEnt;
+killEnt=function(v,att,w,hs){
+ const was=v.alive;_killEntDefis(v,att,w,hs);
+ if(was&&!v.alive&&att&&att.isPlayer&&att!==v&&att.team!==v.team&&!v.dummy&&w&&w.cat&&!G.netClient)metaEvent('k_'+w.cat);
+};
+const _commitMatchDefis=commitMatch;
+commitMatch=function(win){
+ const r=_commitMatchDefis(win);
+ if(win&&!G.netClient)metaEvent('w_'+G.variant);
+ return r;
+};
+const _zOnWaveDefis=zOnWave;
+zOnWave=function(){
+ _zOnWaveDefis();
+ if(Z.wave>1&&P&&P.alive&&!G.netClient)metaEvent('z_wave'); // manche précédente survécue
+};
+
+/* ---------- affichage sous les défis du jour ---------- */
+const _renderMissionsWk=renderMissions;
+renderMissions=function(){
+ _renderMissionsWk();
+ const day=$('missions');if(!day)return;
+ ensureWeekly();
+ let box=$('wmissions');
+ if(!box){box=document.createElement('div');box.id='wmissions';day.parentNode.insertBefore(box,day.nextSibling);}
+ box.innerHTML='<h4 style="margin-top:14px">DÉFIS DE LA SEMAINE <small style="color:var(--dim);letter-spacing:1px;font-weight:400">· nouveaux dans '+weekLeft()+'</small></h4>'+
+  PROF.wmis.list.map((m,i)=>{const d=wDef(m.id);
+   return '<div class="mis'+(m.done?' done':'')+'"><div>'+d.n.replace('{t}',d.t)+'</div><div class="bar"><i style="width:'+Math.round(m.p/d.t*100)+'%;background:#c77dff"></i></div><div style="display:flex;justify-content:space-between;align-items:center"><span class="rw">'+m.p+' / '+d.t+' • 🪙 '+d.coins+' • '+d.xp+' XP</span>'+(m.done&&!m.claimed?'<button data-w="'+i+'">RÉCUPÉRER</button>':m.claimed?'<span style="color:var(--good);font-size:.66rem">✔ récupéré</span>':'')+'</div></div>';}).join('');
+ box.querySelectorAll('button[data-w]').forEach(b=>b.onclick=()=>{const r=claimWeekly(+b.dataset.w);if(r){sfx('pickup');showLevelUps(r.ups);renderMissions();refreshProfile();}});
+};
+/* =====================================================================
+   MODE DOMINATION (façon Call of Duty)
+   - Trois drapeaux A, B, C. Reste seul dans le cercle pour le capturer
+     (5 s depuis neutre, 8 s pour retourner un drapeau adverse) ; un
+     adversaire dans le cercle bloque la capture.
+   - Chaque drapeau tenu rapporte 1 point par seconde. Premier à la
+     limite (100 / 200 / 300) ou meilleur score à la fin du chrono.
+   - Les éliminations ne donnent pas de points. Réapparition rapide.
+   Variante du mode « tdm » : réutilise ses réapparitions et sa fin.
+   ===================================================================== */
+MODES.dom={n:'Domination',ic:'🏳',c:'#ffd23a',team:true,respawn:3,desc:'Trois drapeaux A, B, C à capturer et à tenir. Chaque drapeau tenu rapporte des points.',limitLabel:'Points pour gagner',limits:[100,200,300]};
+VARIANT_BASE.dom='tdm';NOKILLSCORE.dom=1;
+MODE_GROUPS[1][1].push('dom');MODE_TAG.dom='Tiens A, B et C';
+if(typeof RTIME!=='undefined')RTIME.dom={l:'Durée de la partie',o:[5,10,15],d:10,u:'min'};
+const DOM={flags:[],pts:[0,0],tick:0};
+const DOM_R=3.4,DOM_CAP=5,DOM_COL=[0xff7a4a,0x4aa3ff];
+
+// un point de drapeau : case praticable, libre, accessible depuis les deux camps
+function domCellOk(cx,cz){
+ if(cx<1||cz<1||cx>=N-1||cz>=N-1||!walkableCell(cz*N+cx))return false;
+ const x=cc(cx),z=cc(cz);return !blocked(x,z,groundH(x,z),.6);
+}
+function domSpot(fx,fz){
+ const tx=Math.round(fx),tz=Math.round(fz);
+ for(let r=0;r<10;r++)for(let dz=-r;dz<=r;dz++)for(let dx=-r;dx<=r;dx++){
+  if(Math.max(Math.abs(dx),Math.abs(dz))!==r)continue;
+  const cx=tx+dx,cz=tz+dz;if(!domCellOk(cx,cz))continue;
+  const x=cc(cx),z=cc(cz);
+  if(findPath(cc(MAP.spawnT[0][0]),cc(MAP.spawnT[0][1]),x,z)&&findPath(cc(MAP.spawnCT[0][0]),cc(MAP.spawnCT[0][1]),x,z))return [cx,cz];
+ }
+ return [tx,tz];
+}
+function domLabel(letter){
+ const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d');
+ g.fillStyle='#000a';g.beginPath();g.arc(64,64,54,0,TAU);g.fill();g.lineWidth=7;g.strokeStyle='#fff';g.stroke();
+ g.fillStyle='#fff';g.font='900 72px Arial';g.textAlign='center';g.textBaseline='middle';g.fillText(letter,64,68);
+ const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthTest:false,toneMapped:false}));
+ s.scale.set(1.3,1.3,1);s.renderOrder=5;return s;
+}
+function domSetup(){
+ domCleanup();
+ const avg=l=>{let x=0,z=0;for(const c of l){x+=c[0];z+=c[1];}return [x/l.length,z/l.length];};
+ const t=avg(MAP.spawnT),ct=avg(MAP.spawnCT);
+ ['A','B','C'].forEach((n,i)=>{
+  const k=[.28,.5,.72][i],c=domSpot(t[0]+(ct[0]-t[0])*k,t[1]+(ct[1]-t[1])*k);
+  // A et C décalés sur les côtés pour que les trois drapeaux ne soient pas alignés
+  let cx=c[0],cz=c[1];
+  if(i!==1){const px=-(ct[1]-t[1]),pz=ct[0]-t[0],L=Math.hypot(px,pz)||1,s=(i===0?1:-1)*7;const c2=domSpot(cx+px/L*s,cz+pz/L*s);cx=c2[0];cz=c2[1];}
+  const x=cc(cx),z=cc(cz),y=groundH(x,z),ring=ringMesh(0xffffff,4.5);ring.position.set(x,y,z);ring.scale.set(DOM_R,1,DOM_R);
+  const lab=domLabel(n);lab.position.set(x,y+3.2,z);scene.add(lab);
+  DOM.flags.push({n,x,z,y,owner:-1,cap:-1,prog:0,ring,lab,contested:false});
+ });
+ DOM.pts=[0,0];DOM.tick=0;
+}
+function domCleanup(){for(const f of DOM.flags){scene.remove(f.ring);scene.remove(f.lab);}DOM.flags.length=0;}
+function domColor(f){ringColor(f.ring,f.contested?0xffd23a:f.owner<0?0xffffff:DOM_COL[f.owner]);}
+function domUpdate(dt,t){
+ for(const f of DOM.flags){f.ring.userData.ring.rotation.z+=dt*.5;f.lab.position.y=f.y+3.2+Math.sin(t*2+f.x)*.08;}
+ if(G.state!=='live')return;
+ for(const f of DOM.flags){
+  const c=[0,0];for(const e of ents)if(e.alive&&!e.downed&&Math.hypot(e.x-f.x,e.z-f.z)<DOM_R&&Math.abs(e.y-f.y)<2.5)c[e.team]++;
+  f.contested=c[0]>0&&c[1]>0;
+  const who=c[0]>0&&!c[1]?0:c[1]>0&&!c[0]?1:-1;
+  if(who>=0&&who!==f.owner){
+   if(f.cap!==who){f.cap=who;f.prog=0;}
+   f.prog+=dt*Math.min(2,1+.25*(c[who]-1))/(f.owner<0?DOM_CAP:DOM_CAP*1.6);
+   if(f.prog>=1){
+    const prev=f.owner;f.owner=who;f.prog=0;f.cap=-1;
+    const mine=who===P.team;uiBanner((mine?'DRAPEAU '+f.n+' CAPTURÉ':'DRAPEAU '+f.n+' PERDU'),'',1400,mine?'#7dff9f':'#ff6b6b');sfx(mine?'pickup':'alarm');
+    if(prev>=0)for(const b of ents)if(!b.isPlayer&&b.team===prev)b.domT=0; // les défenseurs réagissent
+   }
+  }else if(who<0&&!f.contested&&f.prog>0)f.prog=Math.max(0,f.prog-dt*.25);
+  domColor(f);
+ }
+ DOM.tick+=dt;
+ if(DOM.tick>=1){DOM.tick-=1;for(const f of DOM.flags)if(f.owner>=0)DOM.pts[f.owner]++;G.score=DOM.pts.slice();checkDMEnd();}
+ domHud();
+}
+function domHud(){
+ let el=$('domHud');
+ if(!el){el=document.createElement('div');el.id='domHud';$('hud').appendChild(el);}
+ const near=DOM.flags.find(f=>P&&P.alive&&Math.hypot(P.x-f.x,P.z-f.z)<DOM_R);
+ el.innerHTML=DOM.flags.map(f=>{const col=f.contested?'#ffd23a':f.owner<0?'#ffffff':TEAMCSS[f.owner];return '<i style="border-color:'+col+';color:'+col+'">'+f.n+(f.prog>0?'<b style="width:'+Math.round(f.prog*100)+'%;background:'+(f.cap>=0?TEAMCSS[f.cap]:'#fff')+'"></b>':'')+'</i>';}).join('')+
+  (near?'<div class="dn">'+(near.contested?'DRAPEAU '+near.n+' DISPUTÉ':near.owner===P.team?'DRAPEAU '+near.n+' TENU':'CAPTURE DE '+near.n+' — '+Math.round(near.prog*100)+' %')+'</div>':'');
+}
+// branchements sur le moteur de variantes
+const _variantInitDom=variantInit;
+variantInit=function(){
+ if(G.variant!=='dom')domCleanup();
+ _variantInitDom();
+ if(G.variant!=='dom'){const h=$('domHud');if(h)h.style.display='none';return;}
+ G.limit=limitOf('dom');domSetup();const h=$('domHud');if(h)h.style.display='';
+};
+const _variantUpdateDom=variantUpdate;
+variantUpdate=function(dt,t){_variantUpdateDom(dt,t);if(G.variant==='dom'&&(G.state==='live'||G.state==='freeze'))domUpdate(dt,t);};
+const _variantTimeUpDom=variantTimeUp;
+variantTimeUp=function(){
+ if(G.variant!=='dom')return _variantTimeUpDom();
+ G.score=DOM.pts.slice();G.winner=DOM.pts[0]===DOM.pts[1]?-1:DOM.pts[0]>DOM.pts[1]?0:1;
+ if(G.winner===-1){G.state='end';G.endT=4.5;G.final=true;uiBanner('ÉGALITÉ','Temps écoulé',4000);return true;}
+ endDM();return true;
+};
+const _variantSubDom=variantSub;
+variantSub=function(){return G.variant==='dom'?'Capture A, B et C — premier à '+G.limit+' points':_variantSubDom();};
+const _variantCleanupDom=variantCleanup;
+variantCleanup=function(){_variantCleanupDom();domCleanup();};
+// bots : chacun choisit un drapeau à prendre ou à défendre
+const _botGoalDom=botGoal;
+botGoal=function(b){
+ if(G.variant!=='dom'||!DOM.flags.length)return _botGoalDom(b);
+ if(!b.domF||G.t>(b.domT||0)){
+  const fl=DOM.flags,mine=fl.filter(f=>f.owner===b.team),other=fl.filter(f=>f.owner!==b.team);
+  let f;
+  if(other.length&&(Math.random()<.75||!mine.length)){f=other.slice().sort((a,c)=>Math.hypot(a.x-b.x,a.z-b.z)-Math.hypot(c.x-b.x,c.z-b.z))[Math.random()<.7?0:Math.floor(Math.random()*other.length)];}
+  else f=pick(mine.length?mine:fl);
+  b.domF=f;b.domT=G.t+rand(12,20);b.domX=f.x+rand(-1.8,1.8);b.domZ=f.z+rand(-1.8,1.8);
+ }
+ if(b.domF.owner===b.team&&!b.domF.contested&&Math.hypot(b.x-b.domF.x,b.z-b.domF.z)<DOM_R&&Math.random()<.002)b.domT=0;
+ return {x:b.domX,z:b.domZ};
+};
+(function(){const s=document.createElement('style');s.textContent=`
+#domHud{position:absolute;top:58px;left:50%;transform:translateX(-50%);display:flex;gap:10px;justify-content:center;flex-wrap:wrap;pointer-events:none}
+#domHud i{position:relative;width:34px;height:34px;border:3px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font:900 1rem Bahnschrift,Arial;font-style:normal;background:#0008;overflow:hidden}
+#domHud i b{position:absolute;left:0;bottom:0;height:4px;opacity:.9}
+#domHud .dn{flex-basis:100%;text-align:center;font:800 .78rem Bahnschrift,Arial;letter-spacing:2px;color:#fff;text-shadow:0 1px 4px #000}
+`;document.head.appendChild(s);})();
+/* =====================================================================
+   MODE INFECTÉ (façon Call of Duty / Roblox)
+   - Tout le monde commence survivant (armes normales). Après le compte
+     à rebours, un joueur au hasard devient l'infecté.
+   - Infectés : couteau seulement, plus rapides, réapparaissent.
+   - Un survivant tué rejoint les infectés.
+   - Les infectés gagnent s'il ne reste plus de survivant ; les
+     survivants gagnent s'il en reste au moins un à la fin du chrono.
+   Variante du mode « tdm » (équipes, réapparition).
+   ===================================================================== */
+MODES.inf={n:'Infecté',ic:'☣',c:'#9dff5a',team:true,respawn:2.5,desc:'Un joueur commence infecté. Chaque survivant tué rejoint les infectés. Tiens jusqu\'à la fin du chrono.',limitLabel:'',limits:[]};
+VARIANT_BASE.inf='tdm';NOKILLSCORE.inf=1;
+MODE_GROUPS[2][1].splice(1,0,'inf');MODE_TAG.inf='Survis aux infectés';
+if(typeof RTIME!=='undefined')RTIME.inf={l:'Durée de la partie',o:[3,5,8],d:5,u:'min'};
+const INF={started:false,startT:0,glow:new Map()};
+const isInf=()=>G.variant==='inf';
+
+function infCount(){let s=0,i=0;for(const e of ents){if(e.team===0)s++;else i++;}G.score=[s,i];return s;}
+function infLook(e){
+ if(!e.rig)return;
+ if(!e.rig.root.userData.infGlow){const g=zGlow(0x9dff5a,1.1);if(g){g.position.y=1.2;e.rig.root.add(g);e.rig.root.userData.infGlow=g;}}
+}
+function infArm(e){ // infecté : couteau seulement, plus rapide
+ e.wp.p=null;e.wp.s=null;e.cur='k';e.nade={f:0,fl:0,sm:0,mn:0};e.armor=0;e.shield=0;e.perks={stamin:1};
+ if(e.isPlayer)vmDraw&&vmDraw();
+}
+function infTurn(e,first){
+ e.team=1;e.keep=false;
+ // un mort garde son corps au sol : on change son apparence à la réapparition
+ if(e.alive){attachRig(e);infLook(e);infArm(e);}else e._infRig=true;
+ if(e.isPlayer)for(const o of ents)if(o.rig&&o.rig.label)o.rig.label.visible=o.team===P.team;
+ if(first){
+  const me=e.isPlayer;
+  uiBanner(me?'TU ES L\'INFECTÉ':e.name.toUpperCase()+' EST INFECTÉ',me?'Contamine tout le monde au couteau':'Survis jusqu\'à la fin du chrono',2600,'#9dff5a');sfx('alarm');
+ }else if(e.isPlayer)uiBanner('TU ES INFECTÉ','Contamine les survivants',2000,'#9dff5a');
+}
+// au départ, tout le monde est survivant
+const _variantPostSpawnInf=variantPostSpawn;
+variantPostSpawn=function(){
+ _variantPostSpawnInf();
+ if(!isInf())return;
+ INF.started=false;INF.startT=G.t+(G.timer||3)+2;
+ for(const e of ents){if(e.team!==0){e.team=0;attachRig(e);}}
+ if(P.rig)P.rig.root.visible=false;
+ infCount();
+};
+const _respawnInf=respawn;
+respawn=function(e){
+ if(isInf()&&e._infRig){e._infRig=false;attachRig(e);}
+ _respawnInf(e);
+ if(isInf()&&e.team===1){infArm(e);infLook(e);}
+};
+const _variantKillInf=variantKill;
+variantKill=function(att,v,w,hs){
+ _variantKillInf(att,v,w,hs);
+ if(!isInf())return;
+ if(v.team===0&&INF.started){infTurn(v,false);if(att&&att.isPlayer&&att!==v)uiToast('Survivant contaminé');}
+ if(infCount()===0&&G.state==='live'){G.winner=1;endDM();}
+};
+const _variantUpdateInf=variantUpdate;
+variantUpdate=function(dt,t){
+ _variantUpdateInf(dt,t);
+ if(!isInf()||G.state!=='live')return;
+ if(!INF.started&&G.t>=INF.startT){
+  INF.started=true;const alive=ents.filter(e=>e.alive);const z=pick(alive.length?alive:ents);infTurn(z,true);
+  for(const b of ents)if(!b.isPlayer)b.target=null;
+ }
+ infCount();
+};
+const _variantTimeUpInf=variantTimeUp;
+variantTimeUp=function(){
+ if(!isInf())return _variantTimeUpInf();
+ G.winner=infCount()>0?0:1;
+ if(G.winner===0&&P.team===0&&!G.netClient)metaEvent('inf_surv');
+ endDM();return true;
+};
+const _variantSubInf=variantSub;
+variantSub=function(){return isInf()?'Un joueur va être infecté… survis jusqu\'à la fin':_variantSubInf();};
+// bots infectés : ils foncent au couteau sur le survivant le plus proche
+const _botUpdateInf=botUpdate;
+botUpdate=function(b,dt){
+ if(!isInf()||b.team!==1||!b.alive||G.state!=='live')return _botUpdateInf(b,dt);
+ tickWeapon(b,dt);
+ if(b.blindT>0){b.blindT-=dt;b.vx*=.9;b.vz*=.9;physics(b,dt);return;}
+ let t=null,bd=1e9;for(const e of ents){if(!e.alive||e.team!==0)continue;const d=Math.hypot(e.x-b.x,e.z-b.z)+(Math.abs(e.y-b.y)>2?6:0);if(d<bd){bd=d;t=e;}}
+ if(!t){botMove(b,0,0,dt);return;}
+ const sp=RUN*.97*(b.diff?b.diff.speed:1);
+ if(bd>1.3)botGo(b,dt,t.x,t.z,sp);else botMove(b,0,0,dt);
+ const wy=Math.atan2(-(t.x-b.x),-(t.z-b.z)),wp=Math.atan2(t.y+1.1-(b.y+eyeOf(b)),Math.max(bd,.5));
+ if(bd<4)turnTo(b,wy,wp,12,dt);else if(Math.hypot(b.vx,b.vz)>.3)turnTo(b,Math.atan2(-b.vx,-b.vz),0,9,dt);
+ if(bd<1.9&&Math.abs(angDiff(b.yaw,wy))<.45)shoot(b);
+};
+// les infectés ne ramassent pas d'armes
+const _updatePickupsInf=updatePickups;
+updatePickups=function(dt,t){
+ if(!isInf())return _updatePickupsInf(dt,t);
+ const inf=ents.filter(e=>e.team===1&&e.alive);for(const e of inf)e._pkA=e.alive,e.alive=false;
+ try{_updatePickupsInf(dt,t);}finally{for(const e of inf)e.alive=e._pkA;}
+};
+const _variantInitInf=variantInit;
+variantInit=function(){_variantInitInf();if(isInf())G.limit=1e9;}; // pas de limite de score : fin au chrono ou quand tout le monde est infecté
+/* =====================================================================
+   KILL-CAM (façon Call of Duty)
+   Quand tu meurs dans un mode avec réapparition (MàM, Capture, Domination,
+   Infecté, Course aux armes…) ou en Bataille royale, on rejoue les
+   dernières secondes vues par-dessus l'épaule de celui qui t'a tué.
+   ESPACE ou clic pour passer. Réglage : Réglages › Plus d'options.
+   Réutilise le moteur de rediffusion de 6A_replay.js.
+   ===================================================================== */
+cfg.killcam=cfg.killcam===undefined?1:cfg.killcam;
+const KCAM={on:false,respT:0};
+const kcMode=()=>G.mode!=='bomb'&&G.variant!=='zombies'&&G.variant!=='train';
+function kcStart(){
+ const k=RP.kill;
+ if(!cfg.killcam||!kcMode()||G.netClient||NET.role||RP.on||POTG.playing)return;
+ if(!k||k.v!==P||!k.att||k.att===P||!k.att.rig||!RP.buf.length)return;
+ RP.t0=Math.max(RP.buf[0].t,k.t-2.2);RP.t1=k.t+.6;
+ if(k.t-RP.t0<.6)return;
+ KCAM.on=true;RP.on=true;RP.wait=.5;RP.rt=RP.t0;RP.prev=RP.t0;RP.cam=null;RP.orbit=0;RP.blood=false;RP.hold=.6;
+ // la réapparition attend la fin de la kill-cam
+ KCAM.respT=P.respT;if(isFinite(P.respT))P.respT=99;
+}
+function kcFinish(){
+ KCAM.on=false;
+ if(P&&!P.alive&&isFinite(KCAM.respT)&&P.respT>KCAM.respT)P.respT=Math.min(KCAM.respT,.4);
+ const tag=RP.el&&RP.el.querySelector('.tag');if(tag)tag.innerHTML='<i></i>REDIFFUSION · DERNIÈRE ÉLIMINATION';
+}
+const _killEntKc=killEnt;
+killEnt=function(v,att,w,hs){
+ const was=v.alive;_killEntKc(v,att,w,hs);
+ if(was&&!v.alive&&v===P&&G.state==='live')kcStart();
+};
+// pendant la kill-cam, les autres éliminations ne remplacent pas celle qu'on rejoue
+const _rpKillKc=rpKill;
+rpKill=function(att,v,w,hs){if(KCAM.on)return;_rpKillKc(att,v,w,hs);};
+const _rpEndKc=rpEnd;
+rpEnd=function(){
+ if(!KCAM.on)return _rpEndKc();
+ RP.on=false;rpOverlay(false);kcFinish();
+ for(const e of ents)if(e.rig&&!e.alive)e.rig.dieT=9; // corps déjà au sol après la rediffusion
+};
+const _rpOverlayKc=rpOverlay;
+rpOverlay=function(on,prog){
+ _rpOverlayKc(on,prog);
+ if(on&&KCAM.on){const tag=RP.el.querySelector('.tag');if(tag&&!tag.dataset.kc){tag.innerHTML='<i></i>KILL-CAM';}}
+};
+// fin de partie ou retour au menu : on coupe proprement
+const _matchOverKc=matchOver;
+matchOver=function(){if(KCAM.on){RP.on=false;rpOverlay(false);kcFinish();}return _matchOverKc();};
+const _endDMKc=endDM;
+endDM=function(){if(KCAM.on){RP.on=false;rpOverlay(false);kcFinish();}return _endDMKc();};
+addEventListener('mousedown',()=>{if(KCAM.on&&RP.on&&RP.wait<=0)rpEnd();});
+// réglage
+const _buildOptsKc=buildOpts;
+buildOpts=function(){
+ _buildOptsKc();
+ let g=$('gKillcam');
+ if(!g){
+  const anchor=$('cCine')&&$('cCine').closest('.grp');if(!anchor)return;
+  g=document.createElement('div');g.className='grp';g.id='gKillcam';g.innerHTML='<label>Kill-cam</label><div class="chips" id="cKillcam"></div><small>Rejoue ta mort du point de vue du tueur (modes avec réapparition).</small>';
+  anchor.parentNode.insertBefore(g,anchor.nextSibling);
+ }
+ chipsRow('cKillcam',[['Activée',1],['Désactivée',0]],()=>cfg.killcam?1:0,v=>cfg.killcam=v,buildOpts);
+};
+/* =====================================================================
+   QUALITÉ AUTOMATIQUE
+   Si les images par seconde restent basses en jeu, la résolution de
+   rendu baisse par paliers (jusqu'à 55 %), puis la qualité graphique
+   descend d'un cran (Haute → Moyenne → Basse). Quand ça redevient
+   fluide longtemps, la résolution remonte. Réglage : Réglages ›
+   Qualité automatique (activée par défaut).
+   ===================================================================== */
+cfg.autoGfx=cfg.autoGfx===undefined?1:cfg.autoGfx;
+const AQ={scale:1,acc:0,n:0,low:0,high:0,last:performance.now(),cool:0};
+const AQ_LOW=40,AQ_HIGH=57,AQ_MIN=.55;
+const _resizeAQ=resize;
+resize=function(){
+ _resizeAQ();
+ if(AQ.scale<1)renderer.setPixelRatio(renderer.getPixelRatio()*AQ.scale);
+ if(typeof postSize==='function')postSize();
+};
+function aqApply(msg){resize();if(msg)uiToast(msg);}
+function aqStep(dt){
+ const fps=AQ.n/AQ.acc;AQ.acc=0;AQ.n=0;
+ if(AQ.cool>0){AQ.cool-=1;return;}
+ if(fps<AQ_LOW){AQ.low++;AQ.high=0;}else if(fps>AQ_HIGH){AQ.high++;AQ.low=0;}else{AQ.low=0;AQ.high=0;}
+ if(AQ.low>=3){ // ~3 s sous 40 FPS
+  AQ.low=0;AQ.cool=3;
+  if(AQ.scale>AQ_MIN+.01){AQ.scale=Math.max(AQ_MIN,AQ.scale-.15);aqApply('Qualité auto : résolution '+Math.round(AQ.scale*100)+' %');}
+  else if(cfg.gfx>0){cfg.gfx--;AQ.scale=.85;saveCfg();aqApply('Qualité auto : graphismes '+['Basse','Moyenne','Haute'][cfg.gfx]);if(typeof buildOpts==='function')try{buildOpts();}catch(e){}}
+ }else if(AQ.high>=12&&AQ.scale<1){ // ~12 s au-dessus de 57 FPS
+  AQ.high=0;AQ.cool=3;AQ.scale=Math.min(1,AQ.scale+.15);aqApply();
+ }
+}
+const _renderAQ=render;
+render=function(dt,t){
+ _renderAQ(dt,t);
+ const now=performance.now(),rd=(now-AQ.last)/1000;AQ.last=now;
+ if(!cfg.autoGfx||!G.running||G.paused||document.hidden||rd>.5)return; // pause, onglet caché : on ne compte pas
+ AQ.acc+=rd;AQ.n++;
+ if(AQ.acc>=1)aqStep();
+};
+// réglage
+const _buildOptsAQ=buildOpts;
+buildOpts=function(){
+ _buildOptsAQ();
+ let g=$('gAutoGfx');
+ if(!g){
+  const anchor=$('cGfx')&&$('cGfx').closest('.grp');if(!anchor)return;
+  g=document.createElement('div');g.className='grp';g.id='gAutoGfx';g.innerHTML='<label>Qualité automatique</label><div class="chips" id="cAutoGfx"></div><small>Baisse la résolution puis la qualité si le jeu rame.</small>';
+  anchor.parentNode.insertBefore(g,anchor.nextSibling);
+ }
+ chipsRow('cAutoGfx',[['Activée',1],['Désactivée',0]],()=>cfg.autoGfx?1:0,v=>{cfg.autoGfx=v;if(!v&&AQ.scale<1){AQ.scale=1;resize();}},buildOpts);
+};
+/* =====================================================================
    BOUCLE PRINCIPALE
    ===================================================================== */
 function update(dt){
