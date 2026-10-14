@@ -39,6 +39,11 @@ const TOUCH_BTNS=[
  ['dash','ESQUIVE','b-dash','tap'],['reload','RECH.','b-reload','tap'],['next','ARME','b-swap','tap'],['frag','GRENADE','b-nade','tap'],
  ['use','ACTION','b-use','hold'],['buy','BOUTIQUE','b-buy','tap'],['score','SCORES','b-score','hold']
 ];
+// ajoute un bouton (utilisé par les autres modules, même après la construction de l'interface)
+function touchAddBtn(b){
+ TOUCH_BTNS.push(b);
+ if(TOUCH.ui){const d=document.createElement('div');d.className='tb '+b[2];d.dataset.a=b[0];d.dataset.m=b[3];d.textContent=b[1];TOUCH.ui.appendChild(d);}
+}
 function touchCss(){
  const s=document.createElement('style');s.textContent=`
 body.touch,body.touch canvas{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
