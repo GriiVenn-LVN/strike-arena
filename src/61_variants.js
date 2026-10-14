@@ -143,7 +143,7 @@ function zStartWave(){
  uiBanner('MANCHE '+Z.wave,Z.wave===1?'Gagne des points, achète des armes aux murs, tente la boîte mystère':'Ils sont plus nombreux…',2600,'#d0202a');sfx('alarm');
  const humans=ents.filter(e=>e.team===0);
  for(const h of humans){
-  if(!h.alive){const f=humans.find(x=>x.alive&&x!==h);const c=f?[Math.floor(f.x/S),Math.floor(f.z/S)]:MAP.spawnCT[0];const n=nearestFree(c[0]+1,c[1]);respawn(h);if(h.isPlayer){h.wp.p=null;giveWeapon(h,'p250');h.cur='s';}h.perks={};h.x=cc(n[0]);h.z=cc(n[1]);h.y=groundH(h.x,h.z);h.hp=60;}
+  if(!h.alive){const f=humans.find(x=>x.alive&&x!==h);const c=f?[Math.floor(f.x/S),Math.floor(f.z/S)]:MAP.spawnCT[0];const n=nearestFree(c[0]+1,c[1]);respawn(h);if(h.isPlayer){h.wp.p=null;giveWeapon(h,'p250');h.wp.s.res=ZSTART_RES;h.cur='s';}h.perks={};h.x=cc(n[0]);h.z=cc(n[1]);h.y=groundH(h.x,h.z);h.hp=60;}
   else h.hp=Math.min(100,h.hp+35);
   h.nade.f=Math.max(2,h.nade.f||0);if(!h.perks)h.perks={};if(h.isPlayer)h.invuln=1.5;
  }
