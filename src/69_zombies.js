@@ -28,7 +28,7 @@ function buildWonder(k,M){
   const fin=rb(.006,.05,.09,red,0,.085,-.08,.003);g.add(fin);
   g.add(polyZY([[.0,-.02],[.04,-.02],[.06,-.13],[.02,-.14]],.03,metal(0x2b2b2b),0,.004));
   const tank=new THREE.Mesh(new THREE.CylinderGeometry(.018,.018,.07,12),glow(0x4dff6a));tank.rotation.x=Math.PI/2;tank.position.set(.045,.03,-.03);g.add(tank);
-  return finishGun(g,{len:.36,muzzle:-.36,right:V3(0,-.075,-.0),left:V3(0,-.05,-.12),twoHand:false,sight:.09,eject:V3(0,0,0)});
+  return finishGun(g,{len:.36,muzzle:-.36,right:V3(0,-.075,-.0),left:V3(0,-.05,-.12),twoHand:false,sight:.11,eject:V3(0,0,0)});
  }
  if(k==='thunder'){           // canon à air : tambour cuivré, turbine à l'avant
   const brass=metal(0xb08a4a),dark=metal(0x2e2a26),blue=glow(0x9fd8ff);
@@ -39,7 +39,7 @@ function buildWonder(k,M){
   const core=new THREE.Mesh(new THREE.SphereGeometry(.03,12,10),blue);core.position.set(0,0,-.37);g.add(core);
   g.add(rb(.05,.04,.22,dark,0,.08,-.12,.01),cz(.02,.02,.16,blue,.07,.02,-.16,10));
   g.add(polyZY([[.0,-.06],[.05,-.06],[.07,-.17],[.02,-.18]],.035,dark,0,.004),rb(.05,.09,.16,brass,0,-.02,.1,.01));
-  return finishGun(g,{len:.6,muzzle:-.46,right:V3(0,-.11,.01),left:V3(0,-.075,-.25),sight:.13,eject:V3(0,0,0)});
+  return finishGun(g,{len:.6,muzzle:-.46,right:V3(0,-.11,.01),left:V3(0,-.075,-.25),sight:.10,eject:V3(0,0,0)});
  }
  // souffle givré : canon de cristal bleu, pointes de glace
  const steel=metal(0x8fa3b8),ice=new THREE.MeshStandardMaterial({color:0xa8ecff,emissive:0x3fb8ff,emissiveIntensity:.7,roughness:.08,metalness:.1,transparent:true,opacity:.85});
@@ -48,7 +48,7 @@ function buildWonder(k,M){
  for(let i=0;i<6;i++){const c=new THREE.Mesh(new THREE.ConeGeometry(.012,.07,5),ice);const a=i*Math.PI/3;c.position.set(Math.cos(a)*.045,.01+Math.sin(a)*.045,-.3-i%2*.08);c.rotation.set(Math.PI/2,0,a);g.add(c);}
  g.add(cz(.03,.03,.08,steel,0,.01,-.22,14),rb(.03,.03,.16,steel,0,.065,-.1,.008));
  g.add(polyZY([[.0,-.035],[.04,-.035],[.055,-.15],[.015,-.16]],.032,metal(0x2b3138),0,.004),rb(.04,.08,.13,steel,0,-.01,.11,.01));
- return finishGun(g,{len:.55,muzzle:-.5,right:V3(0,-.085,.0),left:V3(0,-.03,-.24),sight:.085,eject:V3(0,0,0)});
+ return finishGun(g,{len:.55,muzzle:-.5,right:V3(0,-.085,.0),left:V3(0,-.03,-.24),sight:.081,eject:V3(0,0,0)});
 }
 BUILDERS.wonder=buildWonder;
 
