@@ -53,7 +53,7 @@ DECOR.asile=function(th){
   const g=new THREE.Group();g.position.set(cc(cx),.9,cc(cz));g.rotation.y=rand(-.2,.2);g.rotation.z=rand(-.1,.1);
   const v=new THREE.Mesh(GBOX,stone);v.scale.set(.18,1.1,.18);v.position.y=.55;const hb=new THREE.Mesh(GBOX,stone);hb.scale.set(.7,.16,.16);hb.position.y=.8;g.add(v,hb);v.castShadow=hb.castShadow=true;worldG.add(g);}
  // chapelle : bougies sur l'autel, vitrail, croix, éclairage chaud vacillant
- for(const [x,z] of [[35,53],[37,53],[43,53],[45,53],[34.5,54],[45.5,54]])candle(x,.45,z);
+ for(const [x,z] of [[35,47],[37,47],[43,47],[45,47],[34.5,48],[45.5,48]])candle(x,.45,z);
  for(const [x,z] of [[29,77.4],[51,77.4]])for(let k=0;k<5;k++)candle(x+rand(-.6,.6),0,z-rand(0,.6));
  const vt=canvasTex(128,256,(c,w,h)=>{c.fillStyle='#111';c.fillRect(0,0,w,h);const cols=['#c0392b','#2e86c1','#d4ac0d','#27ae60','#8e44ad','#e67e22'];
   for(let y=8;y<h-8;y+=24)for(let x=8;x<w-8;x+=24){c.fillStyle=pick(cols);c.fillRect(x+2,y+2,20,20);}
@@ -61,9 +61,9 @@ DECOR.asile=function(th){
  const vit=new THREE.Mesh(new THREE.PlaneGeometry(3.4,6.4),new THREE.MeshBasicMaterial({map:vt,toneMapped:false,transparent:true,opacity:.9}));vit.position.set(40,3.6,77.9);vit.rotation.y=Math.PI;worldG.add(vit);
  glowSprite(40,3.6,77,'warm',9,.25,false);
  const cross=new THREE.Group(),gold=new THREE.MeshStandardMaterial({color:C(0xc9a24a),metalness:.9,roughness:.3});
- {const a=new THREE.Mesh(GBOX,gold);a.scale.set(.18,1.6,.12);const b=new THREE.Mesh(GBOX,gold);b.scale.set(.9,.18,.12);b.position.y=.3;cross.add(a,b);}cross.position.set(40,1.6,52.6);worldG.add(cross);
+ {const a=new THREE.Mesh(GBOX,gold);a.scale.set(.18,1.6,.12);const b=new THREE.Mesh(GBOX,gold);b.scale.set(.9,.18,.12);b.position.y=.3;cross.add(a,b);}cross.position.set(40,1.6,46.6);worldG.add(cross);
  const PL=(x,y,z,col,I,d)=>{const L=new THREE.PointLight(col,I,d||18,2);L.position.set(x,y,z);worldG.add(L);return L;};
- const ch1=PL(36,2.2,56,0xffa860,5),ch2=PL(44,2.2,56,0xffa860,5),ch3=PL(40,2.6,72,0xff9a50,5,20);
+ const ch1=PL(36,2.2,50,0xffa860,5),ch2=PL(44,2.2,50,0xffa860,5),ch3=PL(40,2.6,72,0xff9a50,5,20);
  // infirmerie : néon qui grésille ; crypte : lueur verte ; aile des malades : lampe rouge
  const inf=PL(13,3.8,18,0xd8f0ff,16,24),cr=PL(66,2,20,0x40ff90,10,22),wd=PL(40,3.6,38,0xff3030,8,20);
  const neon=new THREE.Mesh(GBOX,new THREE.MeshStandardMaterial({color:0x222222,emissive:new THREE.Color(0xd8f0ff),emissiveIntensity:2}));neon.scale.set(2.4,.06,.25);neon.position.set(13,4.3,18);worldG.add(neon);
@@ -77,7 +77,7 @@ DECOR.asile=function(th){
  // inscriptions sanglantes
  const scrawl=(txt,x,y,z,ry,w)=>{const t=canvasTex(512,128,(c,W,H)=>{c.font='bold 70px Georgia';c.textAlign='center';c.fillStyle='#8a0a0a';c.fillText(txt,W/2,80);for(let i=0;i<22;i++){const x=rand(40,W-40);c.fillRect(x,rand(70,85),rand(2,5),rand(10,40));}});
   const m=new THREE.Mesh(new THREE.PlaneGeometry(w,w/4),new THREE.MeshBasicMaterial({map:t,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2}));m.position.set(x,y,z);m.rotation.y=ry;worldG.add(m);};
- scrawl('ILS ARRIVENT',40,3.6,52.06,0,6);scrawl('NE SORTEZ PAS',51.94,2.4,32,-Math.PI/2,5);scrawl('115',54.06,2.2,12,Math.PI/2,2.4);
+ scrawl('ILS ARRIVENT',40,3.6,46.06,0,6);scrawl('NE SORTEZ PAS',51.94,2.4,32,-Math.PI/2,5);scrawl('115',54.06,2.2,12,Math.PI/2,2.4);
  // brume au sol
  const ft=canvasTex(128,128,(c,w,h)=>{for(let i=0;i<12;i++){const x=rand(20,108),y=rand(20,108),r=rand(20,50),g=c.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,'rgba(150,190,170,.35)');g.addColorStop(1,'rgba(150,190,170,0)');c.fillStyle=g;c.fillRect(0,0,w,h);}});
  for(let i=0;i<30;i++){const m=new THREE.Mesh(new THREE.PlaneGeometry(14,14),new THREE.MeshBasicMaterial({map:ft,transparent:true,opacity:rand(.25,.5),depthWrite:false}));
