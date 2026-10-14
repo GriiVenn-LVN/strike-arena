@@ -231,7 +231,8 @@ function killEnt(v,att,w,hs){
  rpKill(att,v,w,hs);
  v.alive=false;v.hp=0;v.deaths++;v.scoped=false;v.prog=0;v.streak=0;v.shield=0;v.ads=0;
  v.dieDir=Math.floor(Math.random()*4);
- if(att!==v){att.kills++;att.streak++;if(hs)att.hsKills++;att.bestStreak=Math.max(att.bestStreak||0,att.streak);
+ if(att!==v&&att.team!==v.team){att.kills++;att.streak++; // un allié tué (baril, mine) ne compte pas comme une élimination
+ if(hs)att.hsKills++;att.bestStreak=Math.max(att.bestStreak||0,att.streak);
   if(att.isPlayer){const wk=Object.keys(W).find(k=>W[k]===w);if(wk)MS.wkills[wk]=(MS.wkills[wk]||0)+1;metaEvent('kills');if(hs)metaEvent('hs');if(w===NADEW)metaEvent('nade');if(w.melee)metaEvent('knife');}}
  if(v.rig)v.rig.dieT=-1;
  if(v.rig&&v.isPlayer)v.rig.root.visible=true;
@@ -241,7 +242,7 @@ function killEnt(v,att,w,hs){
  if(att.isPlayer&&att!==v){uiKillMsg(v,hs,att.streak);sfx('kill');}
  if(v.isPlayer){G.spec=null;uiDeath(att);}
  if(G.mode==='bomb'){
-  if(att!==v)att.money=Math.min(16000,att.money+(w.kill||300));
+  if(att!==v&&att.team!==v.team)att.money=Math.min(16000,att.money+(w.kill||300));
   extrasKill(att,w);if(cfg.gore&&!v.zombie)stain(v.x,groundH(v.x,v.z)+.03,v.z,6);
   if(G.state==='live')checkEnd();
  }else{

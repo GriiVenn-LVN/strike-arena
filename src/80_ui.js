@@ -62,13 +62,14 @@ function uiMatchStart(){
 function uiMatchOver(){
  hudEl.classList.remove('show');$('sb').style.display='none';
  let win=false,title='',sub='';
- if(G.variant==='train'){const acc=MS.shots?Math.round(MS.hits/MS.shots*100):0;win=true;title='ENTRAÎNEMENT';sub='Score '+TR.score+'  •  précision '+acc+' %  •  série max '+TR.best;}
+ if(G.variant==='train'){const acc=MS.shots?Math.round(MS.hits/MS.shots*100):0;win=false; // pas une victoire : ne gonfle plus le taux de victoire ni l'XP
+ title='ENTRAÎNEMENT';sub='Score '+TR.score+'  •  précision '+acc+' %  •  série max '+TR.best;}
  else if(G.variant==='zombies'){win=G.winner===0;title=win?'VICTOIRE':'DÉFAITE';sub='Vague '+Z.wave+' / '+G.limit;}
  else if(G.variant==='br'){win=G.winner===P;title=win?'VICTOIRE ROYALE':(G.winner?G.winner.name+' GAGNE':'ÉGALITÉ');sub='Éliminations : '+P.kills;}
  else if(G.mode==='bomb'){win=G.score[P.team]>G.score[1-P.team];title=win?'VICTOIRE':'DÉFAITE';sub=G.score[P.team]+'  –  '+G.score[1-P.team];}
  else if(G.mode==='tdm'){win=G.winner===P.team;title=G.winner===-1?'ÉGALITÉ':win?'VICTOIRE':'DÉFAITE';sub=G.score[P.team]+'  –  '+G.score[1-P.team];}
  else{win=G.winner===P;title=win?'VICTOIRE':(G.winner?G.winner.name+' GAGNE':'ÉGALITÉ');sub=P.kills+' éliminations';}
- $('oT').textContent=title;$('oT').style.color=win?'#7dff9f':G.winner===-1?'#ffd75e':'#ff6b6b';
+ $('oT').textContent=title;$('oT').style.color=win||G.variant==='train'?'#7dff9f':G.winner===-1?'#ffd75e':'#ff6b6b';
  $('oS').textContent=sub+'   •   '+MODE().n+'   •   '+MAP.n+'   •   '+DIFFS[cfg.diff].n;
  $('oTable').innerHTML=scoreTable(true);showMatchRewards(win);
  $('over').classList.add('show');
@@ -80,7 +81,7 @@ function scoreTable(final){
  const head='<tr><th>Joueur</th><th>K</th><th>D</th><th>K/D</th><th>HS</th><th>Dégâts</th><th>'+(G.mode==='gg'?'Niv.':'$')+'</th></tr>';
  if(MODE().team){
   const mk=team=>'<h4 style="color:'+TEAMCSS[team]+'"><span>'+(team===0?'ATTAQUANTS':'DÉFENSEURS')+'</span><span>'+G.score[team]+'</span></h4><table>'+head+ents.filter(e=>e.team===team&&!e.zombie&&!e.dummy).sort((a,b)=>b.kills-a.kills).map(row).join('')+'</table>';
-  return mk(P.team)+mk(1-P.team);
+  return mk(P.team)+(G.variant==='zombies'?'':mk(1-P.team)); // en Zombies, pas d'équipe adverse à lister
  }
  return '<table>'+head+ents.filter(e=>!e.dummy&&!e.zombie).sort((a,b)=>(b.ggLevel-a.ggLevel)||(b.kills-a.kills)).map(row).join('')+'</table>';
 }
