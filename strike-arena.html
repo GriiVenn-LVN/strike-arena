@@ -7193,7 +7193,9 @@ function rpOverlay(on,prog){
    CLIENT gère son propre déplacement et envoie ses tirs / achats / actions,
    puis affiche l'état reçu de l'hôte (15 fois par seconde).
    ===================================================================== */
-const NET={role:null,mode:'local',room:'',myId:'',tr:null,players:new Map(),ev:[],sendT:0,inT:0,myEnt:-1,peerLib:false,status:'',teams:'coop',lastSnap:0,hostId:'host',view:new Map()};
+// en ligne par défaut quand le jeu est publié (GitHub Pages…), « Même PC » quand il est ouvert en local
+const NET_WEB=/^https?:$/.test(location.protocol)&&!/^(localhost|127\.|\[::1\]|0\.0\.0\.0)/.test(location.hostname);
+const NET={role:null,mode:NET_WEB?'online':'local',room:'',myId:'',tr:null,players:new Map(),ev:[],sendT:0,inT:0,myEnt:-1,peerLib:false,status:'',teams:'coop',lastSnap:0,hostId:'host',view:new Map()};
 const NET_OK_MODES={bomb:1,rapid:1,tdm:1,ffa:1,gg:1,koth:1};
 const netId=()=>Math.random().toString(36).slice(2,8);
 function netEvent(e){if(NET.role==='host')NET.ev.push(e);}
@@ -7203,24 +7205,42 @@ function trLocal(room,onMsg){
  bc.onmessage=ev=>{const m=ev.data;if(!m||m._from===NET.myId)return;if(m._to&&m._to!==NET.myId)return;onMsg(m,m._from);};
  return {send:(m,to)=>{m._from=NET.myId;if(to)m._to=to;else delete m._to;bc.postMessage(m);},close:()=>bc.close()};
 }
-function loadPeer(cb){
- if(window.Peer)return cb(true);
- const s=document.createElement('script');s.src='https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
- s.onload=()=>cb(!!window.Peer);s.onerror=()=>cb(false);document.head.appendChild(s);
+const PEER_SRC=['https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js','https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js'];
+function loadPeer(cb,i){
+ i=i||0;if(window.Peer)return cb(true);if(i>=PEER_SRC.length)return cb(false);
+ const s=document.createElement('script');s.src=PEER_SRC[i];
+ s.onload=()=>cb(!!window.Peer);s.onerror=()=>{s.remove();loadPeer(cb,i+1);};document.head.appendChild(s);
 }
+// serveurs pour traverser les box / pare-feux : STUN (trouver son adresse publique) + TURN de PeerJS (relais si le direct est bloqué)
+const PEER_OPT={debug:1,config:{iceServers:[
+ {urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']},{urls:'stun:stun.cloudflare.com:3478'},
+ {urls:['turn:eu-0.turn.peerjs.com:3478','turn:us-0.turn.peerjs.com:3478'],username:'peerjs',credential:'peerjsp'}]}};
+const PEER_ERR={'peer-unavailable':'Salon introuvable : vérifie le code (et que l\'hôte est bien en mode « En ligne »)','unavailable-id':'Ce code de salon est déjà pris, recrée un salon',
+ 'network':'Serveur de mise en relation injoignable (connexion internet ou réseau filtré ?)','server-error':'Serveur de mise en relation indisponible, réessaie dans un instant',
+ 'socket-error':'Serveur de mise en relation injoignable (réseau filtré ?)','socket-closed':'Connexion au serveur de mise en relation perdue','browser-incompatible':'Ton navigateur ne gère pas le jeu en ligne (essaie Chrome, Edge ou Firefox)',
+ 'webrtc':'Connexion directe impossible : ton réseau bloque le jeu en ligne (réseau d\'entreprise, école, 4G…)','negotiation-failed':'Connexion directe impossible : ton réseau bloque le jeu en ligne'};
+const netErrTxt=e=>PEER_ERR[e&&e.type]||('Erreur réseau : '+((e&&(e.type||e.message))||e));
 function trOnline(room,host,onMsg,onReady){
- const conns=new Map();let peer;
- const wire=c=>{c.on('data',m=>{if(m&&m._from)onMsg(m,m._from);});c.on('close',()=>{for(const [id,cc] of conns)if(cc===c){conns.delete(id);onMsg({t:'bye'},id);}});};
+ const conns=new Map();let peer,dead=false,ready=false;
+ const done=(ok,e)=>{if(!ok&&!dead)netStatus(netErrTxt(e));if(!ready||!ok){ready=ok;onReady(ok,e);}};
+ const wire=c=>{
+  c.on('data',m=>{if(m&&m._from)onMsg(m,m._from);});
+  c.on('close',()=>{for(const [id,cc] of conns)if(cc===c){conns.delete(id);onMsg({t:'bye'},id);}});
+  c.on('error',e=>{if(!host)done(false,e);});
+  c.on('iceStateChanged',st=>{if(st==='failed'&&!host)done(false,{type:'webrtc'});});
+ };
  if(host){
-  peer=new Peer('strikearena-'+room);
-  peer.on('open',()=>onReady(true));
+  peer=new Peer('strikearena-'+room,PEER_OPT);
+  peer.on('open',()=>done(true));
   peer.on('connection',c=>{c.on('open',()=>{conns.set(c.label||c.peer,c);});wire(c);c.on('data',m=>{if(m&&m._from&&!conns.has(m._from))conns.set(m._from,c);});});
+  // le serveur de mise en relation coupe parfois : l'hôte s'y réinscrit pour que son salon reste trouvable
+  peer.on('disconnected',()=>{if(!dead)setTimeout(()=>{if(!dead&&peer.disconnected)try{peer.reconnect();}catch(e){}},1500);});
  }else{
-  peer=new Peer();
-  peer.on('open',()=>{const c=peer.connect('strikearena-'+room,{reliable:true,label:NET.myId});c.on('open',()=>{conns.set('host',c);onReady(true);});wire(c);});
+  peer=new Peer(PEER_OPT);
+  peer.on('open',()=>{const c=peer.connect('strikearena-'+room,{reliable:true,label:NET.myId,serialization:'json'});c.on('open',()=>{conns.set('host',c);done(true);});wire(c);});
  }
- peer.on('error',e=>{netStatus('Erreur réseau : '+(e.type||e));onReady(false);});
- return {send:(m,to)=>{m._from=NET.myId;if(to){const c=conns.get(to)||conns.get('host');if(c&&c.open)c.send(m);}else for(const c of conns.values())if(c.open)c.send(m);},close:()=>{try{peer.destroy();}catch(e){}}};
+ peer.on('error',e=>{if(ready&&(e.type==='network'||e.type==='server-error'||e.type==='socket-error'||e.type==='socket-closed'))return;done(false,e);});
+ return {send:(m,to)=>{m._from=NET.myId;if(to){const c=conns.get(to)||conns.get('host');if(c&&c.open)c.send(m);}else for(const c of conns.values())if(c.open)c.send(m);},close:()=>{dead=true;try{peer.destroy();}catch(e){}}};
 }
 function netSend(m,to){if(NET.tr)NET.tr.send(m,to);}
 /* ---------- salon ---------- */
@@ -7228,18 +7248,25 @@ function netHost(){
  netLeave();NET.role='host';NET.myId='host';NET.room=Math.random().toString(36).slice(2,7).toUpperCase();NET.players.clear();
  const go=()=>{netStatus('Salon ouvert — code '+NET.room);netLobbyDraw();};
  if(NET.mode==='local'){NET.tr=trLocal(NET.room,netOnMsg);go();}
- else{netStatus('Connexion au service en ligne…');loadPeer(ok=>{if(!ok){netStatus('Impossible de charger le module en ligne (connexion internet ?)');return;}NET.tr=trOnline(NET.room,true,netOnMsg,r=>{if(r)go();});});}
+ else{netStatus('Connexion au service en ligne…');loadPeer(ok=>{if(NET.role!=='host')return;if(!ok){netStatus('Impossible de charger le module en ligne (connexion internet ?)');return;}NET.tr=trOnline(NET.room,true,netOnMsg,r=>{if(r)go();});});}
 }
 function netJoin(code){
  code=(code||'').trim().toUpperCase();if(code.length<4){netStatus('Entre le code du salon');return;}
- netLeave();NET.role='client';NET.myId=netId();NET.room=code;
- const hello=()=>{netSend({t:'hello',name:cfg.name||'Joueur'});netStatus('Connecté au salon '+code+' — en attente de l\'hôte…');netLobbyDraw();};
+ netLeave();NET.role='client';NET.myId=netId();NET.room=code;NET.joined=false;
+ const tok=NET.myId;
+ // on n'affiche « connecté » que quand l'hôte a répondu ; sinon on abandonne avec un message clair
+ const fail=txt=>{if(NET.myId!==tok||NET.role!=='client'||NET.joined)return;netLeave();netStatus(txt);};
+ const hello=()=>{netSend({t:'hello',name:cfg.name||'Joueur'});netStatus(NET.mode==='local'?'Recherche du salon '+code+'…':'Salon trouvé, en attente de réponse de l\'hôte…');netLobbyDraw();
+  setTimeout(()=>fail(NET.mode==='local'?'Aucun salon '+code+' sur ce PC. Pour jouer sur deux ordinateurs, choisis « En ligne » des deux côtés.':'L\'hôte ne répond pas : réessaie, ou recrée le salon'),NET.mode==='local'?4000:8000);};
  if(NET.mode==='local'){NET.tr=trLocal(code,netOnMsg);hello();}
- else{netStatus('Connexion…');loadPeer(ok=>{if(!ok){netStatus('Impossible de charger le module en ligne');return;}NET.tr=trOnline(code,false,netOnMsg,r=>{if(r)hello();else netStatus('Salon introuvable');});});}
+ else{netStatus('Recherche du salon '+code+'…');
+  setTimeout(()=>fail('Connexion impossible au salon '+code+' : vérifie le code. Si le code est bon, un des deux réseaux bloque le jeu en ligne (réseau d\'entreprise, école…)'),20000);
+  loadPeer(ok=>{if(NET.myId!==tok)return;if(!ok){fail('Impossible de charger le module en ligne (connexion internet ?)');return;}
+   NET.tr=trOnline(code,false,netOnMsg,(r,e)=>{if(r)hello();else if(!NET.joined)fail(netErrTxt(e));else{uiToast('Connexion à l\'hôte perdue');if(G.running)toMenu();netLeave();netStatus('Connexion à l\'hôte perdue');}});});}
 }
 function netLeave(){
  if(NET.tr){try{netSend({t:'bye'});}catch(e){}NET.tr.close();}
- NET.tr=null;NET.role=null;NET.players.clear();NET.view.clear();NET.myEnt=-1;
+ NET.tr=null;NET.role=null;NET.joined=false;NET.players.clear();NET.view.clear();NET.myEnt=-1;
  for(const e of ents)if(e.remote)e.remote=null;
  netLobbyDraw();
 }
@@ -7314,7 +7341,7 @@ function netHostTick(dt){
 /* ---------- CLIENT ---------- */
 function netClientMsg(m){
  if(m.t==='chat'){chatAdd(m.n,m.m,m.c);return;}
- if(m.t==='lobby'){NET.lobby=m.players;netLobbyDraw();return;}
+ if(m.t==='lobby'){if(!NET.joined){NET.joined=true;netStatus('Connecté au salon '+NET.room+' — l\'hôte lancera la partie');}NET.lobby=m.players;netLobbyDraw();return;}
  if(m.t==='bye'){uiToast('L\'hôte a fermé le salon');if(G.running)toMenu();netLeave();netStatus('Salon fermé');return;}
  if(m.t==='start'){netClientStart(m);return;}
  if(m.t==='snap'&&G.running&&NET.myEnt>=0){netApplySnap(m);}
@@ -7417,7 +7444,7 @@ function netLobbyDraw(){
  const host=NET.role==='host',cli=NET.role==='client';
  const md=$('mpMode');if(!md)return;
  chipsRow('mpMode',[['Même PC (onglets)','local'],['En ligne (code)','online']],()=>NET.mode,v=>{if(NET.role)netLeave();NET.mode=v;},netLobbyDraw);
- $('mpModeTxt').textContent=NET.mode==='local'?'Pour tester ou jouer à plusieurs sur le même ordinateur (plusieurs onglets ouverts).':'Pour jouer avec des amis sur d\'autres ordinateurs : il faut une connexion internet (service gratuit PeerJS pour se trouver, puis connexion directe).';
+ $('mpModeTxt').textContent=NET.mode==='local'?'Pour tester ou jouer à plusieurs sur le même ordinateur (plusieurs onglets ouverts).':'Pour jouer avec des amis sur d\'autres ordinateurs : choisissez tous « En ligne ». Il faut une connexion internet ; certains réseaux (entreprise, école) bloquent le jeu en ligne.';
  chipsRow('mpTeams',[['Ensemble contre les bots','coop'],['Les uns contre les autres','versus']],()=>NET.teams,v=>NET.teams=v,netLobbyDraw);
  if(!$('mpPref')){const d=document.createElement('div');d.className='chips';d.id='mpPref';d.style.marginTop='8px';$('mpTeams').parentNode.appendChild(d);}
  chipsRow('mpPref',[['Mon équipe : auto',-1],['Attaquants',0],['Défenseurs',1]],()=>NET.pref===undefined?-1:NET.pref,v=>{NET.pref=v;if(NET.role==='client')netSend({t:'pref',v},'host');},netLobbyDraw);
