@@ -194,7 +194,7 @@ function zombieUpdate(z,dt){
  z.target=best;z.atkT-=dt;
  const dx=best.x-z.x,dz=best.z-z.z,wy=Math.atan2(-dx,-dz);
  z.yaw+=clamp(angDiff(z.yaw,wy)*Math.min(1,dt*9),-dt*9,dt*9);
- if(bd<1.8){botMove(z,0,0,dt);if(z.atkT<=0){z.atkT=.85;z.fireAnim=1;hurt(best,z,{n:'Morsure',kill:15,hs:1,ap:.3,fo:999,fr:0},'b',1,z.zdmg);sfx('knifehit',z.x,z.z);}}
+ if(bd<1.8){botMove(z,0,0,dt);if(z.atkT<=0){z.atkT=z.zatk||.85;z.fireAnim=1;hurt(best,z,{n:'Morsure',kill:15,hs:1,ap:.3,fo:999,fr:0},'b',1,z.zdmg);sfx('knifehit',z.x,z.z);}}
  else{
   if(bd<9&&losClear(z.x,z.y+1.2,z.z,best.x,best.y+1.2,best.z,true)&&Math.abs(best.y-z.y)<1.2)botMove(z,dx/bd*z.zspeed,dz/bd*z.zspeed,dt);
   else botGo(z,dt,best.x,best.z,z.zspeed);
