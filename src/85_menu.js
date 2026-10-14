@@ -157,6 +157,7 @@ function buildOpts(){
  chipsRow('cFps',[['Non',0],['Oui',1]],()=>cfg.fps,v=>cfg.fps=v,buildOpts);
  chipsRow('cCine',[['Activée',1],['Désactivée',0]],()=>cfg.cine===0?0:1,v=>cfg.cine=v,buildOpts);
  chipsRow('cBob',[['Minimal',0],['Normal',1]],()=>cfg.bob,v=>cfg.bob=v,buildOpts);
+ if($('cGunReal'))chipsRow('cGunReal',[['Réalistes',1],['Stylisés',0]],()=>cfg.realGuns===0?0:1,v=>{cfg.realGuns=v;if(typeof VM!=='undefined')VM.gk=null;},buildOpts);
  const rs=$('rSens'),rf=$('rFov'),rv=$('rVol');rs.value=cfg.sens;rf.value=cfg.fov;rv.value=cfg.vol;
  const sync=()=>{cfg.sens=+rs.value;cfg.fov=+rf.value;cfg.vol=+rv.value;$('vSens').textContent=cfg.sens.toFixed(2);$('vFov').textContent=cfg.fov+'°';$('vVol').textContent=Math.round(cfg.vol*100)+'%';setVolume(cfg.vol);saveCfg();};
  rs.oninput=rf.oninput=rv.oninput=sync;sync();
