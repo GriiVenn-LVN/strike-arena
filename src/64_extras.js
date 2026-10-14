@@ -18,7 +18,9 @@ const TITLES=[
  {id:'',n:'—',lv:1},{id:'rookie',n:'Recrue',lv:1},{id:'sharp',n:'Œil de lynx',lv:3},{id:'ace',n:'As de l\'arène',lv:5},
  {id:'bomb',n:'Artificier',lv:7},{id:'ghost',n:'Fantôme',lv:9},{id:'legend',n:'Légende vivante',lv:12}
 ];
-const KNIVES=[{id:'classic',n:'Tactique',lv:1},{id:'karambit',n:'Karambit',lv:3},{id:'bayonet',n:'Baïonnette',lv:5},{id:'tanto',n:'Tanto',lv:7}];
+const KNIVES=[{id:'classic',n:'Tactique',lv:1},{id:'karambit',n:'Karambit',lv:3},{id:'bayonet',n:'Baïonnette',lv:5},{id:'tanto',n:'Tanto',lv:7},
+ {id:'flip',n:'Pliant',lv:10},{id:'butterfly',n:'Papillon',lv:12},{id:'huntsman',n:'Chasseur',lv:15},{id:'falchion',n:'Fauchon',lv:18},
+ {id:'bowie',n:'Bowie',lv:22},{id:'gut',n:'Éviscérateur',lv:26},{id:'stiletto',n:'Stylet',lv:30},{id:'talon',n:'Serre',lv:35}];
 cfg.att=cfg.att||{};cfg.charm=cfg.charm||'';cfg.spray=cfg.spray||'smile';cfg.trail=cfg.trail||'';cfg.title=cfg.title||'';cfg.knife=cfg.knife||'classic';cfg.counter=cfg.counter===undefined?1:cfg.counter;
 PROF.wk=PROF.wk||{};
 const myLv=()=>levelInfo().level;
@@ -85,19 +87,57 @@ function extrasVmUpdate(t){
 const _buildKnife=BUILDERS.melee;
 BUILDERS.melee=function(k,M){
  const st=cfg.knife;if(!st||st==='classic'||myLv()<(KNIVES.find(x=>x.id===st)||{lv:1}).lv)return _buildKnife(k,M);
- const g=new THREE.Group();
+ const g=new THREE.Group(),BL=M.body&&M.body.userData&&M.body.userData.skinned?M.body:M.steel; // le skin couvre aussi la lame
+ const fin=(len,mz)=>finishGun(g,{len,muzzle:mz,right:V3(0,0,.04),left:V3(0,0,.04),twoHand:false,eject:V3(0,0,0),sight:.0});
+ const grip=(z0,L,mat)=>{g.add(rb(.021,.032,L,mat||M.blk,0,0,z0+L/2,.006),rb(.024,.035,.014,M.dark,0,0,z0+L,.004));};
+ if(st==='flip'){
+  g.add(polyZY([[-.02,.014],[-.17,.016],[-.24,.004],[-.25,-.006],[-.16,-.014],[-.02,-.014]],.006,BL,0,.0012));
+  {const t=new THREE.Mesh(new THREE.TorusGeometry(.009,.003,6,12),BL);t.position.set(0,.02,-.04);t.rotation.y=Math.PI/2;g.add(t);}
+  grip(-.01,.11);return fin(.29,-.25);
+ }
+ if(st==='butterfly'){
+  g.add(polyZY([[-.02,.012],[-.2,.012],[-.25,.0],[-.2,-.01],[-.02,-.012]],.005,BL,0,.001),rb(.003,.003,.17,M.dark,0,.0,-.12,.001));
+  for(const s of [-1,1]){g.add(rb(.008,.03,.12,M.dark,s*.007,0,.05,.003));for(let i=0;i<4;i++)g.add(rb(.009,.012,.014,M.rubber,s*.007,0,.0+i*.028,.002));}
+  return fin(.3,-.25);
+ }
+ if(st==='huntsman'){
+  g.add(polyZY([[-.02,.018],[-.2,.018],[-.25,.03],[-.3,.006],[-.3,-.004],[-.24,-.018],[-.02,-.018]],.007,BL,0,.0012));
+  for(let i=0;i<8;i++)g.add(rb(.004,.006,.006,BL,0,.022,-.05-i*.016,.001,.7));
+  g.add(rb(.012,.07,.012,M.dark,0,0,-.012,.003));grip(-.005,.12,M.wood);return fin(.35,-.3);
+ }
+ if(st==='falchion'){
+  g.add(polyZY([[-.02,.014],[-.14,.02],[-.24,.03],[-.29,.02],[-.27,-.004],[-.18,-.016],[-.02,-.016]],.006,BL,0,.0012));
+  grip(-.005,.11);return fin(.32,-.29);
+ }
+ if(st==='bowie'){
+  g.add(polyZY([[-.02,.02],[-.22,.02],[-.27,.032],[-.34,.004],[-.33,-.008],[-.26,-.022],[-.02,-.022]],.008,BL,0,.0014));
+  g.add(rb(.012,.08,.014,new THREE.MeshStandardMaterial({color:0xc9a040,metalness:1,roughness:.3}),0,0,-.012,.003));grip(-.005,.13,M.wood);return fin(.38,-.34);
+ }
+ if(st==='gut'){
+  g.add(polyZY([[-.02,.016],[-.12,.016],[-.15,.026],[-.17,.016],[-.16,.008],[-.2,.012],[-.25,-.004],[-.2,-.016],[-.02,-.016]],.006,BL,0,.0012));
+  grip(-.005,.11);return fin(.3,-.25);
+ }
+ if(st==='stiletto'){
+  g.add(polyZY([[-.02,.008],[-.28,.006],[-.33,.0],[-.28,-.006],[-.02,-.008]],.005,BL,0,.001),rb(.004,.05,.008,M.steel,0,0,-.014,.002));
+  grip(-.005,.12,M.dark);return fin(.36,-.33);
+ }
+ if(st==='talon'){
+  g.add(polyZY([[-.02,.012],[-.12,.04],[-.21,.03],[-.25,-.03],[-.21,-.07],[-.19,-.035],[-.14,-.006],[-.04,-.014]],.008,BL,0,.0014));
+  {const t=new THREE.Mesh(new THREE.TorusGeometry(.026,.005,8,16),M.dark);t.position.set(0,-.02,.075);t.rotation.y=Math.PI/2;g.add(t);}
+  grip(-.005,.07);return fin(.3,-.25);
+ }
  if(st==='karambit'){
-  g.add(polyZY([[-.02,.01],[-.1,.03],[-.17,.012],[-.2,-.04],[-.17,-.075],[-.15,-.04],[-.12,-.01],[-.04,-.01]],.007,M.steel,0,.0012),new THREE.Mesh(new THREE.TorusGeometry(.02,.004,6,14),M.dark));
+  g.add(polyZY([[-.02,.01],[-.1,.03],[-.17,.012],[-.2,-.04],[-.17,-.075],[-.15,-.04],[-.12,-.01],[-.04,-.01]],.007,BL,0,.0012),new THREE.Mesh(new THREE.TorusGeometry(.02,.004,6,14),M.dark));
   g.children[1].position.set(0,-.02,.0);g.children[1].rotation.y=Math.PI/2;
   g.add(rb(.022,.034,.1,M.blk,0,0,.04,.007),rb(.024,.036,.016,M.dark,0,0,.095,.004));
   return finishGun(g,{len:.3,muzzle:-.2,right:V3(0,0,.04),left:V3(0,0,.04),twoHand:false,eject:V3(0,0,0),sight:.0});
  }
  if(st==='bayonet'){
-  g.add(polyZY([[-.02,.017],[-.25,.017],[-.31,.003],[-.31,-.006],[-.02,-.017]],.006,M.steel,0,.0012),rb(.004,.003,.22,M.dark,0,.0,-.14,.001),rb(.01,.012,.07,M.dark,0,.0,-.2,.001));
+  g.add(polyZY([[-.02,.017],[-.25,.017],[-.31,.003],[-.31,-.006],[-.02,-.017]],.006,BL,0,.0012),rb(.004,.003,.22,M.dark,0,.0,-.14,.001),rb(.01,.012,.07,M.dark,0,.0,-.2,.001));
   g.add(rb(.036,.03,.016,M.dark,0,0,-.012,.003),rb(.02,.032,.1,M.rubber,0,0,.04,.006),rb(.026,.036,.014,M.dark,0,0,.095,.004));
   return finishGun(g,{len:.34,muzzle:-.32,right:V3(0,0,.04),left:V3(0,0,.04),twoHand:false,eject:V3(0,0,0),sight:.0});
  }
- g.add(polyZY([[-.02,.016],[-.2,.016],[-.27,-.004],[-.27,-.014],[-.02,-.016]],.007,M.steel,0,.0012),rb(.003,.004,.2,M.dark,0,.0,-.14,.001));
+ g.add(polyZY([[-.02,.016],[-.2,.016],[-.27,-.004],[-.27,-.014],[-.02,-.016]],.007,BL,0,.0012),rb(.003,.004,.2,M.dark,0,.0,-.14,.001));
  g.add(rb(.03,.04,.012,M.dark,0,0,-.012,.003),rb(.02,.03,.11,M.blk,0,0,.045,.006),rb(.024,.034,.014,M.dark,0,0,.105,.004));
  return finishGun(g,{len:.3,muzzle:-.27,right:V3(0,0,.04),left:V3(0,0,.04),twoHand:false,eject:V3(0,0,0),sight:.0});
 };
