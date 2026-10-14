@@ -27,6 +27,18 @@ function resize(){
  renderer.setSize(w,h,false);
  camera.aspect=w/h;vmCam.aspect=w/h;camera.updateProjectionMatrix();vmCam.updateProjectionMatrix();
  sun.castShadow=cfg.gfx>=1;
+ const ms=cfg.gfx>=2?4096:2048;
+ if(sun.shadow.mapSize.x!==ms){sun.shadow.mapSize.set(ms,ms);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}}
+ if(typeof postSize==='function')postSize();
+}
+// ombres : en jeu, la zone d'ombre (80 m) suit la caméra -> ombres ~3x plus nettes ; au menu, toute la carte
+const SUNOFF=V3(55,80,34);let shFollow=null;
+function shadowFollow(x,z,on){
+ const R=on?40:62,sc=sun.shadow.camera;
+ if(on){const t=(2*R)/sun.shadow.mapSize.x;x=Math.round(x/t)*t;z=Math.round(z/t)*t;}else{x=40;z=40;}
+ if(shFollow===R+'|'+x+'|'+z)return;shFollow=R+'|'+x+'|'+z;
+ if(sc.right!==R){sc.left=-R;sc.right=R;sc.top=R;sc.bottom=-R;sc.updateProjectionMatrix();}
+ sun.position.set(x+SUNOFF.x,SUNOFF.y,z+SUNOFF.z);sun.target.position.set(x,0,z);sun.target.updateMatrixWorld();
 }
 addEventListener('resize',resize);
 
@@ -118,7 +130,7 @@ function applyTheme(th){
  scene.fog=new THREE.Fog(th.fog,th.fogN,th.fogF);scene.background=new THREE.Color(th.fog);
  hemi.color.set(th.hemiS);hemi.groundColor.set(th.hemiG);hemi.intensity=th.hemiI;
  sun.color.set(th.sunC);sun.intensity=th.sunI;
- sun.position.set(40+th.sunPos[0],th.sunPos[1],40+th.sunPos[2]);sun.target.position.set(40,0,40);sun.target.updateMatrixWorld();
+ SUNOFF.set(th.sunPos[0],th.sunPos[1],th.sunPos[2]);shFollow=null;shadowFollow(40,40,false);
  renderer.toneMappingExposure=th.exp;
  vmSun.color.set(th.sunC);
 }
@@ -340,17 +352,31 @@ function floorTexture(th,id){
 
 /* ---------------- construction du monde ---------------- */
 const GBOX=new THREE.BoxGeometry(1,1,1);
+let stairTrimM=null;
 function stairsMesh(R,th,mat){
  const g=new THREE.Group();
  const Lm=(R.axis==='x'?(R.x2-R.x1+1):(R.z2-R.z1+1))*S,Wm=(R.axis==='x'?(R.z2-R.z1+1):(R.x2-R.x1+1))*S;
  const dh=Math.abs(R.hB-R.hA),n=Math.max(2,Math.round(dh/.2)),sd=Lm/n;
  const cx0=(R.axis==='x'?R.x1*S:R.z1*S);
+ const up=R.hB>R.hA,nose=stairTrimM||(stairTrimM=stdMat(0x3b3f45,{roughness:.6,metalness:.4}));
+ const put=(m,along,w,h,y,d)=>{ // along = position le long de l'escalier, w = largeur, d = profondeur
+  if(R.axis==='x'){m.scale.set(d,h,w);m.position.set(along,y,R.z1*S+Wm/2);}else{m.scale.set(w,h,d);m.position.set(R.x1*S+Wm/2,y,along);}
+ };
  for(let i=0;i<n;i++){
   const t=(i+.5)/n,h=R.hA+(R.hB-R.hA)*t,top=Math.max(.05,h);
-  const m=new THREE.Mesh(GBOX,mat);
-  if(R.axis==='x'){m.scale.set(sd,top,Wm);m.position.set(cx0+sd*(i+.5),top/2,R.z1*S+Wm/2);}
-  else{m.scale.set(Wm,top,sd);m.position.set(R.x1*S+Wm/2,top/2,cx0+sd*(i+.5));}
+  const m=new THREE.Mesh(GBOX,mat);put(m,cx0+sd*(i+.5),Wm,top,top/2,sd);
   m.castShadow=m.receiveShadow=true;g.add(m);
+  // nez de marche : petite bande sombre sur l'arête avant
+  const nm=new THREE.Mesh(GBOX,nose),edge=cx0+sd*(up?i:i+1);
+  put(nm,edge+(up?.04:-.04),Wm-.04,.05,top-.02,.1);nm.receiveShadow=true;g.add(nm);
+ }
+ // limons : poutres le long des deux bords, suivent la pente
+ const ang=Math.atan2(R.hB-R.hA,Lm),len=Math.hypot(Lm,R.hB-R.hA),mid=(R.hA+R.hB)/2;
+ for(const side of [-1,1]){
+  const b=new THREE.Mesh(GBOX,nose);
+  if(R.axis==='x'){b.scale.set(len,.22,.1);b.position.set(cx0+Lm/2,mid+.04,R.z1*S+Wm/2+side*(Wm/2-.05));b.rotation.z=ang;}
+  else{b.scale.set(.1,.22,len);b.position.set(R.x1*S+Wm/2+side*(Wm/2-.05),mid+.04,cx0+Lm/2);b.rotation.x=-ang;}
+  b.castShadow=b.receiveShadow=true;g.add(b);
  }
  return g;
 }
@@ -374,6 +400,16 @@ function addInstances(geo,mat,list,yFn,opt){
  m.frustumCulled=false;m.castShadow=true;m.receiveShadow=true;
  worldG.add(m);return m;
 }
+// assombrit le sol au pied des blocs : les objets ne semblent plus flotter
+function contactShadows(){
+ const px=12,c=document.createElement('canvas');c.width=c.height=N*px;const x=c.getContext('2d');
+ x.filter='blur('+Math.round(px*.45)+'px)';x.fillStyle='#000';
+ for(let i=0;i<NC;i++){if(G_TYPE[i]&&!G_RAMP[i]&&G_H[i]>.5){const cx=i%N,cz=(i/N)|0;x.fillRect(cx*px-1,cz*px-1,px+2,px+2);}}
+ const t=new THREE.CanvasTexture(c);
+ const m=new THREE.Mesh(new THREE.PlaneGeometry(N*S,N*S),new THREE.MeshBasicMaterial({map:t,transparent:true,opacity:.42,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1}));
+ m.rotation.x=-Math.PI/2;m.position.set(N*S/2,.012,N*S/2);m.renderOrder=1;
+ return m;
+}
 function buildWorld(id){
  if(worldG)scene.remove(worldG);
  worldG=new THREE.Group();scene.add(worldG);worldAnim.length=0;
@@ -385,6 +421,8 @@ function buildWorld(id){
  floor.rotation.x=-Math.PI/2;floor.position.set(N*S/2,0,N*S/2);floor.receiveShadow=true;worldG.add(floor);
  // grand sol extérieur
  const ext=new THREE.Mesh(new THREE.PlaneGeometry(600,600),(MAP.theme==='night'?stdMat(0x0c1d36,{roughness:.12,metalness:.7}):haunt?stdMat(0x1c2618,{roughness:1}):stdMat(sand?(MAP.theme==='jungle'?0x4d6b3a:0xb89d76):snow?0xe9f0f8:0x3a3d44,{roughness:1})));ext.rotation.x=-Math.PI/2;ext.position.set(N*S/2,-.02,N*S/2);worldG.add(ext);
+ worldG.add(contactShadows());
+ if(MAP.theme==='night'){floor.material.color.set(0x6a7284);floor.material.roughness=.85;}
  // blocs : groupés par (type, hauteur)
  const groups={};
  for(let i=0;i<NC;i++){const t=G_TYPE[i];if(!t||G_RAMP[i])continue;const key=t+'|'+G_H[i].toFixed(2);(groups[key]||(groups[key]=[])).push([i%N,(i/N)|0]);}
@@ -631,3 +669,52 @@ DECOR.station=function(th){
  const au=canvasTex(256,64,(c,w,h)=>{const g=c.createLinearGradient(0,0,w,0);g.addColorStop(0,'rgba(80,255,170,0)');g.addColorStop(.3,'rgba(80,255,170,.8)');g.addColorStop(.6,'rgba(90,200,255,.7)');g.addColorStop(1,'rgba(160,90,255,0)');c.fillStyle=g;c.fillRect(0,0,w,h);const v=c.createLinearGradient(0,0,0,h);v.addColorStop(0,'rgba(0,0,0,1)');v.addColorStop(.5,'rgba(0,0,0,0)');v.addColorStop(1,'rgba(0,0,0,1)');c.globalCompositeOperation='destination-out';c.fillStyle=v;c.fillRect(0,0,w,h);});
  for(let i=0;i<3;i++){const s=new THREE.Sprite(new THREE.SpriteMaterial({map:au,fog:false,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,opacity:.28,toneMapped:false}));const a=rand(0,TAU);s.scale.set(190,34,1);s.position.set(Math.cos(a)*150,rand(70,110),Math.sin(a)*150);skyG.add(s);worldAnim.push(t=>{s.material.opacity=.2+.12*Math.sin(t*.4+i*2);});}
 };
+
+/* ---------------- post-traitement (qualité Haute) ----------------
+   La scène est rendue dans une texture puis composée : halo lumineux
+   (bloom) autour du soleil, des lampes et des flammes, contraste et
+   saturation légèrement relevés, vignettage discret. */
+const POST={rt:null,bA:null,bB:null,q:null,cam:new THREE.OrthographicCamera(-1,1,1,-1,0,1),mBright:null,mBlur:null,mComp:null};
+function postInit(){
+ if(POST.q)return;
+ const vs='varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}';
+ POST.mBright=new THREE.ShaderMaterial({uniforms:{t:{value:null}},vertexShader:vs,depthTest:false,depthWrite:false,
+  fragmentShader:'uniform sampler2D t;varying vec2 vUv;void main(){vec3 c=texture2D(t,vUv).rgb;float l=dot(c,vec3(.2126,.7152,.0722));gl_FragColor=vec4(c*smoothstep(.86,1.,l),1.);}'});
+ POST.mBlur=new THREE.ShaderMaterial({uniforms:{t:{value:null},d:{value:new THREE.Vector2()}},vertexShader:vs,depthTest:false,depthWrite:false,
+  fragmentShader:'uniform sampler2D t;uniform vec2 d;varying vec2 vUv;void main(){vec3 c=texture2D(t,vUv).rgb*.227;c+=(texture2D(t,vUv+d*1.385).rgb+texture2D(t,vUv-d*1.385).rgb)*.316;c+=(texture2D(t,vUv+d*3.231).rgb+texture2D(t,vUv-d*3.231).rgb)*.07;gl_FragColor=vec4(c,1.);}'});
+ POST.mComp=new THREE.ShaderMaterial({uniforms:{t:{value:null},b:{value:null},bs:{value:.55},sat:{value:1.1},con:{value:1.06},vig:{value:.28}},vertexShader:vs,depthTest:false,depthWrite:false,
+  fragmentShader:'uniform sampler2D t,b;uniform float bs,sat,con,vig;varying vec2 vUv;void main(){vec3 c=texture2D(t,vUv).rgb;c+=texture2D(b,vUv).rgb*bs;'+
+  'float l=dot(c,vec3(.2126,.7152,.0722));c=mix(vec3(l),c,sat);c=(c-.5)*con+.5;'+
+  'vec2 q=vUv-.5;c*=1.-vig*smoothstep(.25,.85,dot(q,q)*2.2);gl_FragColor=vec4(clamp(c,0.,1.),1.);}'});
+ POST.q=new THREE.Mesh(new THREE.PlaneGeometry(2,2),POST.mComp);POST.q.frustumCulled=false;
+ POST.scene=new THREE.Scene();POST.scene.add(POST.q);
+}
+function postSize(){
+ const on=cfg.gfx>=2&&cfg.post!==0;POST.on=on;
+ if(!on){for(const k of ['rt','bA','bB'])if(POST[k]){POST[k].dispose();POST[k]=null;}return;}
+ postInit();
+ const v=renderer.getDrawingBufferSize(new THREE.Vector2()),w=v.x,h=v.y;
+ if(POST.rt&&POST.rt.width===w&&POST.rt.height===h)return;
+ for(const k of ['rt','bA','bB'])if(POST[k])POST[k].dispose();
+ const RT=renderer.capabilities.isWebGL2&&THREE.WebGLMultisampleRenderTarget?THREE.WebGLMultisampleRenderTarget:THREE.WebGLRenderTarget;
+ POST.rt=new RT(w,h,{format:THREE.RGBAFormat,encoding:THREE.sRGBEncoding});if(POST.rt.samples!==undefined)POST.rt.samples=4;
+ POST.rt.texture.encoding=THREE.sRGBEncoding;
+ const bw=Math.max(1,w>>2),bh=Math.max(1,h>>2);
+ POST.bA=new THREE.WebGLRenderTarget(bw,bh,{format:THREE.RGBAFormat});POST.bB=new THREE.WebGLRenderTarget(bw,bh,{format:THREE.RGBAFormat});
+}
+function postPass(m,src,dst){POST.q.material=m;if(m.uniforms.t)m.uniforms.t.value=src;renderer.setRenderTarget(dst);renderer.render(POST.scene,POST.cam);}
+// commence le rendu de l'image (dans la texture si le post-traitement est actif)
+function postBegin(){if(POST.on&&POST.rt){renderer.setRenderTarget(POST.rt);}renderer.clear();}
+function postEnd(){
+ if(!POST.on||!POST.rt)return;
+ const ae=renderer.autoClear;renderer.autoClear=true;
+ postPass(POST.mBright,POST.rt.texture,POST.bA);
+ POST.mBlur.uniforms.d.value.set(1/POST.bA.width,0);postPass(POST.mBlur,POST.bA.texture,POST.bB);
+ POST.mBlur.uniforms.d.value.set(0,1/POST.bA.height);postPass(POST.mBlur,POST.bB.texture,POST.bA);
+ POST.mBlur.uniforms.d.value.set(2/POST.bA.width,0);postPass(POST.mBlur,POST.bA.texture,POST.bB);
+ POST.mBlur.uniforms.d.value.set(0,2/POST.bA.height);postPass(POST.mBlur,POST.bB.texture,POST.bA);
+ POST.mComp.uniforms.b.value=POST.bA.texture;
+ const night=MAP&&(MAP.theme==='night'||MAP.theme==='haunt');POST.mComp.uniforms.bs.value=night?.75:.32;POST.mComp.uniforms.vig.value=night?.38:.26;
+ postPass(POST.mComp,POST.rt.texture,null);
+ renderer.autoClear=ae;
+}

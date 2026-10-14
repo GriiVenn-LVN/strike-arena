@@ -157,23 +157,29 @@ function buildExtrasTab(){
  const css=document.createElement('style');css.textContent='.stl{margin-bottom:16px}.stl h4{font-size:.7rem;letter-spacing:2.5px;color:var(--dim);margin:0 0 8px;text-transform:uppercase}.chip.lock{opacity:.4;cursor:not-allowed}.chip small{display:block;font-size:.6rem;opacity:.7;margin:0}';
  document.head.appendChild(css);
 }
-function drawExtrasTab(){
- const el=$('styleGrid');if(!el)return;const lv=myLv();el.innerHTML='';
- const sec=(title,items,get,set,fmt)=>{
+// sections de choix (chips) réutilisées par l'onglet Style et par Réglages › Plus d'options
+function stlSecMaker(el,redraw){
+ const lv=myLv();
+ return (title,items,get,set,fmt)=>{
   const d=document.createElement('div');d.className='stl grp';d.innerHTML='<h4>'+title+'</h4><div class="chips"></div>';
   const box=d.querySelector('.chips');
   items.forEach(it=>{const ok=lv>=(it.lv||1),c=document.createElement('div');c.className='chip'+(get(it)?' on':'')+(ok?'':' lock');c.innerHTML=fmt(it)+(ok?'':'<small>Niveau '+it.lv+'</small>');
-   c.onclick=()=>{if(!ok){sfxUI();uiToast('Débloqué au niveau '+it.lv);return;}sfxUI();set(it);saveCfg();drawExtrasTab();};box.appendChild(c);});
+   c.onclick=()=>{if(!ok){sfxUI();uiToast('Débloqué au niveau '+it.lv);return;}sfxUI();set(it);saveCfg();redraw();};box.appendChild(c);});
   el.appendChild(d);
  };
- {const d=document.createElement('div');d.className='stl grp';d.innerHTML='<h4>Accessoires d\'armes</h4><small>Silencieux, viseurs, poignées, chargeurs… se règlent dans <b>Arsenal › Armes &amp; skins</b>, panneau <b>Armurier</b> sous l\'arme, avec aperçu 3D en direct.</small>';el.appendChild(d);}
+}
+function drawAmbiance(){const el=$('ambBox');if(!el)return;el.innerHTML='';ambianceSections(stlSecMaker(el,drawAmbiance));}
+function drawExtrasTab(){
+ const el=$('styleGrid');if(!el)return;const lv=myLv();el.innerHTML='';
+ const sec=stlSecMaker(el,drawExtrasTab);
+ {const d=document.createElement('div');d.className='stl grp';d.innerHTML='<h4>Accessoires d\'armes</h4><small>Silencieux, poignées, chargeurs… se règlent dans <b>Arsenal › Armes</b> (panneau <b>Armurier</b>). Les viseurs et leur réticule : <b>Arsenal › Viseurs</b>.</small>';el.appendChild(d);}
  sec('Charm d\'arme',CHARMS,it=>cfg.charm===it.id,it=>cfg.charm=it.id,it=>it.n);
  sec('Compteur d\'éliminations',[{id:1,n:'Affiché',lv:1},{id:0,n:'Masqué',lv:1}],it=>cfg.counter===it.id,it=>cfg.counter=it.id,it=>it.n);
  sec('Couteau',KNIVES,it=>cfg.knife===it.id,it=>cfg.knife=it.id,it=>it.n);
  sec('Traînée de balles',TRAILS,it=>cfg.trail===it.id,it=>cfg.trail=it.id,it=>it.n);
  sec('Spray (touche J)',SPRAYS.map((s,i)=>({id:s,n:SPRAY_N[s],lv:1+(i>>1)})),it=>cfg.spray===it.id,it=>cfg.spray=it.id,it=>it.n);
  sec('Titre de profil',TITLES,it=>cfg.title===it.id,it=>cfg.title=it.id,it=>it.n);
- ambianceSections(sec);
+ if(!$('ambBox'))ambianceSections(sec); // sinon : dans Réglages › Plus d'options
  const kills=Object.keys(PROF.wk).sort((a,b)=>PROF.wk[b]-PROF.wk[a]).slice(0,5).map(k=>W[k].n+' : '+PROF.wk[k]).join(' · ');
  const s=document.createElement('div');s.className='stl grp';s.innerHTML='<h4>Compteurs d\'armes</h4><small>'+(kills||'Aucune élimination enregistrée pour le moment.')+'</small>';el.appendChild(s);
 }

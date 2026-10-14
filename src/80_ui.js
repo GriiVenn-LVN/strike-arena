@@ -203,7 +203,7 @@ function updateHUD(dt,t){
  else bar.style.display='none';
  const hint=$('hint');const hm=P.alive?(P.useMsg||''):'';if(hint._m!==hm){hint._m=hm;hint.textContent=hm;hint.style.display=hm?'block':'none';}
  // scope / divers
- $('scope').style.display=(P.alive&&P.scoped)?'block':'none';
+ $('scope').style.display=(P.alive&&P.scoped)?'block':'none';scopeRetUpdate();
  // aveuglement
  if(P.blindT>0){P.blindT-=dt;$('flashfx').style.opacity=Math.min(1,P.blindT*1.3);}
  else{const o=parseFloat($('flashfx').style.opacity||0);if(o>0)$('flashfx').style.opacity=Math.max(0,o-dt*1.4);}
@@ -272,7 +272,7 @@ document.addEventListener('pointerlockchange',()=>{
 });
 addEventListener('mousemove',e=>{
  if(!focusLocked||!G.running||!P.alive||buyOpen||P.emote)return;
- const w=curW(P),z=P.scoped?1/w.zoom:1-.25*P.ads,s=.0022*cfg.sens*z*wsensMul();
+ const w=curW(P),z=P.scoped?1/sightZoom(P,w):1-.25*P.ads,s=.0022*cfg.sens*z*wsensMul();
  P.yaw-=e.movementX*s;P.pitch=clamp(P.pitch-e.movementY*s,-1.5,1.5);
 });
 let rebindCb=null;

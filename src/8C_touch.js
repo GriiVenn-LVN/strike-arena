@@ -83,7 +83,7 @@ function touchBuild(){
 }
 function touchLookDelta(dx,dy){
  if(!G.running||!P||!P.alive||buyOpen||P.emote||!focusLocked)return;
- const w=curW(P),z=P.scoped?1/(w.zoom||2):1-.25*P.ads,s=TOUCH.sens*cfg.sens*z*wsensMul();
+ const w=curW(P),z=P.scoped?1/(typeof sightZoom==='function'?sightZoom(P,w):(w.zoom||2)):1-.25*P.ads,s=TOUCH.sens*cfg.sens*z*wsensMul();
  P.yaw-=dx*s;P.pitch=clamp(P.pitch-dy*s,-1.5,1.5);
 }
 function touchStart(e){

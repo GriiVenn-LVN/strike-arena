@@ -38,7 +38,7 @@ MAPS.village={
   // grand couloir ouest
   R(T.LOW,3,16,4,16);R(T.CRATE,2,19,2,20);R(T.BARREL,5,22,5,22);R(T.LOW,3,26,4,26);R(T.CRATE,1,14,1,14);R(T.LOW,5,17,5,17);R(T.BARREL,2,24,2,24);
   // bloc de maisons est (+ rue, portes, tunnel)
-  R(T.HOUSE,26,13,32,28);R(T.PLAT,26,13,28,15,3.0);GB.ramp(23,13,25,14,'x',0,3.0);
+  R(T.HOUSE,26,13,32,28);R(T.PLAT,26,13,28,15,3.0); // l'escalier 23-25 est déjà posé plus haut
   GB.clear(29,13,30,28);GB.clear(26,22,28,23);GB.clear(31,19,32,20);
   GB.ceil(33,17,38,24,3.4);R(T.PILLAR,35,20,35,20,3.4);
   R(T.CRATE,34,14,34,14);R(T.LOW,36,15,37,15);R(T.BARREL,38,27,38,27);R(T.CRATE,33,26,34,26);R(T.LOW,36,22,36,22);R(T.BARREL,29,26,29,26);R(T.CRATE,30,16,30,16);
@@ -87,7 +87,7 @@ MAPS.warehouse={
   R(T.CRATE,15,11,15,11,3.2+1.2);R(T.CRATE,24,11,24,11,3.2+1.2);
   // conteneurs
   R(T.CONT,13,17,14,22);R(T.CONT,17,14,18,19,5.4);R(T.CONT,21,17,22,22);R(T.CONT,24,18,27,19);
-  R(T.CONT,15,25,20,26);R(T.CONT,23,25,26,26);R(T.CRATE,16,22,16,22);R(T.BARREL,12,24,12,24);R(T.BARREL,27,28,27,28);R(T.CRATE,19,29,20,29);R(T.BARREL,12,13,12,13);
+  R(T.CONT,15,25,20,26);R(T.CONT,23,25,26,26);R(T.CRATE,16,22,16,22);R(T.BARREL,12,24,12,24);R(T.BARREL,27,28,27,28);R(T.CRATE,19,29,20,29);R(T.BARREL,15,13,15,13); // à côté de l'escalier, pas dessus
   // rangée sud de la halle (3 passages)
   R(K,12,31,12,32);R(K,16,31,18,32);R(K,21,31,23,32);R(K,27,31,27,32);
   // quai T
@@ -190,8 +190,18 @@ MAPS.village.post=function(){
  GB.clear(13,3,13,4);GB.clear(26,3,26,4);GB.clear(21,9,22,10);GB.clear(13,35,13,36);GB.clear(26,35,26,36);
 };
 
+// vérifie que chaque escalier garde ses cases (sinon on le voit mais on passe à travers)
+function checkRamps(id){
+ const seen=new Set();
+ RAMPS.forEach((R,k)=>{
+  const key=[R.x1,R.z1,R.x2,R.z2,R.axis,R.hA,R.hB].join(',');
+  if(seen.has(key))console.warn('[carte '+id+'] escalier en double',key);seen.add(key);
+  for(let z=R.z1;z<=R.z2;z++)for(let x=R.x1;x<=R.x2;x++)if(G_RAMP[z*N+x]!==k+1)console.warn('[carte '+id+'] escalier '+key+' recouvert en case',x,z);
+ });
+}
 function buildMapSnapshot(id){
  resetGrid();const m=MAPS[id];m.build();if(m.post)m.post();
+ checkRamps(id);
  MAPDATA[id]={type:G_TYPE.slice(),h:G_H.slice(),ceil:G_CEIL.slice(),ramp:G_RAMP.slice(),tag:G_TAG.slice(),ramps:RAMPS.map(r=>Object.assign({},r))};
 }
 function loadMap(id){
