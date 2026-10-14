@@ -3779,7 +3779,7 @@ function spreadOf(e,w){
   let s=w.spr+w.mv*Math.min(1,e.speed/4.8);
   if(!e.onGround)s+=w.mv*.8+2.5;
   if(e.crouch)s*=.6;
-  if(w.overlay&&e.ads<.9)s+=5;
+  if(sightOv(e,w)&&e.ads<.9)s+=5;
   s*=1-.4*e.ads;
   return s+e.spray*.02;
  }
@@ -4339,8 +4339,8 @@ function updatePlayer(dt){
  }
  if(!mouseL)clickLatch=false;
  const wantAds=(mouseR||G.forceAds)&&p.reload<=0&&p.switchT<=0&&!w.melee;
- p.ads+=((wantAds?1:0)-p.ads)*Math.min(1,dt*(w.overlay?7:12)*am.ads);
- p.scoped=!!(w.overlay&&p.ads>.92);
+ p.ads+=((wantAds?1:0)-p.ads)*Math.min(1,dt*(sightOv(p,w)?7:12)*am.ads);
+ p.scoped=!!(sightOv(p,w)&&p.ads>.92);
  handleUse(p,dt,K('use')&&p.speed<1.2);
  mvWeights(p,dt);mvHud();
 }
@@ -5265,23 +5265,29 @@ function buildExtrasTab(){
  const css=document.createElement('style');css.textContent='.stl{margin-bottom:16px}.stl h4{font-size:.7rem;letter-spacing:2.5px;color:var(--dim);margin:0 0 8px;text-transform:uppercase}.chip.lock{opacity:.4;cursor:not-allowed}.chip small{display:block;font-size:.6rem;opacity:.7;margin:0}';
  document.head.appendChild(css);
 }
-function drawExtrasTab(){
- const el=$('styleGrid');if(!el)return;const lv=myLv();el.innerHTML='';
- const sec=(title,items,get,set,fmt)=>{
+// sections de choix (chips) réutilisées par l'onglet Style et par Réglages › Plus d'options
+function stlSecMaker(el,redraw){
+ const lv=myLv();
+ return (title,items,get,set,fmt)=>{
   const d=document.createElement('div');d.className='stl grp';d.innerHTML='<h4>'+title+'</h4><div class="chips"></div>';
   const box=d.querySelector('.chips');
   items.forEach(it=>{const ok=lv>=(it.lv||1),c=document.createElement('div');c.className='chip'+(get(it)?' on':'')+(ok?'':' lock');c.innerHTML=fmt(it)+(ok?'':'<small>Niveau '+it.lv+'</small>');
-   c.onclick=()=>{if(!ok){sfxUI();uiToast('Débloqué au niveau '+it.lv);return;}sfxUI();set(it);saveCfg();drawExtrasTab();};box.appendChild(c);});
+   c.onclick=()=>{if(!ok){sfxUI();uiToast('Débloqué au niveau '+it.lv);return;}sfxUI();set(it);saveCfg();redraw();};box.appendChild(c);});
   el.appendChild(d);
  };
- {const d=document.createElement('div');d.className='stl grp';d.innerHTML='<h4>Accessoires d\'armes</h4><small>Silencieux, viseurs, poignées, chargeurs… se règlent dans <b>Arsenal › Armes &amp; skins</b>, panneau <b>Armurier</b> sous l\'arme, avec aperçu 3D en direct.</small>';el.appendChild(d);}
+}
+function drawAmbiance(){const el=$('ambBox');if(!el)return;el.innerHTML='';ambianceSections(stlSecMaker(el,drawAmbiance));}
+function drawExtrasTab(){
+ const el=$('styleGrid');if(!el)return;const lv=myLv();el.innerHTML='';
+ const sec=stlSecMaker(el,drawExtrasTab);
+ {const d=document.createElement('div');d.className='stl grp';d.innerHTML='<h4>Accessoires d\'armes</h4><small>Silencieux, poignées, chargeurs… se règlent dans <b>Arsenal › Armes</b> (panneau <b>Armurier</b>). Les viseurs et leur réticule : <b>Arsenal › Viseurs</b>.</small>';el.appendChild(d);}
  sec('Charm d\'arme',CHARMS,it=>cfg.charm===it.id,it=>cfg.charm=it.id,it=>it.n);
  sec('Compteur d\'éliminations',[{id:1,n:'Affiché',lv:1},{id:0,n:'Masqué',lv:1}],it=>cfg.counter===it.id,it=>cfg.counter=it.id,it=>it.n);
  sec('Couteau',KNIVES,it=>cfg.knife===it.id,it=>cfg.knife=it.id,it=>it.n);
  sec('Traînée de balles',TRAILS,it=>cfg.trail===it.id,it=>cfg.trail=it.id,it=>it.n);
  sec('Spray (touche J)',SPRAYS.map((s,i)=>({id:s,n:SPRAY_N[s],lv:1+(i>>1)})),it=>cfg.spray===it.id,it=>cfg.spray=it.id,it=>it.n);
  sec('Titre de profil',TITLES,it=>cfg.title===it.id,it=>cfg.title=it.id,it=>it.n);
- ambianceSections(sec);
+ if(!$('ambBox'))ambianceSections(sec); // sinon : dans Réglages › Plus d'options
  const kills=Object.keys(PROF.wk).sort((a,b)=>PROF.wk[b]-PROF.wk[a]).slice(0,5).map(k=>W[k].n+' : '+PROF.wk[k]).join(' · ');
  const s=document.createElement('div');s.className='stl grp';s.innerHTML='<h4>Compteurs d\'armes</h4><small>'+(kills||'Aucune élimination enregistrée pour le moment.')+'</small>';el.appendChild(s);
 }
@@ -5309,7 +5315,12 @@ const ATTS={
  flash:{s:'muzzle',n:'Cache-flamme',lv:1,d:'Masque la flamme de bouche, léger gain de stabilité.',m:{rec:.95},noFlash:1},
  reddot:{s:'optic',n:'Point rouge',lv:1,d:'Visée nette et dégagée : dispersion en visée −25 %.',m:{adsSpr:.75}},
  holo:{s:'optic',n:'Holographique',lv:2,d:'Réticule cerclé, grande fenêtre : dispersion en visée −20 %, visée plus rapide.',m:{adsSpr:.8,ads:1.05}},
+ mini:{s:'optic',n:'Mini réflex',lv:1,d:'Petit viseur ouvert, très léger : visée plus rapide, dispersion en visée −15 %.',m:{adsSpr:.85,ads:1.08}},
  acog:{s:'optic',n:'Lunette ×2,5',lv:4,d:'Grossissement ×2,5 pour la moyenne distance. Visée plus lente.',m:{adsSpr:.7,ads:.85,zoom:1.9}},
+ sc4:{s:'optic',n:'Lunette ×4',lv:3,d:'Lunette de précision ×4 : vue plein écran en visée, idéale à longue distance. Visée lente.',m:{adsSpr:.6,ads:.78,mob:.97,zoom:2.4},ov:1},
+ sc6:{s:'optic',n:'Lunette ×6',lv:5,d:'Grossissement ×6 : pour tenir une longue ligne. Visée lente.',m:{adsSpr:.55,ads:.72,mob:.96,zoom:3.1},ov:1},
+ sc8:{s:'optic',n:'Lunette ×8',lv:6,d:'Grossissement ×8 pour les très longues distances.',m:{ads:.95,zoom:3.8},ov:1},
+ sc10:{s:'optic',n:'Lunette ×10',lv:8,d:'Grossissement maximal ×10. Visée plus lente, champ de vision très étroit.',m:{ads:.88,zoom:4.8},ov:1},
  long:{s:'barrel',n:'Canon long',lv:3,d:'Portée efficace +30 %, balles plus précises. Arme plus lourde.',m:{rng:1.3,hip:.92,adsSpr:.92,mob:.96,ads:.92}},
  heavy:{s:'barrel',n:'Canon lourd',lv:5,d:'Recul −12 %, portée +10 %. Mobilité réduite.',m:{rec:.88,recH:.9,rng:1.1,mob:.93,ads:.9}},
  grip:{s:'under',n:'Poignée verticale',lv:2,d:'Meilleure tenue : recul −18 %.',m:{rec:.82,recH:.85,ads:.96}},
@@ -5327,10 +5338,19 @@ const ATT_CAT={
  shotgun:{muzzle:['brake','flash'],optic:['reddot','holo'],barrel:['long'],under:['grip','laser'],mag:['ext','fast'],stock:['light','tac']},
  sniper:{muzzle:['sil','brake','flash'],barrel:['long','heavy'],under:['grip','laser'],mag:['ext','fast'],stock:['light','tac']}
 };
+// viseurs proposés par catégorie (« aucun » = mires d'origine, ou lunette d'origine pour les snipers)
+const OPTIC_CAT={
+ pistol:['mini','reddot','holo'],
+ smg:['mini','reddot','holo','acog'],
+ shotgun:['mini','reddot','holo'],
+ rifle:['reddot','holo','acog','sc4','sc6'],
+ lmg:['reddot','holo','acog','sc4'],
+ sniper:['sc4','sc6','sc8','sc10']
+};
 function attAllowed(k){
  const w=W[k];if(!w||w.melee||w.wonder||w.cat==='wonder'||w.cat==='melee')return {};
  const lim=ATT_CAT[w.cat],out={};
- for(const s of ATT_SLOTS){const l=lim===undefined||lim===null?Object.keys(ATTS).filter(a=>ATTS[a].s===s.id):(lim[s.id]||[]);if(l.length)out[s.id]=l;}
+ for(const s of ATT_SLOTS){const l=s.id==='optic'&&OPTIC_CAT[w.cat]?OPTIC_CAT[w.cat]:lim===undefined||lim===null?Object.keys(ATTS).filter(a=>ATTS[a].s===s.id):(lim[s.id]||[]);if(l.length)out[s.id]=l;}
  return out;
 }
 // ancien format {sil:true,opt:true,ext:true,grip:true} -> nouveau format par emplacement
@@ -5424,14 +5444,32 @@ function attBuild(g,k,sel,opt){
     for(let i=0;i<4;i++){const an=i*Math.PI/2+Math.PI/4,p=boxA(.005,.005,L*.6,AM.blk,Math.cos(an)*r*.8,Math.sin(an)*r*.8,-L*.2);o.add(p);}
     o.position.set(0,bore,u.muzzle-L/2+.005);add(o,a);u.muzzle-=L-.005;break;}
    case 'reddot':{const z=clamp(u.muzzle*.28,-.2,-.03);const o=redDot({sight:pr.topR(z-.04,z+.04)-.002});o.position.z=z+.15;o.userData.att=a;g.add(o);   // redDot() construit à z=-.15 : recalé sur le rail
+    retSwapDot(o,'reddot',.018);
     u.sight=pr.topR(z-.04,z+.04)-.002+.034;u.optic=a;break;}
+   case 'mini':{const z=clamp(u.muzzle*(pistol?.2:.26),-.18,-.02),base=pr.topR(z-.03,z+.03)-.002,o=new THREE.Group(),cy=base+.02;
+    // mini réflex : semelle basse + fenêtre inclinée
+    o.add(boxA(.026,.008,.04,AM.dark,0,base+.004,z+.004));
+    o.add(boxA(.004,.026,.012,AM.blk,-.013,cy-.002,z-.01),boxA(.004,.026,.012,AM.blk,.013,cy-.002,z-.01),boxA(.03,.004,.014,AM.blk,0,cy+.012,z-.01));
+    const lens=new THREE.Mesh(new THREE.PlaneGeometry(.022,.022),AM.lensB);lens.position.set(0,cy,z-.016);o.add(lens);
+    const ret=retMesh('mini',.012);ret.position.set(0,cy,z-.017);o.add(ret);
+    add(o,a);u.sight=cy;u.optic=a;break;}
+   case 'sc4':case 'sc6':case 'sc8':case 'sc10':{
+    if(w.cat==='sniper'||u.scope){u.optic=a;break;}  // le sniper garde sa lunette : seul le grossissement change
+    const L=a==='sc4'?.17:.21,r=a==='sc4'?.019:.022,z=clamp(u.muzzle*.32,-.26,-.08),base=pr.topR(z-L/2,z+L/2),cy=base+r+.022,o=new THREE.Group();
+    const tube=new THREE.MeshStandardMaterial({color:C(0x15171b),roughness:.45,metalness:.75,side:THREE.DoubleSide});
+    o.add(cylZ(r*.8,r*.8,L,tube,0,cy,z,22,true));
+    o.add(cylZ(r*1.3,r*.8,.045,tube,0,cy,z-L/2-.012,22,true),cylZ(r*.8,r*1.15,.035,tube,0,cy,z+L/2+.01,22,true));
+    o.add(cylZ(r*.95,r*.95,.03,AM.blk,0,cy+r*.95,z,14),cylZ(r*.95,r*.95,.03,AM.blk,r*.95,cy,z,14));
+    for(const dz of [-L*.28,L*.28]){o.add(boxA(.012,cy-base,.016,AM.dark,0,base+(cy-base)/2,z+dz));o.add(new THREE.Mesh(new THREE.TorusGeometry(r*.85,.004,6,18),AM.blk).translateX(0).translateY(cy).translateZ(z+dz));}
+    const lens=new THREE.Mesh(new THREE.CircleGeometry(r*1.2,22),AM.lensB);lens.position.set(0,cy,z-L/2-.034);o.add(lens);
+    add(o,a);u.sight=cy;u.optic=a;break;}
    case 'holo':{const z=clamp(u.muzzle*.3,-.22,-.05),base=pr.topR(z-.05,z+.05),o=new THREE.Group(),h=.04,cy=base+.026;
     o.add(boxA(.034,.012,.085,AM.dark,0,base+.006,z));
     // cadre ouvert (fenêtre rectangulaire)
     o.add(boxA(.005,h,.05,AM.blk,-.02,cy+.003,z),boxA(.005,h,.05,AM.blk,.02,cy+.003,z),boxA(.045,.006,.054,AM.blk,0,cy+h/2+.003,z));
     o.add(boxA(.045,.006,.034,AM.dark,0,base+.012,z+.016));
     const lens=new THREE.Mesh(new THREE.PlaneGeometry(.035,.034),AM.lensB);lens.position.set(0,cy,z-.023);o.add(lens);
-    const ret=ringReticle(.017);ret.position.set(0,cy,z-.024);o.add(ret);
+    const ret=retMesh('holo',.017);ret.position.set(0,cy,z-.024);o.add(ret);
     add(o,a);u.sight=cy;u.optic=a;break;}
    case 'acog':{const z=clamp(u.muzzle*.3,-.24,-.06),base=pr.topR(z-.06,z+.06),o=new THREE.Group(),r=.021,cy=base+.036;
     o.add(boxA(.028,.016,.07,AM.dark,0,base+.008,z));
@@ -5439,7 +5477,7 @@ function attBuild(g,k,sel,opt){
     o.add(cylZ(r*1.25,r,.03,AM.blk,0,cy,z-.07,22,true),cylZ(r,r*1.15,.02,AM.blk,0,cy,z+.065,22,true));
     o.add(boxA(.014,.014,.02,AM.blk,0,cy+r+.004,z),boxA(.014,.014,.02,AM.blk,r+.004,cy,z));
     const lens=new THREE.Mesh(new THREE.CircleGeometry(r*.95,22),AM.lensB);lens.position.set(0,cy,z-.05);o.add(lens);
-    const ret=chevronReticle(.022);ret.position.set(0,cy,z-.051);o.add(ret);
+    const ret=retMesh('acog',.022);ret.position.set(0,cy,z-.051);o.add(ret);
     add(o,a);u.sight=cy;u.optic=a;break;}
    case 'long':{const L=.09*S,r=.012*S,o=new THREE.Group();o.add(cylZ(r,r,L,AM.blk,0,0,0,14));o.add(cylZ(r*1.5,r*1.5,.025,AM.dark,0,0,L/2-.012,14));
     o.position.set(0,bore,u.muzzle-L/2+.005);add(o,a);u.muzzle-=L-.005;break;}
@@ -5532,7 +5570,7 @@ function gsDraw(){
   h+='<div class="gsSlot'+(ok[s.id]?'':' off')+(gsSlot===s.id?' on':'')+(has?' has':'')+'" data-s="'+s.id+'"><em>'+s.ic+' '+s.n.toUpperCase()+'</em><b>'+(has?ATTS[a].n:ok[s.id]?'—':'Indisponible')+'</b></div>';}
  h+='</div><div class="gsOpts">';
  const cur=sel[gsSlot];
- h+='<div class="gsOpt'+(!cur?' on':'')+'" data-a=""><b>Aucun</b><small>Retirer l\'accessoire</small></div>';
+ h+='<div class="gsOpt'+(!cur?' on':'')+'" data-a=""><b>'+(gsSlot==='optic'?opticNone(k):'Aucun')+'</b><small>'+(gsSlot==='optic'?'Viseur de base de l\'arme':'Retirer l\'accessoire')+'</small></div>';
  for(const a of ok[gsSlot]||[]){const d=ATTS[a],lock=lv<d.lv;
   h+='<div class="gsOpt'+(cur===a?' on':'')+(lock?' lock':'')+'" data-a="'+a+'"><b>'+d.n+(lock?' 🔒':'')+'</b><small>'+(lock?'Débloqué au niveau '+d.lv+'. ':'')+d.d+'</small></div>';}
  h+='</div>';host.innerHTML=h;
@@ -5558,6 +5596,206 @@ function gsUi(){
  const st=$('pvStats');if(!st)return;
  const p=document.createElement('div');p.id='gsPanel';st.parentNode.insertBefore(p,st.nextSibling);
 }
+/* =====================================================================
+   VISEURS PERSONNALISABLES
+   - chaque arme a un emplacement « Optique » (liste par catégorie dans
+     OPTIC_CAT, 64b_gunsmith) ; les lunettes (ov:1) passent en vue plein écran
+   - chaque viseur a son réticule : forme + couleur (cfg.ret[optique])
+   - onglet Arsenal › Viseurs : choix du viseur par arme, du réticule,
+     aperçu en direct, « appliquer à toutes les armes compatibles »
+   ===================================================================== */
+const RET_SHAPES=[['dot','Point'],['circle','Cercle'],['cross','Croix'],['chevron','Chevron'],['duplex','Duplex'],['mildot','Mil-dot']];
+const RET_COLS=['#ff2a3a','#3dff6e','#33e0ff','#ffe03a','#ff4fd8','#ffffff','#101010'];
+// 'scope' = lunette d'origine des snipers (aucune optique choisie)
+const RET_DEF={reddot:{s:'dot',c:'#ff2a3a'},mini:{s:'dot',c:'#ff2a3a'},holo:{s:'circle',c:'#ff2a3a'},acog:{s:'chevron',c:'#ff3a2a'},
+ sc4:{s:'duplex',c:'#101010'},sc6:{s:'duplex',c:'#101010'},sc8:{s:'mildot',c:'#101010'},sc10:{s:'mildot',c:'#101010'},scope:{s:'cross',c:'#101010'}};
+cfg.ret=cfg.ret||{};
+const retOf=o=>Object.assign({},RET_DEF[o]||RET_DEF.reddot,cfg.ret[o]||{});
+const opticNone=k=>W[k]&&W[k].cat==='sniper'?'Lunette d\'origine':'Mires d\'origine';
+// optique réellement montée (respecte niveau et catégorie)
+function optOf(e,k){const o=attSel(e,k).optic;return o&&hasAtt(e,k,o)?o:null;}
+// visée plein écran ? (lunettes, ou sniper sans optique)
+function sightOv(e,w){
+ if(e&&e.isPlayer){const wi=curWi(e);if(wi&&W[wi.k]===w){const o=optOf(e,wi.k);if(o)return !!ATTS[o].ov;}}
+ return !!w.overlay;
+}
+function sightZoom(e,w){const wi=e&&e.isPlayer?curWi(e):null;return (wi&&W[wi.k]===w&&attMods(e,wi.k).zoom)||w.zoom||ADS_ZOOM[w.cat]||1.1;}
+
+/* ---------- dessin d'un réticule (canvas 2D) ---------- */
+// big = réticule de lunette plein écran (R = rayon de la lunette)
+function drawReticle(c,cx,cy,R,sh,col,big){
+ const lw=big?2:Math.max(2,R*.07),dark=col==='#101010';
+ c.save();c.strokeStyle=c.fillStyle=col;c.lineCap='round';
+ if(!dark){c.shadowColor=col;c.shadowBlur=big?5:R*.12;}
+ const dot=r=>{c.beginPath();c.arc(cx,cy,r,0,Math.PI*2);c.fill();};
+ const line=(x1,y1,x2,y2,w)=>{c.lineWidth=w||lw;c.beginPath();c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke();};
+ switch(sh){
+  case 'dot':dot(big?Math.max(3,R*.012):R*.14);break;
+  case 'circle':c.lineWidth=lw;c.beginPath();c.arc(cx,cy,R*(big?.14:.72),0,Math.PI*2);c.stroke();dot(big?Math.max(2.5,R*.009):R*.09);break;
+  case 'cross':{const g=R*(big?.025:.16),e=R*(big?1:.9);line(cx-e,cy,cx-g,cy);line(cx+g,cy,cx+e,cy);line(cx,cy-e,cx,cy-g);line(cx,cy+g,cx,cy+e);dot(big?2:lw*.7);break;}
+  case 'chevron':{const s=R*(big?.07:.38);line(cx-s,cy+s*.85,cx,cy);line(cx,cy,cx+s,cy+s*.85);line(cx,cy+s*1.4,cx,cy+R*(big?1:.95),big?lw:lw*.6);
+   line(cx-R*(big?1:.95),cy,cx-s*1.5,cy,big?lw:lw*.6);line(cx+s*1.5,cy,cx+R*(big?1:.95),cy,big?lw:lw*.6);break;}
+  case 'duplex':{const t=lw*(big?3:2.2),a=R*.4,e=R;
+   line(cx-e,cy,cx-a,cy,t);line(cx+a,cy,cx+e,cy,t);line(cx,cy+a,cx,cy+e,t);line(cx,cy-e,cx,cy-a,t);
+   line(cx-a,cy,cx+a,cy,big?1.3:lw*.6);line(cx,cy-a,cx,cy+a,big?1.3:lw*.6);break;}
+  case 'mildot':{const e=R,th=big?1.3:lw*.6;line(cx-e,cy,cx+e,cy,th);line(cx,cy-e,cx,cy+e,th);
+   const st=R*.13,r=big?Math.max(2.5,R*.01):R*.04;
+   for(let i=1;i<=4;i++)for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){c.beginPath();c.arc(cx+dx*st*i,cy+dy*st*i,r,0,Math.PI*2);c.fill();}break;}
+ }
+ c.restore();
+}
+/* ---------- réticules 3D (texture sur la lentille) ---------- */
+const RET_TEX={};
+function retTex(sh,col){
+ const key=sh+col;if(RET_TEX[key])return RET_TEX[key];
+ const cv=document.createElement('canvas');cv.width=cv.height=128;drawReticle(cv.getContext('2d'),64,64,58,sh,col,false);
+ return RET_TEX[key]=new THREE.CanvasTexture(cv);
+}
+function retMesh(o,size){
+ const r=retOf(o);
+ return new THREE.Mesh(new THREE.PlaneGeometry(size,size),new THREE.MeshBasicMaterial({map:retTex(r.s,r.c),transparent:true,depthWrite:false,toneMapped:false,side:THREE.DoubleSide}));
+}
+// remplace le point rouge sphérique de redDot() par le réticule choisi
+function retSwapDot(g,o,size){
+ let dot=null;g.traverse(m=>{if(!dot&&m.isMesh&&m.geometry&&m.geometry.type==='SphereGeometry')dot=m;});
+ if(!dot)return;dot.visible=false;const r=retMesh(o,size);r.position.copy(dot.position);dot.parent.add(r);
+}
+/* ---------- réticule de la lunette plein écran ---------- */
+function scopeRetUpdate(){
+ const el=$('scope');if(!el||el.style.display==='none'||!P)return;
+ let cv=$('scopeRet');
+ if(!cv){cv=document.createElement('canvas');cv.id='scopeRet';cv.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none';el.appendChild(cv);el.classList.add('cret');
+  const s=document.createElement('style');s.textContent='#scope.cret::before,#scope.cret::after{display:none}';document.head.appendChild(s);}
+ const wi=curWi(P),o=(wi&&optOf(P,wi.k))||'scope',r=retOf(o),key=r.s+r.c+innerWidth+'x'+innerHeight;
+ if(cv._k===key)return;cv._k=key;cv.width=innerWidth;cv.height=innerHeight;
+ drawReticle(cv.getContext('2d'),innerWidth/2,innerHeight/2,innerHeight*.335,r.s,r.c,true);
+}
+
+/* ---------- onglet Arsenal › Viseurs ---------- */
+const SIGHT_CATS=[['pistol','Pistolets'],['smg','Mitraillettes'],['shotgun','Pompes'],['rifle','Fusils'],['lmg','Mitrailleuses'],['sniper','Snipers']];
+let svKey=null;
+function sightsTabBuild(){
+ const tabs=$('mtabs');if(!tabs||$('tab-sights'))return;
+ const tb=document.createElement('div');tb.className='mtab';tb.dataset.t='sights';tb.textContent='Viseurs';tabs.appendChild(tb);
+ const p=document.createElement('div');p.className='tp';p.id='tab-sights';
+ p.innerHTML='<div class="svgrid"><div class="svw" id="svWeap"></div><div class="svmid"><canvas id="svCv" width="640" height="400"></canvas><div id="svInfo"></div></div><div class="svopt"><div id="svList"></div><div id="svRet"></div></div></div>';
+ $('tab-keys').parentNode.appendChild(p);
+ const s=document.createElement('style');s.textContent=`
+.svgrid{display:grid;grid-template-columns:230px minmax(320px,1fr) 330px;gap:22px;height:100%;min-height:0}
+.svgrid>div{min-height:0;overflow:auto;padding-right:4px}
+.svw h5,.svopt h5{font-size:.6rem;letter-spacing:3px;color:#8da0bd;margin:12px 0 6px;text-transform:uppercase}
+.svw h5:first-child,.svopt h5:first-child{margin-top:0}
+.svw .chips{display:flex;flex-wrap:wrap;gap:5px}
+.svw .chip{padding:6px 9px;font-size:.72rem}
+.svw .chip em{font-style:normal;color:#ffb35c;margin-left:4px}
+#svCv{width:100%;aspect-ratio:16/10;border-radius:10px;background:#0b1220;display:block}
+#svInfo{margin-top:10px;font-size:.8rem;color:#b8c5da;line-height:1.5}
+#svInfo b{color:#fff;letter-spacing:1.5px}
+.svo{padding:9px 11px;margin-bottom:6px;border:1px solid #ffffff22;border-radius:8px;background:#121b2b;cursor:pointer;font-size:.78rem;color:#dfe8f5;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.svo:hover{border-color:#ff9a3c}.svo.on{border-color:#5dff8a;background:#142619}.svo.lock{opacity:.4;cursor:not-allowed}
+.svo small{color:#8fa3c0;font-size:.64rem}
+.svo i{font-style:normal;font-size:.66rem;color:#ffb35c;white-space:nowrap}
+#svRet .chips{display:flex;flex-wrap:wrap;gap:5px}
+#svRet .chip{padding:6px 10px;font-size:.72rem}
+#svRet .swc{display:flex;gap:7px;flex-wrap:wrap}
+#svRet .swc i{width:26px;height:26px;border-radius:50%;cursor:pointer;border:2px solid #ffffff33;display:block}
+#svRet .swc i.on{border-color:#fff;box-shadow:0 0 0 2px #ff9a3c}
+#svAll{margin-top:14px;width:100%}
+@media(max-width:1150px){.svgrid{grid-template-columns:1fr;height:auto}.svgrid>div{overflow:visible}}`;
+ document.head.appendChild(s);
+}
+function sightWeapons(){
+ const out={};for(const k in W){const w=W[k];if(!w||!attAllowed(k).optic)continue;(out[w.cat]=out[w.cat]||[]).push(k);}
+ return out;
+}
+function svCurOpt(k){const o=(cfg.att[k]||{}).optic;return o&&(attAllowed(k).optic||[]).includes(o)?o:null;}
+function svZoomTxt(k,o){if(o)return o.startsWith('sc')?'×'+o.slice(2):o==='acog'?'×2,5':'';return W[k].overlay?'×'+Math.round(W[k].zoom*2):'';}
+function drawSightsTab(){
+ const host=$('svWeap');if(!host)return;
+ const ws=sightWeapons(),lv=myLv();
+ if(!svKey||!W[svKey]||!attAllowed(svKey).optic)svKey=(W[pvKey]&&attAllowed(pvKey).optic)?pvKey:(ws.rifle||ws.smg||Object.values(ws)[0])[0];
+ // armes
+ host.innerHTML='';
+ for(const [cat,n] of SIGHT_CATS){const l=ws[cat];if(!l)continue;
+  const h=document.createElement('h5');h.textContent=n;host.appendChild(h);
+  const box=document.createElement('div');box.className='chips';
+  for(const k of l){const c=document.createElement('div'),o=svCurOpt(k);c.className='chip'+(k===svKey?' on':'');c.innerHTML=W[k].n+(o?'<em>⌖</em>':'');c.title=o?ATTS[o].n:opticNone(k);
+   c.onclick=()=>{sfxUI();svKey=k;drawSightsTab();};box.appendChild(c);}
+  host.appendChild(box);
+ }
+ // viseurs disponibles
+ const k=svKey,cur=svCurOpt(k),list=$('svList');
+ let h='<h5>Viseur — '+W[k].n+'</h5>';
+ h+='<div class="svo'+(!cur?' on':'')+'" data-a=""><div><b>'+opticNone(k)+'</b><br><small>Viseur de base de l\'arme</small></div><i>'+svZoomTxt(k,null)+'</i></div>';
+ for(const a of attAllowed(k).optic){const d=ATTS[a],lock=lv<d.lv;
+  h+='<div class="svo'+(cur===a?' on':'')+(lock?' lock':'')+'" data-a="'+a+'" title="'+d.d.replace(/"/g,'&quot;')+'"><div><b>'+d.n+(lock?' 🔒':'')+'</b><br><small>'+(lock?'Niveau '+d.lv:d.d.split(':')[0].split('.')[0])+'</small></div><i>'+svZoomTxt(k,a)+'</i></div>';}
+ list.innerHTML=h;
+ list.querySelectorAll('.svo').forEach(el=>el.onclick=()=>{
+  const a=el.dataset.a;if(el.classList.contains('lock')){sfxUI();uiToast('Débloqué au niveau '+ATTS[a].lv);return;}
+  if(!svSetOpt(k,a))return;sfx('reload',undefined,undefined,.3);drawSightsTab();
+ });
+ // réticule
+ const o=cur||(W[k].cat==='sniper'?'scope':null),rt=$('svRet');
+ if(!o){rt.innerHTML='<h5>Réticule</h5><small style="color:#8da0bd">Les mires d\'origine n\'ont pas de réticule réglable. Choisis un viseur pour personnaliser son réticule.</small>';}
+ else{
+  const r=retOf(o);
+  rt.innerHTML='<h5>Forme du réticule</h5><div class="chips" id="svShape"></div><h5>Couleur</h5><div class="swc" id="svCol"></div><button class="chip" id="svAll">Mettre ce viseur sur toutes les armes compatibles</button>';
+  const sh=$('svShape');for(const [id,n] of RET_SHAPES){const c=document.createElement('div');c.className='chip'+(r.s===id?' on':'');c.textContent=n;c.onclick=()=>{sfxUI();svSetRet(o,{s:id});};sh.appendChild(c);}
+  const sw=$('svCol');for(const col of RET_COLS){const i=document.createElement('i');i.style.background=col;if(r.c===col)i.className='on';i.onclick=()=>{sfxUI();svSetRet(o,{c:col});};sw.appendChild(i);}
+  const all=$('svAll');if(!cur)all.style.display='none';
+  all.onclick=()=>{sfxUI();let n=0;for(const kk in W){if(kk===k||!(attAllowed(kk).optic||[]).includes(cur))continue;const s=Object.assign({},cfg.att[kk]||{});s.optic=cur;if(gsCount(s)>ATT_MAX)continue;cfg.att[kk]=s;n++;}
+   saveCfg();if(typeof VM!=='undefined')VM.gk=null;uiToast(ATTS[cur].n+' posé sur '+n+' autre'+(n>1?'s':'')+' arme'+(n>1?'s':''));drawSightsTab();};
+ }
+ $('svInfo').innerHTML='<b>'+(cur?ATTS[cur].n:opticNone(k)).toUpperCase()+'</b><br>'+(cur?ATTS[cur].d:W[k].cat==='sniper'?'Lunette montée d\'usine. Choisis un autre grossissement à droite.':'Visée par les organes de visée de l\'arme.');
+ svPreview();
+}
+function svSetOpt(k,a){
+ const s=Object.assign({},cfg.att[k]||{});if(a)s.optic=a;else delete s.optic;
+ if(gsCount(s)>ATT_MAX){sfxUI();uiToast('Maximum '+ATT_MAX+' accessoires : retire-en un dans l\'armurier');return false;}
+ cfg.att[k]=s;saveCfg();if(typeof VM!=='undefined')VM.gk=null;if(pvKey===k&&typeof pvSet==='function')pvSet(k);return true;
+}
+function svSetRet(o,ch){
+ cfg.ret[o]=Object.assign(retOf(o),ch);saveCfg();if(typeof VM!=='undefined')VM.gk=null;if(typeof pvSet==='function'&&W[pvKey])pvSet(pvKey);drawSightsTab();
+}
+// aperçu : petite scène de stand de tir vue à travers le viseur choisi
+function svScene(c,Wd,H,z){
+ c.save();c.translate(Wd/2,H/2);c.scale(z,z);c.translate(-Wd/2,-H/2);
+ const g=c.createLinearGradient(0,0,0,H*.55);g.addColorStop(0,'#5d7ea6');g.addColorStop(1,'#b9c9d8');c.fillStyle=g;c.fillRect(-Wd,-H,Wd*3,H*1.55+H*.55);
+ c.fillStyle='#6d6250';c.fillRect(-Wd,H*.55,Wd*3,H*2);
+ c.fillStyle='#857a66';for(let i=-6;i<12;i++){c.beginPath();c.moveTo(Wd/2+i*90,H*.55);c.lineTo(Wd/2+i*260,H*2);c.lineTo(Wd/2+i*260+6,H*2);c.lineTo(Wd/2+i*90+2,H*.55);c.fill();}
+ const box=(x,y,w,h,col)=>{c.fillStyle=col;c.fillRect(x,y,w,h);c.strokeStyle='#00000040';c.lineWidth=1;c.strokeRect(x,y,w,h);};
+ box(Wd*.08,H*.42,Wd*.12,H*.16,'#8a6a42');box(Wd*.78,H*.4,Wd*.14,H*.18,'#8a6a42');box(Wd*.3,H*.47,Wd*.06,H*.09,'#7a5d3a');
+ // cible au centre
+ const cx=Wd/2,cy=H*.5;c.fillStyle='#2b2f36';c.fillRect(cx-1.5,cy,3,H*.06);
+ c.fillStyle='#e9e3d4';c.beginPath();c.arc(cx,cy-H*.035,H*.028,0,Math.PI*2);c.fill();c.fillRect(cx-H*.03,cy-H*.01,H*.06,H*.07);
+ c.strokeStyle='#c23b3b';c.lineWidth=1.5;c.beginPath();c.arc(cx,cy+H*.02,H*.018,0,Math.PI*2);c.stroke();
+ c.restore();
+}
+function svPreview(){
+ const cv=$('svCv');if(!cv)return;const c=cv.getContext('2d'),Wd=cv.width,H=cv.height,k=svKey,o=svCurOpt(k);
+ const ov=o?!!ATTS[o].ov:!!W[k].overlay,z=ov?(o?ATTS[o].m.zoom:W[k].zoom)*.8:o==='acog'?2:1.15;
+ c.clearRect(0,0,Wd,H);svScene(c,Wd,H,z);
+ const cx=Wd/2,cy=H/2,dk='#16191e';
+ if(ov){
+  const R=H*.44,r=retOf(o||'scope');
+  c.save();c.fillStyle='#000';c.beginPath();c.rect(0,0,Wd,H);c.arc(cx,cy,R,0,Math.PI*2,true);c.fill();
+  const v=c.createRadialGradient(cx,cy,R*.75,cx,cy,R);v.addColorStop(0,'#0000');v.addColorStop(1,'#000c');c.fillStyle=v;c.beginPath();c.arc(cx,cy,R,0,Math.PI*2);c.fill();c.restore();
+  drawReticle(c,cx,cy,R,r.s,r.c,true);return;
+ }
+ if(!o){ // mires : guidon + cran de mire
+  c.fillStyle=dk;c.fillRect(cx-3,cy,6,H*.2);c.fillRect(cx-80,cy+H*.1,62,H*.4);c.fillRect(cx+18,cy+H*.1,62,H*.4);
+  c.fillRect(cx-18,cy+H*.16,36,H*.4);return;
+ }
+ const r=retOf(o);c.save();c.fillStyle=dk;c.strokeStyle='#2c3138';
+ if(o==='acog'){const R=H*.36;c.beginPath();c.rect(0,0,Wd,H);c.arc(cx,cy,R,0,Math.PI*2,true);c.fill();c.lineWidth=10;c.beginPath();c.arc(cx,cy,R+5,0,Math.PI*2);c.stroke();c.restore();drawReticle(c,cx,cy,R*.55,r.s,r.c,false);return;}
+ if(o==='reddot'){const R=H*.3;c.lineWidth=16;c.beginPath();c.arc(cx,cy,R,0,Math.PI*2);c.stroke();c.fillRect(cx-R*.7,cy+R+4,R*1.4,H);}
+ else if(o==='holo'){const w=H*.62,h=H*.44;c.lineWidth=14;c.strokeRect(cx-w/2,cy-h/2,w,h);c.fillRect(cx-w/2-7,cy+h/2,w+14,H);}
+ else{const w=H*.38,h=H*.3;c.lineWidth=9;c.strokeRect(cx-w/2,cy-h/2,w,h);c.fillRect(cx-w/2-5,cy+h/2,w+10,H);}
+ c.fillStyle='#7fd8ff10';c.fillRect(0,0,Wd,H);c.restore();
+ drawReticle(c,cx,cy,o==='holo'?H*.1:H*.08,r.s,r.c,false);
+}
+sightsTabBuild();
+document.querySelectorAll('.mtab[data-t="sights"]').forEach(t=>t.addEventListener('click',drawSightsTab));
 /* =====================================================================
    PROGRESSION : passe de combat, classement, succès, événement
    ===================================================================== */
@@ -7674,7 +7912,7 @@ function updateHUD(dt,t){
  else bar.style.display='none';
  const hint=$('hint');const hm=P.alive?(P.useMsg||''):'';if(hint._m!==hm){hint._m=hm;hint.textContent=hm;hint.style.display=hm?'block':'none';}
  // scope / divers
- $('scope').style.display=(P.alive&&P.scoped)?'block':'none';
+ $('scope').style.display=(P.alive&&P.scoped)?'block':'none';scopeRetUpdate();
  // aveuglement
  if(P.blindT>0){P.blindT-=dt;$('flashfx').style.opacity=Math.min(1,P.blindT*1.3);}
  else{const o=parseFloat($('flashfx').style.opacity||0);if(o>0)$('flashfx').style.opacity=Math.max(0,o-dt*1.4);}
@@ -7743,7 +7981,7 @@ document.addEventListener('pointerlockchange',()=>{
 });
 addEventListener('mousemove',e=>{
  if(!focusLocked||!G.running||!P.alive||buyOpen||P.emote)return;
- const w=curW(P),z=P.scoped?1/w.zoom:1-.25*P.ads,s=.0022*cfg.sens*z*wsensMul();
+ const w=curW(P),z=P.scoped?1/sightZoom(P,w):1-.25*P.ads,s=.0022*cfg.sens*z*wsensMul();
  P.yaw-=e.movementX*s;P.pitch=clamp(P.pitch-e.movementY*s,-1.5,1.5);
 });
 let rebindCb=null;
@@ -8268,10 +8506,9 @@ function buildMetaUI(){
    ===================================================================== */
 const NAV=[
  {id:'play',n:'Jouer',ic:'▶',sub:[['play','Partie solo'],['mp','Multijoueur']]},
- {id:'arsenal',n:'Arsenal',ic:'⌖',sub:[['arms','Armes & skins'],['style','Accessoires & style'],['custom','Viseur & pseudo']]},
- {id:'locker',n:'Casier',ic:'◈',sub:[['locker','Tenues & danses'],['boxes','Caisses']]},
- {id:'career',n:'Carrière',ic:'★',sub:[['prog','Progression & défis'],['stats','Statistiques']]},
- {id:'options',n:'Options',ic:'⚙',sub:[['opts','Graphismes & son'],['keys','Touches'],['acc','Accessibilité'],['credits','Crédits']]}
+ {id:'arsenal',n:'Arsenal',ic:'⌖',sub:[['arms','Armes'],['sights','Viseurs'],['locker','Casier'],['boxes','Caisses']]},
+ {id:'career',n:'Profil',ic:'★',sub:[['prog','Progression'],['stats','Statistiques'],['style','Style']]},
+ {id:'options',n:'Réglages',ic:'⚙',sub:[['opts','Général'],['custom','Réticule'],['keys','Touches'],['acc','Accessibilité']]}
 ];
 const MODE_GROUPS=[['Compétitif',['bomb','rapid']],['Action',['tdm','ffa','gg','koth']],['Spécial',['zombies','br','train']]];
 const MODE_TAG={bomb:'Bombe · économie · manches',rapid:'Manches courtes, armes fournies',tdm:'Équipes, réapparition',ffa:'Chacun pour soi',gg:'Une arme par élimination',koth:'Tiens la zone',zombies:'Coop contre des vagues',br:'Un seul survivant',train:'Stand de tir chronométré'};
@@ -8332,7 +8569,7 @@ function navRender(){
  for(const g of NAV){const d=document.createElement('div');d.className='nv'+(g.id===navGroup?' on':'');d.innerHTML='<i>'+g.ic+'</i><span>'+g.n+'</span>';d.title=g.n;d.onclick=()=>navGo(g.id);nav.appendChild(d);}
  const grp=NAV.find(g=>g.id===navGroup),sub=$('msub');sub.innerHTML='';
  if(grp.sub.length>1)for(const [t,n] of grp.sub){const p=document.createElement('div');p.className='sp'+(tabNow===t?' on':'');p.textContent=n;p.onclick=()=>navTab(t);sub.appendChild(p);}
- const hints={play:'Choisis un mode, une carte, règle la partie puis clique sur JOUER',arsenal:'Les changements sont enregistrés automatiquement',locker:'Ouvre des caisses pour débloquer skins, tenues et danses',career:'Niveau, passe de combat, classement, succès et statistiques',options:'Les réglages sont enregistrés automatiquement'};
+ const hints={play:'Choisis un mode, une carte, puis clique sur JOUER',arsenal:'Armes, viseurs, tenues et caisses · enregistré automatiquement',career:'Niveau, défis, statistiques et style du profil',options:'Les réglages sont enregistrés automatiquement'};
  const h=document.createElement('div');h.className='hint';h.textContent=hints[navGroup]||'';sub.appendChild(h);
  if(typeof themeRibbon==='function')themeRibbon();
 }
@@ -8388,6 +8625,7 @@ function menuNavInit(){
  const lg=document.querySelector('#menu .logo .sub');if(lg)lg.textContent='FPS tactique • '+Object.keys(MODES).length+' modes • '+Object.keys(MAPS).length+' cartes • bots IA';
  const ft=document.querySelector('#menu .mfoot');if(ft)ft.textContent='Échap en jeu : pause • Tous les réglages sont sauvegardés automatiquement';
  restructurePlay();
+ menuSimplify();
  drawMenu();
  navGroup='play';navRender();
  bpUi();
@@ -8502,6 +8740,47 @@ function updSummary(){
  const e=$('sumbar');if(!e)return;const m=MODES[cfg.mode];
  const size=m.team?cfg.size+' v '+cfg.size:cfg.ffa+' joueurs';
  e.innerHTML='<b>'+m.n.replace(/\s*\(.*\)/,'')+'</b> · '+MAPS[cfg.map].n+' · '+DIFFS[cfg.diff].n+(cfg.mode==='zombies'?'':' · '+size);
+}
+/* =====================================================================
+   MENU ÉPURÉ : seules les options principales sont visibles,
+   le reste est rangé dans des « Plus d'options » repliés.
+   - Réglages › Général : qualité, sensibilité, champ de vision, volume
+     (+ effets, FPS, balancement, cinématique, ambiance dans le repli)
+   - Le pseudo passe dans Profil › Style ; Crédits en lien dans le pied
+   ===================================================================== */
+function menuSimplifyCss(){
+ if($('menuSimpCss'))return;const s=document.createElement('style');s.id='menuSimpCss';s.textContent=`
+#tab-opts .optmain{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 34px;max-width:900px}
+#tab-opts details.adv{max-width:900px;margin-top:18px}
+#tab-opts details.adv .advgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 34px;margin-top:10px}
+#tab-opts details.adv small{display:block}
+#ambBox .stl{margin-bottom:12px}
+#tab-style .pnameRow{max-width:420px;margin-bottom:18px}
+#menu .mfoot a{color:#8da0bd;cursor:pointer;text-decoration:underline;margin-left:10px}
+#menu .mfoot a:hover{color:#fff}
+@media(max-width:900px){#tab-opts .optmain,#tab-opts details.adv .advgrid{grid-template-columns:1fr}}
+`;document.head.appendChild(s);
+}
+function menuSimplify(){
+ if($('optMain'))return;
+ menuSimplifyCss();
+ const grpOf=id=>{const e=$(id);return e?(e.classList.contains('grp')?e:e.closest('.grp')):null;};
+ // Réglages › Général
+ const tp=$('tab-opts');
+ if(tp){
+  const main=['cGfx','rSens','rFov','rVol'].map(grpOf),more=['cFx','cFps','cBob','cCine'].map(grpOf);
+  const box=document.createElement('div');box.className='optmain';box.id='optMain';main.forEach(g=>g&&box.appendChild(g));
+  const adv=document.createElement('details');adv.className='adv';adv.innerHTML='<summary>PLUS D\'OPTIONS</summary><div class="advgrid"><div class="advL"></div><div class="advR" id="ambBox"></div></div>';
+  more.forEach(g=>g&&adv.querySelector('.advL').appendChild(g));
+  tp.innerHTML='';tp.appendChild(box);tp.appendChild(adv);
+  drawAmbiance();
+ }
+ // pseudo : en tête de Profil › Style
+ const pn=grpOf('pname'),st=$('tab-style');
+ if(pn&&st){pn.classList.add('pnameRow');st.insertBefore(pn,st.firstChild);}
+ // Crédits : simple lien en bas du menu
+ const ft=document.querySelector('#menu .mfoot');
+ if(ft&&$('tab-credits')){const a=document.createElement('a');a.textContent='Crédits';a.onclick=()=>{sfxUI();navGroup='options';navTab('credits');navSub.options='opts';};ft.appendChild(a);}
 }
 /* =====================================================================
    ARMURERIE : schéma technique 3D, vue éclatée, rotation à la souris
@@ -8910,7 +9189,7 @@ function touchBuild(){
 }
 function touchLookDelta(dx,dy){
  if(!G.running||!P||!P.alive||buyOpen||P.emote||!focusLocked)return;
- const w=curW(P),z=P.scoped?1/(w.zoom||2):1-.25*P.ads,s=TOUCH.sens*cfg.sens*z*wsensMul();
+ const w=curW(P),z=P.scoped?1/(typeof sightZoom==='function'?sightZoom(P,w):(w.zoom||2)):1-.25*P.ads,s=TOUCH.sens*cfg.sens*z*wsensMul();
  P.yaw-=dx*s;P.pitch=clamp(P.pitch-dy*s,-1.5,1.5);
 }
 function touchStart(e){
@@ -9345,7 +9624,7 @@ function placeCamera(dt,t){
  camera.position.set(src.x,src.y+eye+bobY-G.fall*.1,src.z);
  camera.rotation.set(pit,yaw,roll);
  const w=curW(src);let zoom=1;
- if(src.isPlayer){const az=attMods(P,curWi(P).k).zoom,zf=w.zoom?w.zoom:az||ADS_ZOOM[w.cat]||1.1;zoom=lerp(1,zf,P.ads);}
+ if(src.isPlayer)zoom=lerp(1,sightZoom(P,w),P.ads);
  const mw=src.isPlayer&&P.mv?P.mv.w:null,tf=cfg.fov/zoom*(mw?1+mw.spr*.06+mw.tac*.1+mw.sld*.07:1);camera.fov+=(tf-camera.fov)*Math.min(1,dt*18);camera.updateProjectionMatrix();
 }
 function render(dt,t){

@@ -101,7 +101,7 @@ function spreadOf(e,w){
   let s=w.spr+w.mv*Math.min(1,e.speed/4.8);
   if(!e.onGround)s+=w.mv*.8+2.5;
   if(e.crouch)s*=.6;
-  if(w.overlay&&e.ads<.9)s+=5;
+  if(sightOv(e,w)&&e.ads<.9)s+=5;
   s*=1-.4*e.ads;
   return s+e.spray*.02;
  }
@@ -661,8 +661,8 @@ function updatePlayer(dt){
  }
  if(!mouseL)clickLatch=false;
  const wantAds=(mouseR||G.forceAds)&&p.reload<=0&&p.switchT<=0&&!w.melee;
- p.ads+=((wantAds?1:0)-p.ads)*Math.min(1,dt*(w.overlay?7:12)*am.ads);
- p.scoped=!!(w.overlay&&p.ads>.92);
+ p.ads+=((wantAds?1:0)-p.ads)*Math.min(1,dt*(sightOv(p,w)?7:12)*am.ads);
+ p.scoped=!!(sightOv(p,w)&&p.ads>.92);
  handleUse(p,dt,K('use')&&p.speed<1.2);
  mvWeights(p,dt);mvHud();
 }

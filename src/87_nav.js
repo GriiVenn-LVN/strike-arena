@@ -4,10 +4,9 @@
    ===================================================================== */
 const NAV=[
  {id:'play',n:'Jouer',ic:'▶',sub:[['play','Partie solo'],['mp','Multijoueur']]},
- {id:'arsenal',n:'Arsenal',ic:'⌖',sub:[['arms','Armes & skins'],['style','Accessoires & style'],['custom','Viseur & pseudo']]},
- {id:'locker',n:'Casier',ic:'◈',sub:[['locker','Tenues & danses'],['boxes','Caisses']]},
- {id:'career',n:'Carrière',ic:'★',sub:[['prog','Progression & défis'],['stats','Statistiques']]},
- {id:'options',n:'Options',ic:'⚙',sub:[['opts','Graphismes & son'],['keys','Touches'],['acc','Accessibilité'],['credits','Crédits']]}
+ {id:'arsenal',n:'Arsenal',ic:'⌖',sub:[['arms','Armes'],['sights','Viseurs'],['locker','Casier'],['boxes','Caisses']]},
+ {id:'career',n:'Profil',ic:'★',sub:[['prog','Progression'],['stats','Statistiques'],['style','Style']]},
+ {id:'options',n:'Réglages',ic:'⚙',sub:[['opts','Général'],['custom','Réticule'],['keys','Touches'],['acc','Accessibilité']]}
 ];
 const MODE_GROUPS=[['Compétitif',['bomb','rapid']],['Action',['tdm','ffa','gg','koth']],['Spécial',['zombies','br','train']]];
 const MODE_TAG={bomb:'Bombe · économie · manches',rapid:'Manches courtes, armes fournies',tdm:'Équipes, réapparition',ffa:'Chacun pour soi',gg:'Une arme par élimination',koth:'Tiens la zone',zombies:'Coop contre des vagues',br:'Un seul survivant',train:'Stand de tir chronométré'};
@@ -68,7 +67,7 @@ function navRender(){
  for(const g of NAV){const d=document.createElement('div');d.className='nv'+(g.id===navGroup?' on':'');d.innerHTML='<i>'+g.ic+'</i><span>'+g.n+'</span>';d.title=g.n;d.onclick=()=>navGo(g.id);nav.appendChild(d);}
  const grp=NAV.find(g=>g.id===navGroup),sub=$('msub');sub.innerHTML='';
  if(grp.sub.length>1)for(const [t,n] of grp.sub){const p=document.createElement('div');p.className='sp'+(tabNow===t?' on':'');p.textContent=n;p.onclick=()=>navTab(t);sub.appendChild(p);}
- const hints={play:'Choisis un mode, une carte, règle la partie puis clique sur JOUER',arsenal:'Les changements sont enregistrés automatiquement',locker:'Ouvre des caisses pour débloquer skins, tenues et danses',career:'Niveau, passe de combat, classement, succès et statistiques',options:'Les réglages sont enregistrés automatiquement'};
+ const hints={play:'Choisis un mode, une carte, puis clique sur JOUER',arsenal:'Armes, viseurs, tenues et caisses · enregistré automatiquement',career:'Niveau, défis, statistiques et style du profil',options:'Les réglages sont enregistrés automatiquement'};
  const h=document.createElement('div');h.className='hint';h.textContent=hints[navGroup]||'';sub.appendChild(h);
  if(typeof themeRibbon==='function')themeRibbon();
 }
@@ -124,6 +123,7 @@ function menuNavInit(){
  const lg=document.querySelector('#menu .logo .sub');if(lg)lg.textContent='FPS tactique • '+Object.keys(MODES).length+' modes • '+Object.keys(MAPS).length+' cartes • bots IA';
  const ft=document.querySelector('#menu .mfoot');if(ft)ft.textContent='Échap en jeu : pause • Tous les réglages sont sauvegardés automatiquement';
  restructurePlay();
+ menuSimplify();
  drawMenu();
  navGroup='play';navRender();
  bpUi();
