@@ -242,6 +242,7 @@ function admGiveAll(){
  for(let i=1;i<OUTFITS.length;i++)if(grantItem({t:'outfit',o:i}))n++;
  for(const d of DANCES)if(grantItem({t:'dance',id:d.id}))n++;
  ensureBP();PROF.bp.prem=true;PROF.bp.xp=Math.max(PROF.bp.xp,SEASON.tiers*SEASON.xpPer);
+ PROF.adminAll=true; // accessoires et camos à conditions (niveau, éliminations, exclusifs) : tous ouverts
  admProfSaved('Tout débloqué ('+n+' objets, passe de combat premium au max)');
 }
 function admGiveCoins(n){PROF.coins+=n;admProfSaved('+'+n+' pièces');}
@@ -250,6 +251,12 @@ function admGiveLevels(n){
  addXP(x);admProfSaved('+'+n+' niveau'+(n>1?'x':'')+' (niveau '+levelInfo().level+')');
 }
 function admGiveBoxes(){PROF.boxes.std=(PROF.boxes.std||0)+5;PROF.boxes.prem=(PROF.boxes.prem||0)+5;admProfSaved('+5 caisses standard et +5 premium');}
+// « Tout débloquer » ouvre aussi les verrous à conditions (accessoires par niveau + éliminations,
+// camos gagnés aux éliminations, camos exclusifs), quelle que soit la version de ces règles
+if(typeof attOpen==='function'){const _ao=attOpen;attOpen=function(k,a){return !!PROF.adminAll||_ao(k,a);};}
+if(typeof attLockTxt==='function'){const _al=attLockTxt;attLockTxt=function(k,a){return PROF.adminAll?'':_al(k,a);};}
+{const _os=ownsSkin;ownsSkin=function(k,i){return (!!PROF.adminAll&&!!SKINS[i])||_os(k,i);};}
+if(typeof skinLockTxt==='function'){const _sl=skinLockTxt;skinLockTxt=function(k,i){return PROF.adminAll?'':_sl(k,i);};}
 /* ---------- triches en partie ---------- */
 Object.assign(ADM,{god:false,ammo:false,nades:false});
 const admHumansFacing=()=>{if(!NET.role)return false;if(NET.role==='client')return true;const team=MODE().team;for(const p of NET.players.values())if(p.ent&&(!team||p.ent.team!==P.team))return true;return false;};
