@@ -71,15 +71,18 @@ function placeCamera(dt,t){
  if(src.isPlayer)zoom=lerp(1,sightZoom(P,w),P.ads);
  const mw=src.isPlayer&&P.mv?P.mv.w:null,tf=cfg.fov/zoom*(mw?1+mw.spr*.06+mw.tac*.1+mw.sld*.07:1);camera.fov+=(tf-camera.fov)*Math.min(1,dt*18);camera.updateProjectionMatrix();
 }
+function vmSpecEnt(){const s=specTarget();return s&&s.alive&&!s.zombie&&!s.downed&&s.wp&&W[curWi(s).k]?s:null;}
 function render(dt,t){
  for(const f of worldAnim)f(t);
  if(RP.on&&RP.wait<=0&&G.running&&!G.paused){rpRender(dt,t);return;}
  placeCamera(dt,t);shadowFollow(camera.position.x,camera.position.z,G.running&&!!P);
  if(skyG)skyG.position.copy(camera.position);
- if(G.running||G.state==='over'){if(P){syncRigs(dt,t);if(P.alive)vmUpdate(dt,t);}}
+ // spectateur : arme et bras du joueur regardé, comme en vue subjective
+ const vmEnt=G.running&&P?(P.alive?P:vmSpecEnt()):null;
+ if(G.running||G.state==='over'){if(P){syncRigs(dt,t);if(vmEnt)vmUpdate(dt,t,vmEnt);}}
  updateFX(dt,t);
  postBegin();renderer.render(scene,camera);
- if(G.running&&P&&P.alive&&VM.root.visible&&G.state!=='cine'&&!P.emote){renderer.clearDepth();renderer.render(vmScene,vmCam);}
+ if(vmEnt&&VM.root.visible&&G.state!=='cine'&&!vmEnt.emote){renderer.clearDepth();renderer.render(vmScene,vmCam);}
  postEnd();
  if(G.running&&P){updateHUD(dt,t);radarT2-=dt;if(radarT2<=0){radarT2=.05;drawRadar();}}
 }

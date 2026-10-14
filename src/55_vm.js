@@ -2,7 +2,7 @@
    VIEWMODEL : arme + mains en vue subjective, animations
    ===================================================================== */
 vmScene.add(vmCam);
-const VM={root:new THREE.Group(),gun:null,gk:null,skin:-1,look:'',kick:0,drawT:0,reloadMax:0,inspectT:0,throwT:0,swingT:0,flashT:0,boltT:0,pumpT:0,drops:[],relEmpty:false,relSnd:0,relDrop:false,relShells:3,
+const VM={root:new THREE.Group(),gun:null,gk:null,skin:-1,look:'',kick:0,drawT:0,reloadMax:0,inspectT:0,throwT:0,swingT:0,flashT:0,boltT:0,pumpT:0,ent:null,drops:[],relEmpty:false,relSnd:0,relDrop:false,relShells:3,
  sx:0,sy:0,sxv:0,syv:0,kv:0,lv:0,land:0,ly:0,lp:0,landT:0,bph:0,prevGround:true,swayR:0,airVy:0,strafe:0};
 vmCam.add(VM.root);
 {
@@ -20,9 +20,11 @@ vmCam.add(VM.root);
  };
  VM.setLook(look);
 }
+// skin affiché : celui du joueur pour sa propre arme, finition d'usine pour un joueur regardé en spectateur
+const vmSkinId=(e,k)=>!e||e===P?cfg.skins[k]||0:0;
 function vmSetGun(k){
  if(VM.gun)VM.root.remove(VM.gun);
- const sk=skinOf(k),g=gunParts(k,sk);VM.gun=g;VM.gk=k;VM.skin=cfg.skins[k]||0;VM.pap=!!(P&&P.wp&&curWi(P)&&curWi(P).pap);if(VM.pap)papCamo(g);decorateVM(g,k);
+ const e=VM.ent||P,sk=e===P?skinOf(k):SKINS[0],g=gunParts(k,sk);VM.gun=g;VM.gk=k;VM.skin=vmSkinId(e,k);VM.pap=!!(e&&e.wp&&curWi(e)&&curWi(e).pap);if(VM.pap)papCamo(g);decorateVM(g,k);
  const u=g.userData;
  // bornes de l'arme (repère local) : sert à garder la crosse devant la caméra en visée
  // la crosse (pièces entièrement derrière la poignée) est masquée en visée : vue de 15 cm, elle boucherait l'écran
@@ -44,15 +46,16 @@ function papCamo(g){
 function vmDraw(){VM.drawT=.45;VM.inspectT=0;}
 function vmFire(w){
  // recul sur ressort : impulsion, retour amorti (léger rebond)
- VM.kv+=(w.cat==='sniper'||w.cat==='shotgun'?22:w.cat==='pistol'?14:12)*(1-.45*(P?P.ads:0));VM.flashT=.05;
+ const e=VM.ent||P;
+ VM.kv+=(w.cat==='sniper'||w.cat==='shotgun'?22:w.cat==='pistol'?14:12)*(1-.45*(e?e.ads:0));VM.flashT=.05;
  if(w.cat==='sniper'&&!w.auto){VM.boltT=.8;setTimeout(()=>sfx('bolt',undefined,undefined,.6),380);}
  if(w.cat==='shotgun'&&!w.auto){VM.pumpT=.6;setTimeout(()=>sfx('pump',undefined,undefined,.6),300);}
 }
 function vmReload(w){
  VM.reloadMax=w.rel;VM.inspectT=0;
  // recharge « à vide » : on réarme à la fin ; sinon recharge tactique, sans armement
- const wi=P&&curWi(P);VM.relEmpty=!!wi&&wi.mag<=0;VM.relSnd=0;VM.relDrop=false;
- VM.relShells=wi?clamp(magMax(P,wi.k)-wi.mag,1,4):3;
+ const e=VM.ent||P,wi=e&&curWi(e);VM.relEmpty=!!wi&&wi.mag<=0;VM.relSnd=0;VM.relDrop=false;
+ VM.relShells=wi?clamp(magMax(e,wi.k)-wi.mag,1,4):3;
  const u=VM.gun&&VM.gun.userData;if(!u||(!u.mag&&!(w.cat==='shotgun')))sfx('reload',undefined,undefined,.8);
 }
 /* chargeur qui tombe : copie de la pièce, lâchée dans la scène de la vue subjective */
@@ -75,16 +78,19 @@ function vmThrow(){VM.throwT=.7;}
 function vmKnifeSwing(){VM.swingT=.38;}
 function vmInspect(){if(VM.inspectT<=0&&VM.drawT<=0)VM.inspectT=2.6;}
 const _vp=V3(),_vq=new THREE.Quaternion(),_vr=V3(),_vl=V3(),_ve=new THREE.Euler();
-function vmUpdate(dt,t){
+// ent : joueur regardé en spectateur (par défaut, le joueur lui-même)
+function vmUpdate(dt,t,ent){
+ const p=ent||P;
+ if(VM.ent!==p){VM.ent=p;VM.gk=null;VM.ly=p.yaw;VM.lp=p.pitch;VM.prevGround=p.onGround;VM.kick=VM.kv=0;VM.reloadMax=0;VM.drops.forEach(d=>VM.root.remove(d.o));VM.drops.length=0;}
  extrasVmUpdate(t);
- const p=P,w=curW(p),k=curWi(p).k;
+ const w=curW(p),k=curWi(p).k;
  const lk=entLook(p);VM.setLook(lk.kind==='ffa'?{kind:'ct',acc:lk.acc,tone:lk.tone,outfit:lk.outfit}:lk);
- if(VM.gk!==k||VM.skin!==(cfg.skins[k]||0)||VM.pap!==!!curWi(p).pap)vmSetGun(k);
+ if(VM.gk!==k||VM.skin!==vmSkinId(p,k)||VM.pap!==!!curWi(p).pap)vmSetGun(k);
  const g=VM.gun,u=g.userData;
  {const sd=Math.min(dt,.033);VM.kv+=(-VM.kick*300-VM.kv*26)*sd;VM.kick=clamp(VM.kick+VM.kv*sd,-.3,1.4);}
  VM.flashT=Math.max(0,VM.flashT-dt);VM.drawT=Math.max(0,VM.drawT-dt);VM.throwT=Math.max(0,VM.throwT-dt);VM.swingT=Math.max(0,VM.swingT-dt);VM.inspectT=Math.max(0,VM.inspectT-dt);
  vmDropsUpdate(dt);VM.boltT=Math.max(0,VM.boltT-dt);VM.pumpT=Math.max(0,VM.pumpT-dt);
- const ads=p.ads,spd=clamp(p.speed/5.2,0,1.3);
+ const ads=p.ads||0,spd=clamp((p.speed||0)/5.2,0,1.3);
  VM.bph+=dt*p.speed*1.7;
  // balancement selon la vue : l'arme traîne derrière le mouvement de la souris (ressort amorti, indépendant des fps)
  const dy=angDiff(VM.ly,p.yaw),dp=p.pitch-VM.lp;VM.ly=p.yaw;VM.lp=p.pitch;

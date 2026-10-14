@@ -76,6 +76,11 @@ function glbRole(c){
  if(lum<.035)return 'body';
  return 'acc';
 }
+/* hauteur de la ligne de visée (haut du guidon, repère du modèle) : avant, on visait 4 mm au-dessus du point le plus haut
+   de l'arme, donc le guidon restait sous le centre de l'écran (jusqu'à 2 cm sous la FAMAS) */
+const SIGHT_FIX={glock:.050,usp:.054,p250:.055,fiveseven:.059,deagle:.057,mac10:.082,mp9:.100,ump:.120,p90:.172,nova:.054,sawedoff:.060,
+ xm:.175,galil:.069,famas:.1265,ak:.091,m4:.096,sg553:.089,aug:.144,m249:.151,negev:.089};
+const SIGHT_FIX_REAL={ak:.074,deagle:.068};
 function glbGun(k,M,sk,real){
  const tpl=glbTemplate(k,real);if(!tpl)return null;
  const info=(real?GLB_REAL_INFO[k]:GLB_INFO[k])||{},w=W[k],g=new THREE.Group();
@@ -100,7 +105,9 @@ function glbGun(k,M,sk,real){
  // ligne de visée : on vise par-dessus les organes de visée (sinon la hausse pleine du modèle masque le centre)
  if(!tpl.userData.top){const bb=new THREE.Box3().setFromObject(tpl);tpl.userData.top=bb.max.y;}
  // modèles réalistes : ligne de visée réglée à la préparation (centre du viseur holographique / de la lunette)
- const sightY=info.ads!==undefined?info.ads:real&&info.sight?info.sight:Math.max(info.sight||.06,tpl.userData.top+.004);
+ let sightY=info.ads!==undefined?info.ads:real&&info.sight?info.sight:Math.max(info.sight||.06,tpl.userData.top+.004);
+ // mires mesurées sur chaque modèle (hauteur du guidon) : en visée, le guidon tombe pile au centre de l'écran
+ {const f=(real?SIGHT_FIX_REAL:SIGHT_FIX)[k];if(f!==undefined)sightY=f;}
  return finishGun(g,{len:info.len||w.len,muzzle:info.muzzle||-.4,glb:true,
   right:V3(0,-.03,.012),left:pistol?V3(-.012,-.04,.02):V3(L[0],L[1]-.012,L[2]),
   sight:sightY,eject:V3(.025,sightY*.6,(info.muzzle||-.4)*.18),
@@ -126,6 +133,6 @@ function gunParts(k,sk){
  const rows=(typeof GLB_CREDITS!=='undefined'?GLB_CREDITS:[]).map(c=>'<tr><td>'+(W[c.key]?W[c.key].n:c.key)+'</td><td><a href="'+c.m.url+'" target="_blank" rel="noopener" style="color:#9fe3ff">'+c.m.title+'</a></td><td>'+c.m.author+'</td><td>'+c.m.license+'</td></tr>').join('');
  p.innerHTML='<div class="csec" style="max-width:900px"><h4>MODÈLES 3D DES ARMES</h4><div style="font-size:.74rem;color:#b8c5da;margin-bottom:10px;line-height:1.6">Modèles téléchargés sur Sketchfab sous licence <b>Creative Commons Attribution (CC BY 4.0)</b> ou CC0, adaptés pour le jeu (échelle, orientation, pièces animées). Merci aux auteurs !</div>'+
   '<table class="hist"><tr><th>ARME DANS LE JEU</th><th>MODÈLE</th><th>AUTEUR</th><th>LICENCE</th></tr>'+rows+'</table></div>'+
-  '<div class="csec" style="max-width:900px"><h4>LE RESTE</h4><div style="font-size:.74rem;color:#b8c5da;line-height:1.6">Zombie animé : modèle « Zombie » de <b>Quaternius</b> (poly.pizza, domaine public / CC0). Moteur 3D : Three.js (licence MIT). Cartes, soldats, sons, effets, interface et armes prodiges : créés dans le code du jeu.</div></div>';
+  '<div class="csec" style="max-width:900px"><h4>LE RESTE</h4><div style="font-size:.74rem;color:#b8c5da;line-height:1.6">Zombie animé : modèle « Zombie » de <b>Quaternius</b> (poly.pizza, domaine public / CC0). Soldats et zombies réalistes : personnages de <b>elbolilloduro</b> via <b>Mesh2Motion</b> (CC0), retexturés pour le jeu. Moteur 3D : Three.js (licence MIT). Cartes, ciel, végétation, blindé, sons, effets, interface et armes prodiges : créés dans le code du jeu.</div></div>';
  $('tab-keys').parentNode.appendChild(p);
 })();
