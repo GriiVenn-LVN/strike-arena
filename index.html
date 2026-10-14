@@ -359,7 +359,7 @@ input[type=text]{background:#111827;border:1px solid var(--line);color:#fff;padd
      <div class="skl"><label>SKIN</label><div class="sw" id="skins"></div><button class="chip" id="eqBtn">Équiper au départ</button><small id="eqInfo"></small></div>
    </div></div>
    <div class="tp" id="tab-locker"><div class="custgrid"><div><h3 style="font-size:.62rem;letter-spacing:3px;color:var(--dim);margin-bottom:10px">DANSES &amp; EMOTES — touche T en jeu</h3><div class="dgrid" id="danceList"></div></div><div><canvas id="lkCv" width="520" height="560"></canvas><div style="text-align:center;margin-top:10px"><button class="chip" id="danceEq">Équiper cette danse</button></div></div></div></div>
-   <div class="tp" id="tab-boxes"><div class="boxgrid"><div class="boxcard" id="boxStd" style="--c:#4aa3ff"><div class="crate"></div><h3>CAISSE STANDARD</h3><div class="own" id="ownStd"></div><div class="odds" id="oddsStd"></div><button class="btn cut" id="openStd">OUVRIR</button></div><div class="boxcard" id="boxPrem" style="--c:#ffb938"><div class="crate"></div><h3>CAISSE PREMIUM</h3><div class="own" id="ownPrem"></div><div class="odds" id="oddsPrem"></div><button class="btn cut" id="openPrem">OUVRIR</button></div><div><div class="card2"><h4>COMMENT ÇA MARCHE</h4><div style="font-size:.74rem;color:#b8c5da;line-height:1.6">Gagne des <b>pièces</b> et de l'<b>XP</b> en jouant, termine les défis du jour et récupère ta récompense quotidienne. Les caisses contiennent des <b>skins d'armes</b> et des <b>danses</b>. Les doublons sont convertis en pièces. Probabilités affichées ; une rareté Épique est garantie toutes les 10 ouvertures et une Légendaire toutes les 40.</div></div><div class="card2"><h4>PITIÉ</h4><div id="pityTxt" style="font-size:.74rem;color:#b8c5da"></div></div><div class="card2"><h4>COLLECTION</h4><div id="collTxt" style="font-size:.74rem;color:#b8c5da"></div></div></div></div></div>
+   <div class="tp" id="tab-boxes"><div class="boxgrid"><div class="boxcard" id="boxStd" style="--c:#4aa3ff"><div class="crate"></div><h3>CAISSE STANDARD</h3><div class="own" id="ownStd"></div><div class="odds" id="oddsStd"></div><button class="btn cut" id="openStd">OUVRIR</button></div><div class="boxcard" id="boxPrem" style="--c:#ffb938"><div class="crate"></div><h3>CAISSE PREMIUM</h3><div class="own" id="ownPrem"></div><div class="odds" id="oddsPrem"></div><button class="btn cut" id="openPrem">OUVRIR</button></div><div><div class="card2"><h4>COMMENT ÇA MARCHE</h4><div style="font-size:.74rem;color:#b8c5da;line-height:1.6">Gagne des <b>pièces</b> et de l'<b>XP</b> en jouant, termine les défis du jour et récupère ta récompense quotidienne. Les caisses contiennent des <b>skins d'armes</b> et des <b>danses</b>. Les doublons sont convertis en pièces. Probabilités affichées ; une rareté Épique est garantie toutes les 10 ouvertures et une Légendaire toutes les 60. Les camos de base se débloquent en faisant des éliminations avec chaque arme ; les camos animés ✨ sont exclusifs (achat en Robux sur Roblox).</div></div><div class="card2"><h4>PITIÉ</h4><div id="pityTxt" style="font-size:.74rem;color:#b8c5da"></div></div><div class="card2"><h4>COLLECTION</h4><div id="collTxt" style="font-size:.74rem;color:#b8c5da"></div></div></div></div></div>
    <div class="tp" id="tab-stats"><div class="stiles" id="stTiles"></div><div class="sgrid"><div class="card2"><h4>PAR MODE</h4><div id="stModes"></div><h4 style="margin-top:14px">PAR CARTE</h4><div id="stMaps"></div></div><div class="card2"><h4>ARMES LES PLUS EFFICACES (éliminations)</h4><div id="stWeap"></div></div></div><div class="card2" style="margin-top:12px"><h4>DERNIÈRES PARTIES</h4><table class="hist" id="stHist"></table><div style="text-align:right;margin-top:8px"><button class="chip" id="stReset">Réinitialiser les stats</button></div></div></div>
    <div class="tp" id="tab-custom">
 <div class="custgrid">
@@ -2478,20 +2478,20 @@ DECOR.asile=function(th){
    (couleur + carte d'émission pour les skins lumineux), projection
    continue sur toute l'arme, aperçus réels
    ===================================================================== */
-const RARITY=[{id:'common',n:'Commun',c:'#9aa6b8'},{id:'rare',n:'Rare',c:'#4aa3ff'},{id:'epic',n:'Épique',c:'#b36bff'},{id:'legend',n:'Légendaire',c:'#ffb938'}];
+const RARITY=[{id:'common',n:'Commun',c:'#9aa6b8'},{id:'rare',n:'Rare',c:'#4aa3ff'},{id:'epic',n:'Épique',c:'#b36bff'},{id:'legend',n:'Légendaire',c:'#ffb938'},{id:'excl',n:'Exclusif',c:'#ff3df0'}];
 const FIN={matte:{m:.5,r:.55},gloss:{m:.65,r:.24},chrome:{m:1,r:.12},anod:{m:.9,r:.3},pearl:{m:.85,r:.16},paint:{m:.3,r:.42}};
-// n : nom ; q : rareté ; tex : peinture ; fin : finition ; a : couleur des pièces secondaires ; glow : carte d'émission (couleur ge)
+// n : nom ; q : rareté (4 = exclusif payant, jamais dans les caisses) ; kreq : éliminations avec l'arme pour débloquer ; tex : peinture ; fin : finition ; a : couleur des pièces secondaires ; glow : carte d'émission (couleur ge)
 const SKINS=[
  {n:'Défaut',def:1,q:0},
- {n:'Noir mat',b:'#202327',a:'#0c0d0f',fin:'matte',q:0},
+ {n:'Noir mat',b:'#202327',a:'#0c0d0f',fin:'matte',q:0,kreq:25},
  {n:'Or royal',tex:'goldleaf',a:'#6a4a10',fin:'chrome',q:3},
  {n:'Rouge sang',tex:'bloodfade',a:'#1a0406',fin:'gloss',q:1},
  {n:'Bleu néon',tex:'neonlines',a:'#050c22',fin:'gloss',glow:1,ge:'#35d6ff',ei:1.1,q:2},
- {n:'Arctique',tex:'frost',a:'#7f93a8',fin:'gloss',q:0},
+ {n:'Arctique',tex:'frost',a:'#7f93a8',fin:'gloss',q:0,kreq:50},
  {n:'Violet nacré',tex:'pearl',a:'#2b1450',fin:'pearl',q:2},
  {n:'Cœurs',tex:'hearts',a:'#b0306a',fin:'paint',q:1},
- {n:'Camo forêt',tex:'camoForest',a:'#1f2810',fin:'paint',q:0},
- {n:'Camo désert',tex:'camoDesert',a:'#5e4726',fin:'paint',q:0},
+ {n:'Camo forêt',tex:'camoForest',a:'#1f2810',fin:'paint',q:0,kreq:100},
+ {n:'Camo désert',tex:'camoDesert',a:'#5e4726',fin:'paint',q:0,kreq:150},
  {n:'Carbone',tex:'hex',a:'#0b0b0d',fin:'gloss',q:1},
  {n:'Vapeur',tex:'brass',a:'#3a1c0c',fin:'anod',q:1},
  {n:'Dragon',tex:'flame',a:'#1a0606',fin:'gloss',q:2},
@@ -2504,7 +2504,7 @@ const SKINS=[
  {n:'Bois précieux',tex:'burl',a:'#2a1608',fin:'gloss',q:1},
  {n:'Coucher de soleil',tex:'sunset',a:'#3a1630',fin:'gloss',q:1},
  {n:'Course',tex:'racing',a:'#160608',fin:'gloss',q:1},
- {n:'Danger',tex:'hazard',a:'#1a1a1a',fin:'paint',q:0},
+ {n:'Danger',tex:'hazard',a:'#1a1a1a',fin:'paint',q:0,kreq:250},
  {n:'Léopard',tex:'leopard',a:'#2a1606',fin:'paint',q:1},
  {n:'Écailles',tex:'scales',a:'#0a2a1a',fin:'anod',q:2},
  {n:'Cristal',tex:'ice',a:'#244a66',fin:'chrome',q:2},
@@ -2514,10 +2514,10 @@ const SKINS=[
  {n:'Sakura',tex:'sakura',a:'#8a3a58',fin:'paint',q:2},
  {n:'Bonbon',tex:'candy',a:'#ff8fb8',fin:'paint',q:1},
  {n:'Océan',tex:'ocean',a:'#06284a',fin:'gloss',q:1},
- {n:'Étoilé',tex:'stars',a:'#0a1233',fin:'paint',q:0},
+ {n:'Étoilé',tex:'stars',a:'#0a1233',fin:'paint',q:0,kreq:350},
  {n:'Hologramme',tex:'holo',a:'#2a2a3a',fin:'chrome',q:3},
- {n:'Digital',tex:'digital',a:'#1c2420',fin:'paint',q:0},
- {n:'Damier',tex:'checker',a:'#161616',fin:'gloss',q:0},
+ {n:'Digital',tex:'digital',a:'#1c2420',fin:'paint',q:0,kreq:500},
+ {n:'Damier',tex:'checker',a:'#161616',fin:'gloss',q:0,kreq:750},
  {n:'Nuages',tex:'clouds',a:'#3a6fb0',fin:'paint',q:1},
  {n:'Filigrane royal',tex:'royal',a:'#07102a',fin:'chrome',q:3},
  {n:'Arcade',tex:'pixel8',a:'#0a0612',fin:'gloss',glow:1,ge:'#ffffff',ei:.7,q:2}
@@ -2651,6 +2651,83 @@ function applyPlanarUV(g,scale){
  });
 }
 /* =====================================================================
+   CAMOS ANIMÉS (rareté « Exclusif », réservés aux joueurs qui paient)
+   Chaque camo a une texture 128 px partagée, redessinée ~30 fois par
+   seconde tant qu'une arme l'utilise. Les motifs bouclent (tuiles sans
+   couture) pour la projection continue sur l'arme.
+   Sur le web il n'y a pas de paiement : ils sont visibles avec un
+   cadenas « exclusif ». Sur Roblox ils s'achètent en Robux
+   (roblox/ReplicatedStorage/Shared/ConfigExtra.lua, X.EXCLUSIVES).
+   ===================================================================== */
+const ANIM_CAMOS=[
+ {id:'plasma',n:'Plasma',a:'#12061f',fin:'gloss',ei:.55,rbx:299},
+ {id:'magma',n:'Magma vivant',a:'#140604',fin:'matte',ei:.9,rbx:349},
+ {id:'code',n:'Code vivant',a:'#021008',fin:'gloss',ei:.8,rbx:249},
+ {id:'nebula',n:'Nébuleuse',a:'#07051a',fin:'gloss',ei:.6,rbx:399},
+ {id:'prism',n:'Prisme',a:'#2a2a3a',fin:'chrome',ei:.35,rbx:449},
+ {id:'storm',n:'Tempête électrique',a:'#05080f',fin:'anod',ei:1,rbx:349}
+];
+for(const c of ANIM_CAMOS)SKINS.push({n:c.n,tex:'anim_'+c.id,anim:c.id,a:c.a,fin:c.fin,glow:1,ge:'#ffffff',ei:c.ei,q:4,rbx:c.rbx});
+
+const ACAMO={live:{},buf:null,last:0};
+// petite grille 64×64 calculée pixel par pixel puis agrandie (lissée) : économique et sans couture
+function acPix(ctx,w,h,fn,t){
+ if(!ACAMO.buf){const b=document.createElement('canvas');b.width=b.height=64;ACAMO.buf={cv:b,ctx:b.getContext('2d'),img:b.getContext('2d').createImageData(64,64)};}
+ const B=ACAMO.buf,d=B.img.data,o=[0,0,0];
+ for(let y=0;y<64;y++)for(let x=0;x<64;x++){fn(x/64,y/64,t,o);const i=(y*64+x)*4;d[i]=o[0];d[i+1]=o[1];d[i+2]=o[2];d[i+3]=255;}
+ B.ctx.putImageData(B.img,0,0);ctx.imageSmoothingEnabled=true;ctx.drawImage(B.cv,0,0,w,h);
+}
+const P2=Math.PI*2;
+function hsl2rgb(h,s,l,o){h=((h%1)+1)%1;const a=s*Math.min(l,1-l),f=n=>{const k=(n+h*12)%12;return 255*(l-a*Math.max(-1,Math.min(k-3,9-k,1)));};o[0]=f(0);o[1]=f(8);o[2]=f(4);return o;}
+const ANIM_DRAW={
+ plasma:(c,w,h,t)=>acPix(c,w,h,(u,v,t,o)=>{
+  const s=Math.sin(P2*u+t)+Math.sin(P2*2*v-t*1.3)+Math.sin(P2*(u+v)+t*.7)+Math.sin(P2*(u-v)*2+t*.4);
+  hsl2rgb(.72+s*.09+t*.03,.95,.32+.18*Math.sin(s*1.7+t),o);},t),
+ magma:(c,w,h,t)=>acPix(c,w,h,(u,v,t,o)=>{
+  const f=Math.abs(Math.sin(P2*2*u+Math.sin(P2*v+t*.6)*1.6+Math.sin(P2*2*v-t*.35)*.8));
+  const g=Math.abs(Math.sin(P2*3*v+Math.sin(P2*2*u-t*.5)*1.2));
+  const crack=Math.max(0,1-Math.min(f,g)*5.5),pulse=.75+.25*Math.sin(t*2.2+u*P2);
+  const k=crack*pulse;o[0]=40+215*k;o[1]=14+170*k*k;o[2]=10+60*k*k*k;},t),
+ nebula:(c,w,h,t)=>{acPix(c,w,h,(u,v,t,o)=>{
+   const s=Math.sin(P2*u+Math.sin(P2*v+t*.25)*2)+Math.sin(P2*2*v+Math.cos(P2*u-t*.2)*1.5);
+   const k=Math.max(0,s*.35+.25);hsl2rgb(.64+s*.1+Math.sin(t*.15)*.06,.85,.05+k*.42,o);},t);
+  const r=mkRng(77);for(let i=0;i<70;i++){const x=r(0,w),y=r(0,h),ph=r(0,P2),sp=r(1.5,4),a=.35+.65*Math.max(0,Math.sin(t*sp+ph));c.fillStyle='rgba(255,255,255,'+a.toFixed(2)+')';const s=r(.6,1.8)*w/128;c.fillRect(x,y,s,s);}},
+ prism:(c,w,h,t)=>acPix(c,w,h,(u,v,t,o)=>{
+  const d=u+v,band=.5+.5*Math.sin(P2*6*d-t*4);
+  hsl2rgb(d*.5+t*.12,.9,.5+band*.22,o);},t),
+ code:(c,w,h,t)=>{
+  c.fillStyle='#021209';c.fillRect(0,0,w,h);const S=w/128,r=mkRng(31),ch='01アイウエオカキクケコ<>$#';
+  c.font='bold '+Math.round(11*S)+'px monospace';c.textAlign='center';c.textBaseline='top';
+  for(let x=4;x<128;x+=8){const sp=r(18,46),len=Math.floor(r(6,14)),y0=(t*sp+r(0,128))%128;
+   for(let k=0;k<len;k++){const y=((y0-k*10)%128+128)%128,a=1-k/len;c.fillStyle=k===0?'#e6fff0':'rgba(60,230,120,'+(a*.9).toFixed(2)+')';
+    const g=ch[(Math.floor(t*6+x*.37+k*1.7)>>>0)%ch.length];c.fillText(g,x*S,y*S);if(y>118)c.fillText(g,x*S,(y-128)*S);}}},
+ storm:(c,w,h,t)=>{
+  const S=w/128;c.fillStyle='#0a0f1a';c.fillRect(0,0,w,h);
+  c.strokeStyle='rgba(60,90,140,.35)';c.lineWidth=S;for(let y=0;y<128;y+=8){c.beginPath();for(let x=0;x<=128;x+=8){const yy=y+((x/8)&1?4:0);x?c.lineTo(x*S,yy*S):c.moveTo(0,yy*S);}c.stroke();}
+  const r=mkRng(1000+Math.floor(t*7));c.lineCap='round';
+  for(let b=0;b<4;b++){let x=r(0,128),y=r(0,128);const pts=[[x,y]];for(let k=0;k<7;k++){x+=r(-18,18);y+=r(6,18);pts.push([x,y]);}
+   for(const [ox,oy] of [[0,0],[-128,0],[128,0],[0,-128],[0,128]]){
+    c.beginPath();pts.forEach((p,i)=>i?c.lineTo((p[0]+ox)*S,(p[1]+oy)*S):c.moveTo((p[0]+ox)*S,(p[1]+oy)*S));
+    c.strokeStyle='rgba(60,170,255,.35)';c.lineWidth=5*S;c.stroke();c.strokeStyle='#c8f2ff';c.lineWidth=1.4*S;c.stroke();}}
+  const fl=.12+.12*Math.max(0,Math.sin(t*9));c.fillStyle='rgba(120,200,255,'+fl.toFixed(2)+')';c.fillRect(0,0,w,h);}
+};
+// aperçu fixe (pastilles du menu, icônes) : première image du motif
+for(const c of ANIM_CAMOS)PAINT['anim_'+c.id]=(ctx,w,h)=>ANIM_DRAW[c.id](ctx,w,h,1.3);
+// texture vivante partagée par toutes les armes qui portent ce camo
+function animCamoTex(id){
+ if(ACAMO.live[id])return ACAMO.live[id].tex;
+ const cv=document.createElement('canvas');cv.width=cv.height=128;const ctx=cv.getContext('2d');ANIM_DRAW[id](ctx,128,128,0);
+ const tex=new THREE.CanvasTexture(cv);tex.encoding=THREE.sRGBEncoding;tex.wrapS=tex.wrapT=THREE.RepeatWrapping;tex.anisotropy=MAXANI;
+ ACAMO.live[id]={tex,ctx};return tex;
+}
+(function acLoop(){
+ const f=now=>{requestAnimationFrame(f);
+  if(document.hidden||now-ACAMO.last<33)return;ACAMO.last=now;const t=now/1000;
+  for(const id in ACAMO.live){const L=ACAMO.live[id];try{ANIM_DRAW[id](L.ctx,128,128,t);L.tex.needsUpdate=true;}catch(e){}}};
+ requestAnimationFrame(f);
+})();
+(function(){const s=document.createElement('style');s.textContent='@keyframes animSw{to{filter:hue-rotate(360deg)}}.animSw{animation:animSw 3s linear infinite}';document.head.appendChild(s);})();
+/* =====================================================================
    MODÈLES : armes détaillées (silhouettes extrudées, matériaux PBR),
    skins, soldats animés (squelette + IK des bras), viewmodel
    ===================================================================== */
@@ -2696,11 +2773,12 @@ function gunMats(sk,w){
  M.glass=new THREE.MeshStandardMaterial({color:C(0x3a6fb0),roughness:.05,metalness:.2,emissive:C(0x1a3a66),emissiveIntensity:.5,transparent:true,opacity:.75});
  M.red=new THREE.MeshBasicMaterial({color:0xff2a2a,toneMapped:false});
  if(sk&&!dflt&&sk.tex){
-  const fin=FIN[sk.fin||'gloss'],tc=skinTex(sk.tex,false).clone();tc.needsUpdate=true;
+  // camo animé : texture vivante partagée (pas de copie, sinon elle ne bougerait plus)
+  const fin=FIN[sk.fin||'gloss'],tc=sk.anim?animCamoTex(sk.anim):skinTex(sk.tex,false).clone();tc.needsUpdate=true;
   const o={map:tc,roughness:fin.r,metalness:fin.m};
-  if(sk.glow){const tg=skinTex(sk.tex,true).clone();tg.needsUpdate=true;o.emissiveMap=tg;o.emissive=C(sk.ge||'#ffffff');o.emissiveIntensity=sk.ei||1;}
+  if(sk.glow){const tg=sk.anim?tc:skinTex(sk.tex,true).clone();tg.needsUpdate=true;o.emissiveMap=tg;o.emissive=C(sk.ge||'#ffffff');o.emissiveIntensity=sk.ei||1;}
   M.body=new THREE.MeshStandardMaterial(o);M.body.userData.skinned=true;
-  {const ta=tc.clone();ta.needsUpdate=true;M.acc=new THREE.MeshStandardMaterial({map:ta,color:C(sk.tint||'#8c8c8c'),roughness:Math.min(1,fin.r+.1),metalness:fin.m});M.acc.userData.skinned=true;}M.wood=M.body;
+  {const ta=sk.anim?tc:tc.clone();ta.needsUpdate=true;M.acc=new THREE.MeshStandardMaterial({map:ta,color:C(sk.tint||'#8c8c8c'),roughness:Math.min(1,fin.r+.1),metalness:fin.m});M.acc.userData.skinned=true;}M.wood=M.body;
  }
  else if(dflt){const base=new THREE.Color(w.col||0x3a3d44);M.body=new THREE.MeshStandardMaterial({color:base.clone().convertSRGBToLinear(),roughness:.38,metalness:.82});M.acc=new THREE.MeshStandardMaterial({color:base.clone().multiplyScalar(.5).convertSRGBToLinear(),roughness:.45,metalness:.8});
   const wt=woodTex().clone();wt.needsUpdate=true;wt.repeat.set(3,3);M.wood=new THREE.MeshStandardMaterial({map:wt,roughness:.55,metalness:0});}
@@ -4500,7 +4578,8 @@ function killEnt(v,att,w,hs){
  rpKill(att,v,w,hs);
  v.alive=false;v.hp=0;v.deaths++;v.scoped=false;v.prog=0;v.streak=0;v.shield=0;v.ads=0;
  v.dieDir=Math.floor(Math.random()*4);
- if(att!==v){att.kills++;att.streak++;if(hs)att.hsKills++;att.bestStreak=Math.max(att.bestStreak||0,att.streak);
+ if(att!==v&&att.team!==v.team){att.kills++;att.streak++; // un allié tué (baril, mine) ne compte pas comme une élimination
+ if(hs)att.hsKills++;att.bestStreak=Math.max(att.bestStreak||0,att.streak);
   if(att.isPlayer){const wk=Object.keys(W).find(k=>W[k]===w);if(wk)MS.wkills[wk]=(MS.wkills[wk]||0)+1;metaEvent('kills');if(hs)metaEvent('hs');if(w===NADEW)metaEvent('nade');if(w.melee)metaEvent('knife');}}
  if(v.rig)v.rig.dieT=-1;
  if(v.rig&&v.isPlayer)v.rig.root.visible=true;
@@ -4510,7 +4589,7 @@ function killEnt(v,att,w,hs){
  if(att.isPlayer&&att!==v){uiKillMsg(v,hs,att.streak);sfx('kill');}
  if(v.isPlayer){G.spec=null;uiDeath(att);}
  if(G.mode==='bomb'){
-  if(att!==v)att.money=Math.min(16000,att.money+(w.kill||300));
+  if(att!==v&&att.team!==v.team)att.money=Math.min(16000,att.money+(w.kill||300));
   extrasKill(att,w);if(cfg.gore&&!v.zombie)stain(v.x,groundH(v.x,v.z)+.03,v.z,6);
   if(G.state==='live')checkEnd();
  }else{
@@ -4678,7 +4757,7 @@ function updatePickups(dt,t){
    let used=false;
    if(p.type==='shield'&&e.shield<SHIELDMAX){e.shield=Math.min(SHIELDMAX,e.shield+25);used=true;}
    else if(p.type==='health'&&e.hp<100){e.hp=Math.min(100,e.hp+35);used=true;}
-   else if(p.type==='ammo'){for(const k of ['p','s']){const wi=e.wp[k];if(wi){const w=W[wi.k];wi.mag=w.mag;wi.res=w.res;}}used=true;}
+   else if(p.type==='ammo'){for(const k of ['p','s']){const wi=e.wp[k];if(wi){wi.mag=magMax(e,wi.k);wi.res=Math.max(wi.res,W[wi.k].res);}}used=true;}
    else if(p.type==='armor'&&e.armor<100){e.armor=100;used=true;}
    else if(p.type==='weapon'){const slot=slotOf(p.key);if(!e.wp[slot]||e.wp[slot].k!==p.key){giveWeapon(e,p.key);used=true;}}
    if(used){
@@ -4810,8 +4889,9 @@ function explode(){
  netEvent({t:'boom',x:BM.x,y:BM.y,z:BM.z});
  BM.state='exploded';if(BM.mesh)BM.mesh.visible=false;
  sfx('boom',BM.x,BM.z,1.6);fxExplosion(BM.x,BM.y+.3,BM.z,2.2);G.shake=1;uiFlashBlind(.4);
+ // dégâts AVANT la fin de manche : un joueur tué par l'explosion perd son équipement (e.keep)
+ for(const v of ents){if(!v.alive)continue;const d=Math.hypot(v.x-BM.x,v.z-BM.z);if(d<16){v.hp-=Math.round(240*(1-d/16));if(v.hp<=0){v.alive=false;v.hp=0;v.deaths++;v.scoped=false;v.ads=0;v.dieDir=Math.floor(Math.random()*4);if(v.rig){v.rig.dieT=-1;if(v.isPlayer)v.rig.root.visible=true;}if(v.isPlayer){G.spec=null;uiDeath(null);}}}}
  endRound(0,'La bombe a explosé');
- for(const v of ents){if(!v.alive)continue;const d=Math.hypot(v.x-BM.x,v.z-BM.z);if(d<16){v.hp-=Math.round(240*(1-d/16));if(v.hp<=0){v.alive=false;v.hp=0;v.deaths++;v.scoped=false;v.dieDir=Math.floor(Math.random()*4);if(v.rig)v.rig.dieT=-1;}}}
 }
 function handleUse(e,dt,holding){
  if(NET.role==='client'&&e.isPlayer&&G.netClient){e.useMsg='';return;}
@@ -4842,7 +4922,7 @@ function resetRound(){
     else if(ld.s&&W[ld.s].price<=300)giveWeapon(e,ld.s);
    }
   }
-  for(const s of ['p','s']){const wi=e.wp[s];if(wi){const w=W[wi.k];wi.mag=w.mag;wi.res=w.res;}}
+  for(const s of ['p','s']){const wi=e.wp[s];if(wi){wi.mag=magMax(e,wi.k);wi.res=Math.max(wi.res,W[wi.k].res);}}
   if(!cfg.eco)e.money=16000;
   const sp=(e.team===0?ts:cts).pop()||[20,20];
   e.x=cc(sp[0]);e.z=cc(sp[1]);e.y=groundH(e.x,e.z);e.vy=0;e.onGround=true;e.alive=true;e.hp=100;e.reload=0;e.switchT=0;e.scoped=false;e.vx=e.vz=0;e.crouch=false;e.eyeH=1.6;e.speed=0;e.mv=null;e.slide=null;e.mantle=null;
@@ -4909,7 +4989,7 @@ function updatePlayer(dt){
  const w=curW(p);
  const dr=(G.t-p.lastShot<.2)?3.5:9;
  p.punchP-=p.punchP*Math.min(1,dt*dr);p.punchY-=p.punchY*Math.min(1,dt*dr);
- if(buyOpen){p.speed=0;return;}
+ if(buyOpen||G.paused){p.speed=0;return;}
  let fx=0,fz=0;
  if(K('forward'))fz+=1;if(K('back'))fz-=1;if(K('right'))fx+=1;if(K('left'))fx-=1;
  const L=Math.hypot(fx,fz)||1;fx/=L;fz/=L;
@@ -5586,7 +5666,7 @@ function adaptBots(dt){
 const PKEY="sa2_profile";
 const rcol=q=>RARITY[q].c;
 function newProfile(){
- return {v:2,xp:0,coins:500,lastLogin:'',streak:0,inv:{skins:{},dances:['wave','clap'],outfits:[]},dance:'wave',outfit:0,boxes:{std:2,prem:0},pity:{epic:0,legend:0},opened:0,
+ return {v:2,xp:0,coins:250,lastLogin:'',streak:0,inv:{skins:{},dances:['wave','clap'],outfits:[]},dance:'wave',outfit:0,boxes:{std:1,prem:0},pity:{epic:0,legend:0},opened:0,
   stats:{matches:0,wins:0,kills:0,deaths:0,hs:0,dmg:0,shots:0,hits:0,secs:0,bestStreak:0,plants:0,defuses:0,byMode:{},byMap:{},byWeapon:{}},
   history:[],missions:{date:'',list:[]}};
 }
@@ -5598,9 +5678,11 @@ function loadProfile(){
 let PROF=loadProfile();
 const saveProf=()=>{try{localStorage.setItem(PKEY,JSON.stringify(PROF));}catch(e){}};
 /* ---------- niveaux ---------- */
-const xpNeed=l=>100+l*55;
-function levelInfo(){let l=1,x=PROF.xp;while(x>=xpNeed(l)){x-=xpNeed(l);l++;}return {level:l,cur:x,need:xpNeed(l)};}
-function levelReward(l){if(l%5===0)return {box:'prem',coins:200};if(l%3===0)return {box:'std',coins:100};return {coins:100+l*10};}
+/* économie réaliste : ~4 parties pour le niveau 3, ~28 pour le niveau 10, ~260 pour le niveau 30 */
+const xpNeed=l=>300+l*80+l*l*2;
+let _liC=null;
+function levelInfo(){if(_liC&&_liC.xp===PROF.xp)return Object.assign({},_liC.r);let l=1,x=PROF.xp;while(x>=xpNeed(l)){x-=xpNeed(l);l++;}const r={level:l,cur:x,need:xpNeed(l)};_liC={xp:PROF.xp,r};return Object.assign({},r);}
+function levelReward(l){if(l%25===0)return {box:'prem',coins:250};if(l%10===0)return {box:'std',coins:150};if(l%5===0)return {coins:120};return {coins:30+l*3};}
 function applyReward(r){
  if(r.coins)PROF.coins+=r.coins;
  if(r.box)PROF.boxes[r.box]=(PROF.boxes[r.box]||0)+(r.n||1);
@@ -5613,7 +5695,7 @@ function addXP(n){
 }
 function rewardText(r){const a=[];if(r.coins)a.push('+'+r.coins+' pièces');if(r.box)a.push('1 '+BOXES[r.box].n);if(r.dance)a.push('Danse '+DANCES.find(d=>d.id===r.dance).n);return a.join(' • ');}
 /* ---------- récompense quotidienne ---------- */
-const DAILY=[{coins:200},{box:'std'},{coins:350},{dance:'disco',coins:150},{coins:500},{box:'prem'},{box:'prem',coins:1000}];
+const DAILY=[{coins:40},{coins:60},{coins:80},{dance:'disco',coins:40},{coins:120},{coins:150},{box:'std',coins:200}];
 const todayStr=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
 function dailyStatus(){
  const t=todayStr();
@@ -5625,10 +5707,10 @@ function dailyStatus(){
 function claimDaily(){const st=dailyStatus();if(!st.can)return null;PROF.streak=st.next;PROF.lastLogin=todayStr();const r=DAILY[st.day];applyReward(r);saveProf();return r;}
 /* ---------- missions du jour ---------- */
 const MPOOL=[
- {id:'kills',n:'Élimine {t} adversaires',t:15,coins:150,xp:60},{id:'hs',n:'Fais {t} headshots',t:5,coins:120,xp:50},
- {id:'win',n:'Gagne {t} partie',t:1,coins:200,xp:80},{id:'matches',n:'Joue {t} parties',t:3,coins:180,xp:60},
- {id:'plant',n:'Pose ou désamorce la bombe {t} fois',t:2,coins:150,xp:60},{id:'nade',n:'Élimine {t} adversaires avec une grenade',t:2,coins:200,xp:70},
- {id:'knife',n:'Élimine {t} adversaire au couteau',t:1,coins:250,xp:90},{id:'dmg',n:'Inflige {t} dégâts',t:1500,coins:150,xp:60}
+ {id:'kills',n:'Élimine {t} adversaires',t:15,coins:50,xp:60},{id:'hs',n:'Fais {t} headshots',t:5,coins:40,xp:50},
+ {id:'win',n:'Gagne {t} partie',t:1,coins:65,xp:80},{id:'matches',n:'Joue {t} parties',t:3,coins:60,xp:60},
+ {id:'plant',n:'Pose ou désamorce la bombe {t} fois',t:2,coins:50,xp:60},{id:'nade',n:'Élimine {t} adversaires avec une grenade',t:2,coins:65,xp:70},
+ {id:'knife',n:'Élimine {t} adversaire au couteau',t:1,coins:85,xp:90},{id:'dmg',n:'Inflige {t} dégâts',t:1500,coins:50,xp:60}
 ];
 const missionDef=id=>MPOOL.find(m=>m.id===id);
 function ensureMissions(){
@@ -5642,28 +5724,33 @@ function metaEvent(id,n){
 }
 function claimMission(i){const m=PROF.missions.list[i];if(!m||!m.done||m.claimed)return null;m.claimed=true;const d=missionDef(m.id);applyReward({coins:d.coins});const ups=addXP(d.xp);saveProf();return {d,ups};}
 /* ---------- caisses ---------- */
-const BOXES={std:{n:'Caisse Standard',price:500,w:[62,27,9,2],c:'#4aa3ff'},prem:{n:'Caisse Premium',price:1500,w:[20,45,27,8],c:'#ffb938'}};
-const DUPV=[0,120,350,900];
+const BOXES={std:{n:'Caisse Standard',price:1200,w:[70,24,5,1],c:'#4aa3ff'},prem:{n:'Caisse Premium',price:3500,w:[30,45,20,5],c:'#ffb938'}};
+const DUPV=[0,40,120,350];
 let LOOT=null;
 function lootPool(){
  if(LOOT)return LOOT;const items=[];
- for(const k in W)if(!W[k].wonder)for(let i=1;i<SKINS.length;i++){const q=SKINS[i].q;if(q>0)items.push({t:'skin',w:k,s:i,q});}
+ for(const k in W)if(!W[k].wonder)for(let i=1;i<SKINS.length;i++){const q=SKINS[i].q;if(q>0&&q<4)items.push({t:'skin',w:k,s:i,q});}
  for(const d of DANCES){if(d.q>0)items.push({t:'dance',id:d.id,q:d.q});}
  for(let i=1;i<OUTFITS.length;i++){if(OUTFITS[i].q>0)items.push({t:'outfit',o:i,q:OUTFITS[i].q});}
  return LOOT=items;
 }
-function ownsSkin(k,i){return i===0||SKINS[i].q===0||(PROF.inv.skins[k]||[]).includes(i);}
+function ownsSkin(k,i){const s=SKINS[i];if(!s)return false;if(i===0||(PROF.inv.skins[k]||[]).includes(i))return true;
+ if(s.kreq)return (PROF.wk&&PROF.wk[k]||0)>=s.kreq; // camos de base : défis d'éliminations par arme
+ return s.q===0;}
+// texte affiché quand un skin est verrouillé
+function skinLockTxt(k,i){const s=SKINS[i];if(s.q===4)return 'Camo animé exclusif : réservé aux joueurs qui l\'achètent ('+s.rbx+' R$ sur la version Roblox)';
+ if(s.kreq)return 'Camo verrouillé : '+s.kreq+' éliminations avec cette arme ('+(PROF.wk&&PROF.wk[k]||0)+'/'+s.kreq+')';return 'Skin verrouillé : trouve-le dans les caisses !';}
 function ownsOutfit(i){return i===0||OUTFITS[i].q===0||(PROF.inv.outfits||[]).includes(i);}
 function ownsItem(it){return it.t==='skin'?ownsSkin(it.w,it.s):it.t==='outfit'?ownsOutfit(it.o):PROF.inv.dances.includes(it.id);}
 function itemName(it){return it.t==='skin'?W[it.w].n+' — '+SKINS[it.s].n:it.t==='outfit'?'Tenue « '+OUTFITS[it.o].n+' »':'Danse « '+DANCES.find(d=>d.id===it.id).n+' »';}
 function rollBox(type){
  const b=BOXES[type];let q;
- if(PROF.pity.legend>=39)q=3;
+ if(PROF.pity.legend>=59)q=3;
  else if(PROF.pity.epic>=9){const a=b.w[2],c=b.w[3];q=Math.random()*(a+c)<c?3:2;}
  else{const tot=b.w.reduce((s,x)=>s+x,0);let r=Math.random()*tot;q=0;for(let i=0;i<4;i++){r-=b.w[i];if(r<=0){q=i;break;}}}
  PROF.pity.epic=q>=2?0:PROF.pity.epic+1;PROF.pity.legend=q===3?0:PROF.pity.legend+1;
  let item,dup=false,coins=0;
- if(q===0){item={t:'coins',n:Math.round(rand(80,180)),q:0};coins=item.n;PROF.coins+=coins;}
+ if(q===0){item={t:'coins',n:Math.round(rand(40,90)),q:0};coins=item.n;PROF.coins+=coins;}
  else{
   const pool=lootPool().filter(i=>i.q===q);item=pick(pool);
   if(ownsItem(item)){dup=true;coins=DUPV[q];PROF.coins+=coins;}
@@ -5687,7 +5774,7 @@ function resetMatchStats(){MS.shots=0;MS.hits=0;MS.wkills={};MS.plants=0;MS.defu
 function commitMatch(win){
  const s=PROF.stats,secs=Math.round((performance.now()-MS.start)/1000);
  const xp=Math.round(40+P.kills*10+P.hsKills*5+(win?120:0)+MS.plants*25+MS.defuses*25);
- const coinsGain=Math.round(xp*.45);
+ const coinsGain=Math.round(xp*.15);
  s.matches++;if(win)s.wins++;s.kills+=P.kills;s.deaths+=P.deaths;s.hs+=P.hsKills;s.dmg+=P.dmg;s.shots+=MS.shots;s.hits+=MS.hits;s.secs+=secs;
  s.bestStreak=Math.max(s.bestStreak,P.bestStreak||0);s.plants+=MS.plants;s.defuses+=MS.defuses;
  const m=(s.byMode[G.mode]||(s.byMode[G.mode]={m:0,w:0,k:0,d:0}));m.m++;if(win)m.w++;m.k+=P.kills;m.d+=P.deaths;
@@ -5955,11 +6042,16 @@ function attAllowed(k){
  for(const k in cfg.att){const a=cfg.att[k];if(!a||typeof a!=='object')continue;
   for(const o in conv)if(a[o]===true||a[o]===false){if(a[o])a[conv[o][0]]=conv[o][1];delete a[o];}}
 })();
+/* déblocage réaliste : un accessoire demande un niveau de joueur ET un nombre d'éliminations avec CETTE arme */
+const ATT_REQ={1:[3,15],2:[6,40],3:[9,80],4:[12,130],5:[15,200],6:[18,280],8:[24,450]};
+function attReq(a){const d=ATTS[a];return ATT_REQ[d.lv]||[d.lv*3,d.lv*55];}
+function attOpen(k,a){const r=attReq(a);return myLv()>=r[0]&&(PROF.wk[k]||0)>=r[1];}
+function attLockTxt(k,a){const r=attReq(a),n=PROF.wk[k]||0,o=[];if(myLv()<r[0])o.push('niveau '+r[0]);if(n<r[1])o.push(r[1]+' éliminations avec cette arme ('+n+'/'+r[1]+')');return o.length?'Requis : '+o.join(' + '):'';}
 function attSel(e,k){return e&&e.isPlayer&&cfg.att[k]?cfg.att[k]:{};}
 // liste des accessoires actifs (respecte le niveau et la catégorie)
 function attList(k,sel){
- const ok=attAllowed(k),lv=myLv(),out=[];
- for(const s in sel){const a=sel[s];if(a&&ATTS[a]&&ATTS[a].s===s&&ok[s]&&ok[s].includes(a)&&lv>=ATTS[a].lv)out.push(a);}
+ const ok=attAllowed(k),out=[];
+ for(const s in sel){const a=sel[s];if(a&&ATTS[a]&&ATTS[a].s===s&&ok[s]&&ok[s].includes(a)&&attOpen(k,a))out.push(a);}
  return out;
 }
 const ATT_NEUTRAL={dmg:1,rec:1,recH:1,adsSpr:1,hip:1,mob:1,ads:1,rng:1,rel:1,mag:1,snd:1,zoom:0,sil:0,noFlash:0};
@@ -6184,7 +6276,7 @@ function gsCss(){
 }
 function gsDraw(){
  const k=pvKey,host=$('gsPanel');if(!host)return;
- const ok=attAllowed(k),sel=cfg.att[k]||{},lv=myLv();
+ const ok=attAllowed(k),sel=cfg.att[k]||{};
  if(!Object.keys(ok).length){host.innerHTML='<h4>ARMURIER</h4><small style="color:#8fa3c0">Pas d\'accessoires pour cette arme.</small>';return;}
  if(!ok[gsSlot])gsSlot=Object.keys(ok)[0];
  const n=gsCount(sel);
@@ -6194,8 +6286,8 @@ function gsDraw(){
  h+='</div><div class="gsOpts">';
  const cur=sel[gsSlot];
  h+='<div class="gsOpt'+(!cur?' on':'')+'" data-a=""><b>'+(gsSlot==='optic'?opticNone(k):'Aucun')+'</b><small>'+(gsSlot==='optic'?'Viseur de base de l\'arme':'Retirer l\'accessoire')+'</small></div>';
- for(const a of ok[gsSlot]||[]){const d=ATTS[a],lock=lv<d.lv;
-  h+='<div class="gsOpt'+(cur===a?' on':'')+(lock?' lock':'')+'" data-a="'+a+'"><b>'+d.n+(lock?' 🔒':'')+'</b><small>'+(lock?'Débloqué au niveau '+d.lv+'. ':'')+d.d+'</small></div>';}
+ for(const a of ok[gsSlot]||[]){const d=ATTS[a],lock=!attOpen(k,a);
+  h+='<div class="gsOpt'+(cur===a?' on':'')+(lock?' lock':'')+'" data-a="'+a+'"><b>'+d.n+(lock?' 🔒':'')+'</b><small>'+(lock?attLockTxt(k,a)+'. ':'')+d.d+'</small></div>';}
  h+='</div>';host.innerHTML=h;
  host.querySelectorAll('.gsSlot').forEach(el=>el.onclick=()=>{if(el.classList.contains('off'))return;sfxUI();gsSlot=el.dataset.s;gsDraw();});
  host.querySelectorAll('.gsOpt').forEach(el=>{
@@ -6204,7 +6296,7 @@ function gsDraw(){
   el.onmouseenter=()=>{if(lock)return;gsPrev=trial();pvSet(k);gsStats();};
   el.onmouseleave=()=>{if(!gsPrev)return;gsPrev=null;pvSet(k);gsStats();};
   el.onclick=()=>{
-   if(lock){sfxUI();uiToast('Débloqué au niveau '+ATTS[a].lv);return;}
+   if(lock){sfxUI();uiToast(attLockTxt(k,a));return;}
    const s=trial();
    if(gsCount(s)>ATT_MAX){sfxUI();uiToast('Maximum '+ATT_MAX+' accessoires : retire-en un d\'abord');return;}
    cfg.att[k]=s;saveCfg();gsPrev=null;sfx('reload',undefined,undefined,.35);pvSet(k);gsDraw();gsStats();
@@ -6335,7 +6427,7 @@ function svCurOpt(k){const o=(cfg.att[k]||{}).optic;return o&&(attAllowed(k).opt
 function svZoomTxt(k,o){if(o)return o.startsWith('sc')?'×'+o.slice(2):o==='acog'?'×2,5':'';return W[k].overlay?'×'+Math.round(W[k].zoom*2):'';}
 function drawSightsTab(){
  const host=$('svWeap');if(!host)return;
- const ws=sightWeapons(),lv=myLv();
+ const ws=sightWeapons();
  if(!svKey||!W[svKey]||!attAllowed(svKey).optic)svKey=(W[pvKey]&&attAllowed(pvKey).optic)?pvKey:(ws.rifle||ws.smg||Object.values(ws)[0])[0];
  // armes
  host.innerHTML='';
@@ -6350,11 +6442,11 @@ function drawSightsTab(){
  const k=svKey,cur=svCurOpt(k),list=$('svList');
  let h='<h5>Viseur — '+W[k].n+'</h5>';
  h+='<div class="svo'+(!cur?' on':'')+'" data-a=""><div><b>'+opticNone(k)+'</b><br><small>Viseur de base de l\'arme</small></div><i>'+svZoomTxt(k,null)+'</i></div>';
- for(const a of attAllowed(k).optic){const d=ATTS[a],lock=lv<d.lv;
-  h+='<div class="svo'+(cur===a?' on':'')+(lock?' lock':'')+'" data-a="'+a+'" title="'+d.d.replace(/"/g,'&quot;')+'"><div><b>'+d.n+(lock?' 🔒':'')+'</b><br><small>'+(lock?'Niveau '+d.lv:d.d.split(':')[0].split('.')[0])+'</small></div><i>'+svZoomTxt(k,a)+'</i></div>';}
+ for(const a of attAllowed(k).optic){const d=ATTS[a],lock=!attOpen(k,a);
+  h+='<div class="svo'+(cur===a?' on':'')+(lock?' lock':'')+'" data-a="'+a+'" title="'+d.d.replace(/"/g,'&quot;')+'"><div><b>'+d.n+(lock?' 🔒':'')+'</b><br><small>'+(lock?attLockTxt(k,a).replace('Requis : ',''):d.d.split(':')[0].split('.')[0])+'</small></div><i>'+svZoomTxt(k,a)+'</i></div>';}
  list.innerHTML=h;
  list.querySelectorAll('.svo').forEach(el=>el.onclick=()=>{
-  const a=el.dataset.a;if(el.classList.contains('lock')){sfxUI();uiToast('Débloqué au niveau '+ATTS[a].lv);return;}
+  const a=el.dataset.a;if(el.classList.contains('lock')){sfxUI();uiToast(attLockTxt(k,a));return;}
   if(!svSetOpt(k,a))return;sfx('reload',undefined,undefined,.3);drawSightsTab();
  });
  // réticule
@@ -6422,7 +6514,7 @@ document.querySelectorAll('.mtab[data-t="sights"]').forEach(t=>t.addEventListene
 /* =====================================================================
    PROGRESSION : passe de combat, classement, succès, événement
    ===================================================================== */
-const SEASON={id:'s1',n:'Saison 1 · Néon',tiers:30,xpPer:180,price:1500};
+const SEASON={id:'s1',n:'Saison 1 · Néon',tiers:30,xpPer:900,price:3500};
 function ensureBP(){
  if(!PROF.bp||PROF.bp.id!==SEASON.id)PROF.bp={id:SEASON.id,xp:0,prem:false,cf:[],cp:[]};
  if(!PROF.rank)PROF.rank={rp:0,best:0};
@@ -6440,9 +6532,9 @@ function grantItem(it){
 function seedPick(arr,seed){let s=seed*9301+49297;s=(s*233280+11)%233280;return arr[Math.floor(s/233280*arr.length)];}
 function bpReward(t,prem){
  if(!prem){
-  if(t===SEASON.tiers)return {box:'prem',coins:300};
-  if(t%5===0)return {box:'std',coins:100};
-  return {coins:60+t*8};
+  if(t===SEASON.tiers)return {box:'prem',coins:200};
+  if(t%10===0)return {box:'std',coins:60};
+  return {coins:20+t*2};
  }
  if(t===1)return {box:'prem'};
  if(t%5===0){
@@ -6450,7 +6542,7 @@ function bpReward(t,prem){
   const pool=lootPool().filter(i=>i.q===q&&(t%10===5?i.t!=='outfit':true));
   return {item:seedPick(pool,t*17+q)};
  }
- return {coins:100+t*10};
+ return {coins:40+t*4};
 }
 function bpRewardText(r){
  if(r.item){const it=r.item;return it.t==='skin'?W[it.w].n+' · '+SKINS[it.s].n:it.t==='outfit'?'Tenue '+OUTFITS[it.o].n:'Danse '+DANCES.find(d=>d.id===it.id).n;}
@@ -7017,7 +7109,7 @@ function zPts(e,n,x,z){
  if(!e||e.zombie)return;n=Math.round(n*(ZB.dbl>G.t?2:1));e.pts=(e.pts||0)+n;
  if(e.isPlayer){const el=zHud();const s=document.createElement('span');s.className='zgain';s.textContent='+'+n;el.pts.appendChild(s);setTimeout(()=>s.remove(),900);}
 }
-function zSpend(e,n){if((e.pts||0)<n){if(e.isPlayer){sfx('deny');uiToast('Pas assez de points ('+n+')');}return false;}e.pts-=n;return true;}
+function zSpend(e,n){if((e.pts||0)<n){zTell(e,'Pas assez de points ('+n+')','deny');return false;}e.pts-=n;return true;}
 
 /* ---------- crochets appelés par le jeu ---------- */
 function zHurtHook(v,att,raw,w){
@@ -7290,11 +7382,14 @@ function wonderFire(e,w,wi){
  if(wi.mag===0&&!e.isPlayer)startReload(e);
 }
 /* ---------- interactions (touche Utiliser) ---------- */
-function zInteract(dt){
+// who = le joueur qui interagit : le joueur local par défaut, ou un joueur distant (appelé par l'hôte)
+function zInteract(dt,who,use){zInteractFor(dt,who||P,use===undefined?K('use'):use);}
+function zInteractFor(dt,P,use){
+ const me=P&&P.isPlayer;
  if(!P||!P.alive){return;}
  if(P.downed){P.useMsg='';return;}
  {const dn=ents.find(e=>!e.zombie&&e!==P&&e.alive&&e.downed&&Math.hypot(e.x-P.x,e.z-P.z)<1.9);
-  if(dn){P.useMsg='[E] Maintiens : réanimer '+dn.name+' ('+Math.round(dn.revP/(P.perks.revive?1.5:3)*100)+' %)';if(K('use'))dn.revP+=dt*(P.perks.revive?2:1);if(dn.revP>=3)zRevive(dn,P);return;}}
+  if(dn){P.useMsg='[E] Maintiens : réanimer '+dn.name+' ('+Math.round(dn.revP/(P.perks.revive?1.5:3)*100)+' %)';if(use)dn.revP+=dt*(P.perks.revive?2:1);if(dn.revP>=3)zRevive(dn,P);return;}}
  let best=null,bd=1e9;
  const fx=-Math.sin(P.yaw),fz=-Math.cos(P.yaw);
  for(const it of ZB.inter){
@@ -7303,13 +7398,13 @@ function zInteract(dt){
   if(d<bd){bd=d;best=it;}
  }
  let msg='';
- const press=K('use')&&!ZB.useLatch;ZB.useLatch=K('use');
+ const press=use&&!P.zUseLatch;P.zUseLatch=use;
  if(best){
-  const kb='['+String(cfg.binds.use||'E').replace('Key','')+']';
+  const kb='['+(me?String(cfg.binds.use||'E').replace('Key',''):'E')+']';
   if(best.kind==='wall'){
    const own=(P.wp.p&&P.wp.p.k===best.k)||(P.wp.s&&P.wp.s.k===best.k),pr=own?Math.round(best.price/2):best.price;
    msg=kb+' '+(own?'Munitions '+W[best.k].n:'Acheter '+W[best.k].n)+' — '+pr+' pts';
-   if(press&&zSpend(P,pr)){if(own){const wi=P.wp[slotOf(best.k)];wi.mag=magMax(P,best.k);wi.res=W[best.k].res*(wi.pap?2:1);uiToast('Munitions rechargées');sfx('pickup');}else{zGive(P,best.k);sfx('buy');}}
+   if(press&&zSpend(P,pr)){if(own){const wi=P.wp[slotOf(best.k)];wi.mag=magMax(P,best.k);wi.res=W[best.k].res*(wi.pap?2:1);zTell(P,'Munitions rechargées','pickup');}else{zGive(P,best.k);zTell(P,'','buy');}}
   }else if(best.kind==='box'){
    const b=ZB.box;
    if(b.state==='idle'){const pr=ZB.fire>G.t?10:BOX_PRICE;msg=kb+' Boîte mystère — '+pr+' pts';if(press)zRollBox(P);}
@@ -7318,7 +7413,7 @@ function zInteract(dt){
   }else if(best.kind==='perk'){
    const p=PERKS[best.key];
    if(P.perks[best.key])msg=p.n+' (déjà bu)';
-   else{msg=kb+' '+p.n+' — '+p.price+' pts · '+p.d;if(press&&zSpend(P,p.price)){P.perks[best.key]=true;sfx('perk');uiBanner(p.n.toUpperCase(),p.d,1800,p.c);zPerkHud();}}
+   else{msg=kb+' '+p.n+' — '+p.price+' pts · '+p.d;if(press&&zSpend(P,p.price)){P.perks[best.key]=true;zTell(P,'','perk',[p.n.toUpperCase(),p.d,1800,p.c]);if(me)zPerkHud();}}
   }else if(best.kind==='door'){
    msg=kb+' Dégager les débris — '+best.door.price+' pts';if(press&&zSpend(P,best.door.price))zOpenDoor(best.door);
   }else if(best.kind==='pap'){
@@ -7326,11 +7421,16 @@ function zInteract(dt){
    if(!wi||P.cur==='k')msg='Forge Arcane : prends une arme en main';
    else if(wi.pap)msg=W[wi.k].n+' est déjà améliorée';
    else{msg=kb+' Forge Arcane : améliorer '+W[wi.k].n+' — '+PAP_PRICE+' pts';
-    if(press&&zSpend(P,PAP_PRICE)){wi.pap=true;wi.mag=magMax(P,wi.k);wi.res=W[wi.k].res*2;sfx('pap',best.x,best.z);uiBanner('ARME AMÉLIORÉE',W[wi.k].n+' ★ — dégâts ×2, chargeur +50 %',2400,'#c77dff');
+    if(press&&zSpend(P,PAP_PRICE)){wi.pap=true;wi.mag=magMax(P,wi.k);wi.res=W[wi.k].res*2;sfx('pap',best.x,best.z);zTell(P,'','',['ARME AMÉLIORÉE',W[wi.k].n+' ★ — dégâts ×2, chargeur +50 %',2400,'#c77dff']);
      if(fxReady)for(let k=0;k<40;k++)fxA.emit(best.x,1.4,best.z,rand(-2,2),rand(1,4),rand(-2,2),rand(.4,.9),.15,.05,.75,.4,1,1,-1,1);}}
   }
  }
  P.useMsg=msg;
+}
+// retour au joueur concerné : directement s'il est local, par le réseau s'il est distant
+function zTell(e,msg,snd,ban){
+ if(e.isPlayer){if(msg)uiToast(msg);if(snd)sfx(snd);if(ban)uiBanner(ban[0],ban[1],ban[2],ban[3]);}
+ else if(e.remote)netEvent({t:'msg',to:e.id,m:msg||'',s:snd||'',b:ban||null});
 }
 /* ---------- HUD ---------- */
 function zHud(){
@@ -7688,7 +7788,7 @@ function rpOverlay(on,prog){
 // en ligne par défaut quand le jeu est publié (GitHub Pages…), « Même PC » quand il est ouvert en local
 const NET_WEB=/^https?:$/.test(location.protocol)&&!/^(localhost|127\.|\[::1\]|0\.0\.0\.0)/.test(location.hostname);
 const NET={role:null,mode:NET_WEB?'online':'local',room:'',myId:'',tr:null,players:new Map(),ev:[],sendT:0,inT:0,myEnt:-1,peerLib:false,status:'',teams:'coop',lastSnap:0,hostId:'host',view:new Map()};
-const NET_OK_MODES={bomb:1,rapid:1,tdm:1,ffa:1,gg:1,koth:1};
+const NET_OK_MODES={bomb:1,rapid:1,tdm:1,ffa:1,gg:1,koth:1,zombies:1};
 const netId=()=>Math.random().toString(36).slice(2,8);
 function netEvent(e){if(NET.role==='host')NET.ev.push(e);}
 /* ---------- transports ---------- */
@@ -7795,12 +7895,14 @@ function netHostStart(){
  let n=0;for(const p of NET.players.values()){p.ent=null;netAttach(p,n++);}
 }
 function netAttach(p,n){
- let team=MODE().team?(NET.teams==='coop'?P.team:((n||0)%2===0?1-P.team:P.team)):null;
- if(team!==null&&(p.pref===0||p.pref===1))team=p.pref;
+ const zm=G.variant==='zombies';
+ let team=zm?P.team:MODE().team?(NET.teams==='coop'?P.team:((n||0)%2===0?1-P.team:P.team)):null;
+ if(!zm&&team!==null&&(p.pref===0||p.pref===1))team=p.pref;
  let e=ents.find(b=>!b.isPlayer&&!b.remote&&!b.zombie&&!b.dummy&&(team===null||b.team===team));
  if(!e){
   const id=ents.reduce((m,x)=>Math.max(m,x.id),0)+1;
   e=newEnt(p.name,team===null?id:team,false,id);e.id=id;e.money=P.money;giveWeapon(e,e.team===0?'glock':'usp');ents.push(e);attachRig(e);
+  if(zm){e.pts=500;e.perks={};}
   if(G.mode!=='bomb')respawn(e);else{e.alive=false;e.keep=false;}
  }
  e.remote=p.id;e.name=p.name;p.ent=e;e.tp=(e.tp||0)+1;
@@ -7820,14 +7922,18 @@ function netEntUpdate(e,dt){
  e.yaw=m.yaw;e.pitch=m.pitch;e.crouch=!!m.cr;e.speed=m.sp;e.vx=m.vx;e.vz=m.vz;e.onGround=!!m.og;e.ads=m.ads||0;
  if(e.wp[m.cur]&&e.cur!==m.cur)switchTo(e,m.cur);
  handleUse(e,dt,!!m.use&&e.speed<1.2);
+ if(G.variant==='zombies')zInteract(dt,e,!!m.use);
 }
 function netHostTick(dt){
  NET.sendT-=dt;if(NET.sendT>0||!NET.players.size)return;NET.sendT=1/15;
  const es=ents.filter(e=>!e.dummy).map(e=>{const o={i:e.id,n:e.name,tm:e.team,x:+e.x.toFixed(2),y:+e.y.toFixed(2),z:+e.z.toFixed(2),yw:+e.yaw.toFixed(3),pt:+e.pitch.toFixed(3),a:e.alive?1:0,hp:Math.round(e.hp),ar:Math.round(e.armor),sh:Math.round(e.shield),cw:curWi(e).k,fa:+(e.fireAnim||0).toFixed(2),cr:e.crouch?1:0,sp:+(e.speed||0).toFixed(2),k:e.kills,d:e.deaths,dm:e.dmg,tp:e.tp||0,m:e.money};
-  if(e.zombie){o.z=1;if(e.ztype&&e.ztype!=='normal')o.zt=e.ztype;}if(e.remote){o.r=e.remote;o.wp=['p','s'].map(s=>e.wp[s]?[e.wp[s].k,e.wp[s].mag,e.wp[s].res]:null);o.nd=[e.nade.f,e.nade.fl,e.nade.sm,e.nade.mn||0];o.pg=e.prog||0;o.pm=e.progMsg||'';o.um=e.useMsg||'';o.kit=e.kit?1:0;}
+  if(e.zombie){o.zb=1;if(e.ztype&&e.ztype!=='normal')o.zt=e.ztype;}
+  if(e.downed){o.dn=1;o.dt=Math.ceil(e.downT||0);o.rv=+(e.revP||0).toFixed(2);}
+  if(e.remote){o.r=e.remote;o.wp=['p','s'].map(s=>e.wp[s]?[e.wp[s].k,e.wp[s].mag,e.wp[s].res,e.wp[s].pap?1:0]:null);if(G.variant==='zombies'){o.zp=e.pts||0;o.pk=Object.keys(e.perks||{}).filter(k=>e.perks[k]).join(',');}o.nd=[e.nade.f,e.nade.fl,e.nade.sm,e.nade.mn||0];o.pg=e.prog||0;o.pm=e.progMsg||'';o.um=e.useMsg||'';o.kit=e.kit?1:0;}
   return o;});
  const g={st:G.state,tm:+(G.timer||0).toFixed(2),tl:+(G.timeLeft||0).toFixed(1),sc:G.score,rd:G.round,pr:G.pistolRound?1:0,lim:G.limit,ko:typeof KO!=='undefined'?KO.idx:0,kp:typeof KO!=='undefined'?KO.pts:null,
   bm:{s:BM.state,x:BM.x,y:BM.y,z:BM.z,t:BM.timer,c:BM.carrier}};
+ if(G.variant==='zombies')g.zm=netZombieState();
  netSend({t:'snap',g,e:es,ev:NET.ev});NET.ev=[];
 }
 /* ---------- CLIENT ---------- */
@@ -7844,12 +7950,14 @@ function netClientStart(m){
  for(const e of ents)if(e!==P&&e.rig)scene.remove(e.rig.root);
  ents=[P];NET.view.clear();NET.myEnt=m.ent;P.id=m.ent;
  if(P.team!==m.team){P.team=m.team;if(P.rig)scene.remove(P.rig.root);attachRig(P);P.rig.root.visible=false;}
- P.tp=-1;G.netClient=true;
+ P.tp=-1;G.netClient=true;NET.zDrops='';
  netStatus('En partie (client)');
+ // la souris ne peut être capturée qu'après un clic : sans ça la caméra du joueur invité ne bouge pas
+ if(!document.pointerLockElement){$('pause').classList.add('show');uiToast('Clique sur REPRENDRE pour jouer');}
 }
 function netEnt(o){
  let e=NET.view.get(o.i);
- if(!e){e=newEnt(o.n,o.tm,false,o.i);e.id=o.i;if(o.z){e.zombie=true;e.ztype=o.zt||'normal';e.tone='#7ba35a';}e.wp={p:null,s:null,k:{k:'knife',mag:0,res:0}};const sl=slotOf(o.cw);e.wp[sl]={k:o.cw,mag:30,res:90};e.cur=sl;ents.push(e);attachRig(e);e.netT={x:o.x,y:o.y,z:o.z,yw:o.yw};e.x=o.x;e.y=o.y;e.z=o.z;NET.view.set(o.i,e);}
+ if(!e){e=newEnt(o.n,o.tm,false,o.i);e.id=o.i;if(o.zb){e.zombie=true;e.ztype=o.zt||'normal';e.tone='#7ba35a';}e.wp={p:null,s:null,k:{k:'knife',mag:0,res:0}};const sl=slotOf(o.cw);e.wp[sl]={k:o.cw,mag:30,res:90};e.cur=sl;ents.push(e);attachRig(e);e.netT={x:o.x,y:o.y,z:o.z,yw:o.yw};e.x=o.x;e.y=o.y;e.z=o.z;NET.view.set(o.i,e);}
  return e;
 }
 function netApplySnap(m){
@@ -7866,9 +7974,12 @@ function netApplySnap(m){
    const wasAlive=P.alive;P.alive=!!o.a;P.hp=o.hp;P.armor=o.ar;P.shield=o.sh;P.money=o.m;P.kills=o.k;P.deaths=o.d;P.dmg=o.dm;P.kit=!!o.kit;
    if(o.tp!==P.tp){P.tp=o.tp;P.x=o.x;P.y=o.y;P.z=o.z;P.yaw=o.yw;P.vx=P.vz=0;}
    if(o.wp)['p','s'].forEach((s,i)=>{const w=o.wp[i];if(!w){if(P.wp[s]){P.wp[s]=null;if(P.cur===s)P.cur=bestSlot(P);}return;}
-    if(!P.wp[s]||P.wp[s].k!==w[0]){P.wp[s]={k:w[0],mag:w[1],res:w[2]};}else if(Math.abs(P.wp[s].mag-w[1])>2&&P.reload<=0){P.wp[s].mag=w[1];P.wp[s].res=w[2];}});
+    if(!P.wp[s]||P.wp[s].k!==w[0]){P.wp[s]={k:w[0],mag:w[1],res:w[2]};}else if(Math.abs(P.wp[s].mag-w[1])>2&&P.reload<=0){P.wp[s].mag=w[1];P.wp[s].res=w[2];}
+    P.wp[s].pap=!!w[3];});
    if(o.nd)P.nade={f:o.nd[0],fl:o.nd[1],sm:o.nd[2],mn:o.nd[3]};
    P.prog=o.pg;P.progMsg=o.pm;P.netUseMsg=o.um;
+   P.downed=!!o.dn;P.seated=o.dn?1:0;if(o.dn){P.downT=o.dt;P.revP=o.rv;}
+   if(o.zp!==undefined){P.pts=o.zp;const pk={};if(o.pk)o.pk.split(',').forEach(k=>pk[k]=true);const sig=o.pk||'';if(sig!==NET.zPerks){NET.zPerks=sig;P.perks=pk;zPerkHud();}}
    if(wasAlive&&!P.alive){P.rig&&(P.rig.root.visible=true);}
    continue;
   }
@@ -7877,10 +7988,11 @@ function netApplySnap(m){
   if(e.alive&&!o.a){e.dieDir=Math.floor(Math.random()*4);if(e.rig)e.rig.dieT=-1;}
   if(!e.alive&&o.a){e.x=o.x;e.y=o.y;e.z=o.z;}
   if(o.tp!==e.tp){e.tp=o.tp;e.x=o.x;e.y=o.y;e.z=o.z;e.yaw=o.yw;}
-  e.alive=!!o.a;e.crouch=!!o.cr;e.speed=o.sp;e.fireAnim=Math.max(e.fireAnim||0,o.fa);
+  e.alive=!!o.a;e.downed=!!o.dn;e.seated=o.dn?1:0;e.crouch=!!o.cr;e.speed=o.sp;e.fireAnim=Math.max(e.fireAnim||0,o.fa);
   {const cw=curWi(e);if(!cw||cw.k!==o.cw){const sl=slotOf(o.cw);e.wp[sl]={k:o.cw,mag:30,res:90};e.cur=sl;}}
  }
  for(const [id,e] of NET.view)if(!seen.has(id)){if(e.rig)scene.remove(e.rig.root);ents.splice(ents.indexOf(e),1);NET.view.delete(id);}
+ if(g.zm)netZombieApply(g.zm);
  for(const ev of m.ev||[])netClientEvent(ev);
 }
 function netById(id){return id===NET.myEnt?P:NET.view.get(id);}
@@ -7890,6 +8002,7 @@ function netClientEvent(ev){
   case 'feed':{const a=netById(ev.a),v=netById(ev.v),w=W[ev.w]||W.knife;if(a&&v){uiFeed(a,v,w,ev.hs);rpKill(a,v,w,ev.hs);if(a===P&&v!==P){uiKillMsg(v,ev.hs,1);sfx('kill');}if(v===P)uiDeath(a);}break;}
   case 'hurt':if(ev.to===NET.myEnt){const a=netById(ev.f);if(a)uiDamage(a);sfx('dmg');G.shake=Math.max(G.shake,.25);}break;
   case 'ban':uiBanner(ev.a[0],ev.a[1],ev.a[2],ev.a[3]);break;
+  case 'msg':if(ev.to===NET.myEnt){if(ev.b)uiBanner(ev.b[0],ev.b[1],ev.b[2],ev.b[3]);if(ev.m)uiToast(ev.m);if(ev.s)sfx(ev.s);}break;
   case 'rend':{const mine=ev.w===P.team;uiBanner(mine?'MANCHE GAGNÉE':'MANCHE PERDUE',ev.r,4600,mine?'#7dff9f':'#ff6b6b');sfx(mine?'win':'lose');uiRoundEnd();closeBuy(true);rpStart();break;}
   case 'rr':clearNades();resetFX();uiRoundStart();rpReset();break;
   case 'nx':{const o=netById(ev.o)||P;explodeNade({type:ev.k,x:ev.x,y:ev.y,z:ev.z,owner:o});break;}
@@ -7909,6 +8022,30 @@ function netClientTick(dt){
   netSend({t:'in',x:+P.x.toFixed(2),y:+P.y.toFixed(2),z:+P.z.toFixed(2),yaw:+P.yaw.toFixed(3),pitch:+P.pitch.toFixed(3),cr:P.crouch?1:0,sp:+P.speed.toFixed(2),vx:P.vx,vz:P.vz,og:P.onGround?1:0,ads:P.ads,cur:P.cur,use:K('use')?1:0,tp:P.tp},'host');
  }
  if(P.netUseMsg!==undefined)P.useMsg=P.netUseMsg;
+ if(G.variant==='zombies'){zHudUpdate();netZDownHud();if(ZB.pap&&ZB.pap.userData.rollers)ZB.pap.userData.rollers.rotation.x+=dt*2;for(const d of ZB.drops){d.m.position.y=d.y+1+Math.sin(G.t*3)*.15;}}
+}
+/* ---------- ZOMBIES à plusieurs : manche, bonus, portes, boîte et bonus au sol ---------- */
+// la disposition (armes murales, atouts, boîte, portes) est calculée pareil chez tous à partir de la carte
+function netZDownHud(){
+ if(!ZD.hud){ZD.hud=document.createElement('div');ZD.hud.style.cssText='position:absolute;left:0;right:0;top:30%;text-align:center;font:900 2rem Bahnschrift,Arial;color:#ff4655;text-shadow:0 0 18px #000;letter-spacing:6px;display:none';$('hud').appendChild(ZD.hud);}
+ ZD.hud.style.display=P.downed?'block':'none';
+ if(P.downed)ZD.hud.innerHTML='À TERRE<small style="display:block;font-size:1rem;letter-spacing:3px;color:#fff">'+Math.ceil(P.downT||0)+' s — réanimation '+Math.round((P.revP||0)/3*100)+' %</small>';
+}
+function netZombieState(){
+ return {w:Z.wave,i:Math.max(0,+(ZB.insta-G.t).toFixed(1)),d:Math.max(0,+(ZB.dbl-G.t).toFixed(1)),f:Math.max(0,+(ZB.fire-G.t).toFixed(1)),
+  dr:ZD.doors.filter(d=>d.open).map(d=>d.idx),bx:ZB.boxIdx||0,bs:ZB.box?[ZB.box.state,ZB.box.state==='ready'?ZB.box.k:0]:0,dp:ZB.drops.map(d=>[d.key,+d.x.toFixed(1),+d.z.toFixed(1)])};
+}
+function netZombieApply(s){
+ Z.wave=s.w;ZB.insta=G.t+s.i;ZB.dbl=G.t+s.d;ZB.fire=G.t+s.f;
+ for(const d of ZD.doors)if(!d.open&&s.dr.includes(d.idx))zOpenDoor(d);
+ if(ZB.boxSpots&&ZB.boxSpots.length&&s.bx!==ZB.boxIdx)zMoveBox(s.bx);
+ // boîte mystère : on montre l'arme tirée quand elle est prête
+ if(ZB.box&&s.bs){const b=ZB.box,[st,k]=s.bs;if(st!==b.state||k!==b.k){b.state=st;b.k=k;if(b.show){scene.remove(b.show);b.show=null;}if(st==='ready'&&k)zBoxShow(k);else if(st==='roll')sfx('jingle',b.spot.x,b.spot.z);}}
+ const sig=JSON.stringify(s.dp);
+ if(sig!==NET.zDrops){NET.zDrops=sig;
+  for(const d of ZB.drops)scene.remove(d.m);ZB.drops=[];
+  for(const [key,x,z] of s.dp){const m=new THREE.Sprite(new THREE.SpriteMaterial({map:dropTex(DROPS[key]),transparent:true,depthWrite:false,toneMapped:false}));const y=groundH(x,z);m.position.set(x,y+1,z);scene.add(m);ZB.drops.push({key,m,x,z,y,t:99});}
+ }
 }
 /* tir local du client : visuel immédiat, les dégâts sont calculés par l'hôte */
 function netShot(e){netSend({t:'shot',yaw:e.yaw+(e.punchY||0)*RAD,pitch:e.pitch+(e.punchP||0)*RAD},'host');}
@@ -7929,7 +8066,7 @@ function netMatchOver(){if(NET.role==='host'&&NET.players.size){netSend({t:'snap
   '<div class="csec"><h4>COMMENT JOUER À PLUSIEURS</h4><div style="font-size:.74rem;color:#b8c5da;line-height:1.6">'+
   '<b>Même PC :</b> ouvre le jeu dans plusieurs onglets / fenêtres, crée un salon dans l\'un et rejoins-le dans les autres.<br>'+
   '<b>En ligne :</b> publie le dossier sur <b>GitHub Pages</b> (ou n\'importe quel hébergeur), envoie le lien à tes amis, crée un salon et donne-leur le code. Connexion directe entre navigateurs (WebRTC).<br>'+
-  'L\'hôte choisit le mode et la carte dans « Partie solo ». Modes disponibles : Compétitif, Désamorçage rapide, Match à mort (équipe ou libre), Course aux armes, Capture de zone.</div></div></div></div>';
+  'L\'hôte choisit le mode et la carte dans « Partie solo ». Modes disponibles : Compétitif, Désamorçage rapide, Match à mort (équipe ou libre), Course aux armes, Capture de zone, Zombies (tous ensemble).</div></div></div></div>';
  $('tab-keys').parentNode.appendChild(p);
 })();
 function netLobbyDraw(){
@@ -7953,7 +8090,7 @@ function netLobbyWire(){
  $('mpLeave').onclick=()=>{sfxUI();netLeave();};
  $('mpStart').onclick=()=>{
   initAudio();sfxUI();
-  if(!NET_OK_MODES[cfg.mode]){uiToast('Choisis un mode compatible dans « Partie solo » (pas Zombies / Bataille royale / Entraînement)');return;}
+  if(!NET_OK_MODES[cfg.mode]){uiToast('Choisis un mode compatible dans « Partie solo » (pas Bataille royale / Entraînement)');return;}
   cfg.cine=0;startMatch();buildRadarMap();netHostStart();
  };
  netLobbyDraw();
@@ -8704,7 +8841,7 @@ function botUpdate(b,dt){
 
  if(b.target){
   b.seeT+=dt;
-  const t=b.target,dx=t.x-b.x,dz=t.z-b.z,dist=Math.hypot(dx,dz);
+  const t=b.target,dx=t.x-b.x,dz=t.z-b.z,dist=Math.hypot(dx,dz)||.01; // jamais 0 : sinon position NaN
   const ty=t.y+(b.aimHead?1.64:1.1)*(t.crouch?.75:1);
   const wy=Math.atan2(-dx,-dz),wp=Math.atan2(ty-(b.y+eyeOf(b)),dist);
   const ready=b.seeT>=d.react;
@@ -8844,13 +8981,14 @@ function uiMatchStart(){
 function uiMatchOver(){
  hudEl.classList.remove('show');$('sb').style.display='none';
  let win=false,title='',sub='';
- if(G.variant==='train'){const acc=MS.shots?Math.round(MS.hits/MS.shots*100):0;win=true;title='ENTRAÎNEMENT';sub='Score '+TR.score+'  •  précision '+acc+' %  •  série max '+TR.best;}
+ if(G.variant==='train'){const acc=MS.shots?Math.round(MS.hits/MS.shots*100):0;win=false; // pas une victoire : ne gonfle plus le taux de victoire ni l'XP
+ title='ENTRAÎNEMENT';sub='Score '+TR.score+'  •  précision '+acc+' %  •  série max '+TR.best;}
  else if(G.variant==='zombies'){win=G.winner===0;title=win?'VICTOIRE':'DÉFAITE';sub='Vague '+Z.wave+' / '+G.limit;}
  else if(G.variant==='br'){win=G.winner===P;title=win?'VICTOIRE ROYALE':(G.winner?G.winner.name+' GAGNE':'ÉGALITÉ');sub='Éliminations : '+P.kills;}
  else if(G.mode==='bomb'){win=G.score[P.team]>G.score[1-P.team];title=win?'VICTOIRE':'DÉFAITE';sub=G.score[P.team]+'  –  '+G.score[1-P.team];}
  else if(G.mode==='tdm'){win=G.winner===P.team;title=G.winner===-1?'ÉGALITÉ':win?'VICTOIRE':'DÉFAITE';sub=G.score[P.team]+'  –  '+G.score[1-P.team];}
  else{win=G.winner===P;title=win?'VICTOIRE':(G.winner?G.winner.name+' GAGNE':'ÉGALITÉ');sub=P.kills+' éliminations';}
- $('oT').textContent=title;$('oT').style.color=win?'#7dff9f':G.winner===-1?'#ffd75e':'#ff6b6b';
+ $('oT').textContent=title;$('oT').style.color=win||G.variant==='train'?'#7dff9f':G.winner===-1?'#ffd75e':'#ff6b6b';
  $('oS').textContent=sub+'   •   '+MODE().n+'   •   '+MAP.n+'   •   '+DIFFS[cfg.diff].n;
  $('oTable').innerHTML=scoreTable(true);showMatchRewards(win);
  $('over').classList.add('show');
@@ -8862,7 +9000,7 @@ function scoreTable(final){
  const head='<tr><th>Joueur</th><th>K</th><th>D</th><th>K/D</th><th>HS</th><th>Dégâts</th><th>'+(G.mode==='gg'?'Niv.':'$')+'</th></tr>';
  if(MODE().team){
   const mk=team=>'<h4 style="color:'+TEAMCSS[team]+'"><span>'+(team===0?'ATTAQUANTS':'DÉFENSEURS')+'</span><span>'+G.score[team]+'</span></h4><table>'+head+ents.filter(e=>e.team===team&&!e.zombie&&!e.dummy).sort((a,b)=>b.kills-a.kills).map(row).join('')+'</table>';
-  return mk(P.team)+mk(1-P.team);
+  return mk(P.team)+(G.variant==='zombies'?'':mk(1-P.team)); // en Zombies, pas d'équipe adverse à lister
  }
  return '<table>'+head+ents.filter(e=>!e.dummy&&!e.zombie).sort((a,b)=>(b.ggLevel-a.ggLevel)||(b.kills-a.kills)).map(row).join('')+'</table>';
 }
@@ -9057,6 +9195,8 @@ addEventListener('mousemove',e=>{
  const w=curW(P),z=P.scoped?1/sightZoom(P,w):1-.25*P.ads,s=.0022*cfg.sens*z*wsensMul();
  P.yaw-=e.movementX*s;P.pitch=clamp(P.pitch-e.movementY*s,-1.5,1.5);
 });
+// un clic sur le jeu reprend la capture de la souris (utile au joueur invité, qui n'a pas cliqué sur « Jouer »)
+addEventListener('mousedown',e=>{const t=e.target;if(t&&t.closest&&t.closest('button,input,select,textarea,a,#menu,#buy,.ov'))return;if(G.running&&!focusLocked&&!buyOpen&&G.state!=='over')lockMouse();});
 let rebindCb=null;
 function inputDown(code){
  tutDown(code);
@@ -9181,7 +9321,8 @@ function drawMenu(){
  chipsRow('cSide',[['Attaquants (T)','t'],['Défenseurs (CT)','ct'],['Aléatoire','rnd']],()=>cfg.side,v=>cfg.side=v);
  if(m.team){
   $('lSize').textContent='Joueurs par équipe';
-  const mx=(cfg.mode==='bomb'||cfg.mode==='rapid')?5:8;chipsRow('cSize',Array.from({length:mx},(_,i)=>[(i+1)+' v '+(i+1),i+1]),()=>Math.min(cfg.size,mx),v=>cfg.size=v);
+  const mx=(cfg.mode==='bomb'||cfg.mode==='rapid')?5:8;if(cfg.size>mx)cfg.size=mx; // sinon le menu affiche 5 v 5 mais la partie se lance en 8 v 8
+  chipsRow('cSize',Array.from({length:mx},(_,i)=>[(i+1)+' v '+(i+1),i+1]),()=>Math.min(cfg.size,mx),v=>cfg.size=v);
  }else{
   $('lSize').textContent='Nombre de joueurs';
   chipsRow('cSize',[4,6,8,10,12].map(n=>[n+'',n]),()=>cfg.ffa,v=>cfg.ffa=v);
@@ -9267,10 +9408,10 @@ function drawSkins(){
  SKINS.forEach((s,i)=>{
   const own=ownsSkin(pvKey,i),d=document.createElement('div');
   d.style.borderColor=i===(cfg.skins[pvKey]||0)?'':'';d.style.borderLeft='3px solid '+rcol(s.q);
-  d.innerHTML='<i style="background:'+skinSwatch(i)+'"></i>'+s.n+(own?'':' 🔒');
+  d.innerHTML='<i'+(s.anim?' class="animSw"':'')+' style="background:'+skinSwatch(i)+'"></i>'+s.n+(s.anim?' ✨':'')+(own?'':' 🔒');d.title=own?'':skinLockTxt(pvKey,i);
   if(!own)d.style.opacity=.45;
   if(i===(cfg.skins[pvKey]||0)&&own)d.classList.add('on');
-  d.onclick=()=>{if(!own){sfx('deny');menuToast('Skin verrouillé — trouve-le dans les caisses !');return;}sfxUI();cfg.skins[pvKey]=i;saveCfg();iconCache={};pvSet(pvKey);refreshArms();};
+  d.onclick=()=>{if(!own){sfx('deny');menuToast(skinLockTxt(pvKey,i));return;}sfxUI();cfg.skins[pvKey]=i;saveCfg();iconCache={};pvSet(pvKey);refreshArms();};
   sk.appendChild(d);
  });
 }
@@ -9332,7 +9473,7 @@ function showLevelUps(ups){
  next();
 }
 /* ---------- récompense quotidienne ---------- */
-const DAYICON=['🪙','📦','🪙','💃','🪙','🎁','👑'];
+const DAYICON=['🪙','🪙','🪙','💃','🪙','🪙','👑'];
 function dayText(r){return rewardText(r).split(' • ').join('<br>');}
 function showDaily(){
  const st=dailyStatus();
@@ -9370,7 +9511,7 @@ function buildBoxesTab(){
   const btn=$('open'+id);btn.textContent=n>0?'OUVRIR':'ACHETER & OUVRIR (🪙 '+b.price+')';btn.disabled=n<=0&&PROF.coins<b.price;btn.style.opacity=btn.disabled?.45:1;
   btn.onclick=()=>startBoxOpen(t);
  }
- $('pityTxt').innerHTML='Épique garanti dans <b>'+(10-PROF.pity.epic)+'</b> ouvertures<br>Légendaire garanti dans <b>'+(40-PROF.pity.legend)+'</b> ouvertures<br>Caisses ouvertes : <b>'+PROF.opened+'</b>';
+ $('pityTxt').innerHTML='Épique garanti dans <b>'+(10-PROF.pity.epic)+'</b> ouvertures<br>Légendaire garanti dans <b>'+(60-PROF.pity.legend)+'</b> ouvertures<br>Caisses ouvertes : <b>'+PROF.opened+'</b>';
  const pool=lootPool();let own=0;for(const it of pool)if(ownsItem(it))own++;
  $('collTxt').innerHTML='Objets débloqués : <b>'+own+' / '+pool.length+'</b><br>Danses : <b>'+PROF.inv.dances.length+' / '+DANCES.length+'</b>';
 }
@@ -11069,11 +11210,13 @@ netHostMsg=function(m,from){
  }
  if(m.t==='bye'){const p=NET.players.get(from);if(p)admLog(p.name+' a quitté le salon','#ffb36b');}
  if(m.t==='chat'&&ADM.muted.has(from))return;
+ {const p=NET.players.get(from);if(p&&p.ent&&p.ent.admFrozen&&/^(shot|nade|mine|buy|reload|slot)$/.test(m.t))return;}
  _admHostMsg(m,from);
 };
 const _admClientMsg=netClientMsg;
 netClientMsg=function(m){
  if(m.t==='ping'){netSend({t:'pong',ts:m.ts},'host');return;}
+ if(m.t==='frz'){G.admFrozenMe=!!m.on;uiToast(m.on?'L\'hôte t\'a gelé':'L\'hôte t\'a dégelé');return;}
  if(m.t==='kick'){const r=m.r||'L\'hôte t\'a expulsé du salon';if(G.running)toMenu();netLeave();netStatus(r);uiToast(r);admLog(r,'#ff6b6b');return;}
  _admClientMsg(m);
 };
@@ -11129,7 +11272,7 @@ function admAddBot(team){
 }
 function admSpec(e){if(!e||P.alive||!e.alive)return;G.spec=e;}
 const _admBot=botUpdate;
-botUpdate=function(b,dt){if(ADM.freeze){b.speed=0;tickWeapon(b,dt);return;}_admBot(b,dt);};
+botUpdate=function(b,dt){if(ADM.freeze||b.admFrozen){b.speed=0;tickWeapon(b,dt);return;}_admBot(b,dt);};
 /* ---------- actions sur la partie ---------- */
 function admEndRound(win){if(!admCanAct()||G.mode!=='bomb'||G.state!=='live')return;endRound(win,'Décision de l\'admin');admLog('Manche donnée aux '+(win===0?'Attaquants':'Défenseurs'));}
 function admEndMatch(){
@@ -11153,7 +11296,7 @@ uiFeed=function(a,v,w,hs){_admFeed(a,v,w,hs);if(a&&v)admLog(a===v?v.name+' est m
 const _admChat=chatAdd;
 chatAdd=function(name,msg,col){_admChat(name,msg,col);ADM.log.push({t:'💬',txt:name+' : '+msg,col:'#9fe3ff'});if(ADM.log.length>150)ADM.log.shift();};
 const _admStart=startMatch;
-startMatch=function(){_admStart();admLog('Partie lancée : '+((MODES[G.variant]||{}).n||G.variant)+' sur '+((MAPS[cfg.map]||{}).n||cfg.map),'#7dff9f');};
+startMatch=function(){G.admFrozenMe=false;_admStart();admLog('Partie lancée : '+((MODES[G.variant]||{}).n||G.variant)+' sur '+((MAPS[cfg.map]||{}).n||cfg.map),'#7dff9f');};
 /* ---------- vision à travers les murs ---------- */
 const XRM={};
 function xrMat(col,skin){
@@ -11233,7 +11376,67 @@ function admAimUpdate(dt){
  P.yaw+=angDiff(P.yaw,ty)*k;P.pitch=clamp(P.pitch+(tp-P.pitch)*k,-1.5,1.5);
 }
 const _admUpdPlayer=updatePlayer;
-updatePlayer=function(dt){_admUpdPlayer(dt);admAimUpdate(dt);};
+updatePlayer=function(dt){
+ if(G.admFrozenMe&&NET.role==='client'&&P.alive){P.vx=P.vz=0;P.speed=0;tickWeapon(P,dt);return;}
+ _admUpdPlayer(dt);admAimUpdate(dt);admCheatTick();
+};
+/* ---------- se donner des choses (profil local : ne touche personne d'autre) ---------- */
+function admProfSaved(msg){
+ saveProf();
+ for(const f of [()=>refreshProfile(),()=>buildLocker(),()=>buildBoxesTab(),()=>drawProgressTab()])try{f();}catch(e){}
+ admLog(msg,'#7dff9f');uiToast(msg);
+}
+function admGiveAll(){
+ let n=0;
+ for(const k in W)for(let i=1;i<SKINS.length;i++)if(grantItem({t:'skin',w:k,s:i}))n++;
+ for(let i=1;i<OUTFITS.length;i++)if(grantItem({t:'outfit',o:i}))n++;
+ for(const d of DANCES)if(grantItem({t:'dance',id:d.id}))n++;
+ ensureBP();PROF.bp.prem=true;PROF.bp.xp=Math.max(PROF.bp.xp,SEASON.tiers*SEASON.xpPer);
+ PROF.adminAll=true; // accessoires et camos à conditions (niveau, éliminations, exclusifs) : tous ouverts
+ admProfSaved('Tout débloqué ('+n+' objets, passe de combat premium au max)');
+}
+function admGiveCoins(n){PROF.coins+=n;admProfSaved('+'+n+' pièces');}
+function admGiveLevels(n){
+ const li=levelInfo();let x=li.need-li.cur;for(let l=li.level+1;l<li.level+n;l++)x+=xpNeed(l);
+ addXP(x);admProfSaved('+'+n+' niveau'+(n>1?'x':'')+' (niveau '+levelInfo().level+')');
+}
+function admGiveBoxes(){PROF.boxes.std=(PROF.boxes.std||0)+5;PROF.boxes.prem=(PROF.boxes.prem||0)+5;admProfSaved('+5 caisses standard et +5 premium');}
+// « Tout débloquer » ouvre aussi les verrous à conditions (accessoires par niveau + éliminations,
+// camos gagnés aux éliminations, camos exclusifs), quelle que soit la version de ces règles
+if(typeof attOpen==='function'){const _ao=attOpen;attOpen=function(k,a){return !!PROF.adminAll||_ao(k,a);};}
+if(typeof attLockTxt==='function'){const _al=attLockTxt;attLockTxt=function(k,a){return PROF.adminAll?'':_al(k,a);};}
+{const _os=ownsSkin;ownsSkin=function(k,i){return (!!PROF.adminAll&&!!SKINS[i])||_os(k,i);};}
+if(typeof skinLockTxt==='function'){const _sl=skinLockTxt;skinLockTxt=function(k,i){return PROF.adminAll?'':_sl(k,i);};}
+/* ---------- triches en partie ---------- */
+Object.assign(ADM,{god:false,ammo:false,nades:false});
+const admHumansFacing=()=>{if(!NET.role)return false;if(NET.role==='client')return true;const team=MODE().team;for(const p of NET.players.values())if(p.ent&&(!team||p.ent.team!==P.team))return true;return false;};
+// '' = triche autorisée (solo, ou salon sans humain en face)
+function admCheatWhy(){
+ if(!G.running||!P)return 'Lance une partie pour l\'utiliser';
+ return admHumansFacing()?'Des joueurs humains sont en face : coupé pour ne pas fausser leur partie':'';
+}
+function admTakeWeapon(k){
+ if(!W[k]||admCheatWhy()||!P.alive)return;
+ giveWeapon(P,k);P.cur=slotOf(k);admLog('Arme prise : '+W[k].n);
+}
+function admMoney(){if(admCheatWhy())return;P.money=16000;admLog('Argent de partie au max');}
+const _admHurt=hurt;
+hurt=function(v,att,w,zone,dist,raw){if(ADM.god&&v===P&&!admCheatWhy())return;_admHurt(v,att,w,zone,dist,raw);};
+function admCheatTick(){
+ if(!G.running||!P||!P.alive||admCheatWhy())return;
+ if(ADM.god)P.hp=Math.max(P.hp,100);
+ if(ADM.ammo)for(const sl of ['p','s']){const wi=P.wp[sl];if(wi&&!W[wi.k].melee){wi.mag=magMax(P,wi.k);wi.res=Math.max(wi.res,W[wi.k].res||90);}}
+ if(ADM.nades){const n=P.nade;n.f=Math.max(n.f||0,1);n.fl=Math.max(n.fl||0,1);n.sm=Math.max(n.sm||0,1);n.mn=Math.max(n.mn||0,1);}
+}
+/* ---------- geler un joueur (modération : l'hôte peut toujours le faire) ---------- */
+function admFreeze(e){
+ if(!e||e.isPlayer||!admCanAct())return;
+ e.admFrozen=!e.admFrozen;e.speed=0;e.vx=e.vz=0;
+ if(e.remote)netSend({t:'frz',on:e.admFrozen?1:0},e.remote);
+ admLog(e.name+(e.admFrozen?' gelé':' dégelé'),'#9fe3ff');
+}
+const _admNetEnt=netEntUpdate;
+netEntUpdate=function(e,dt){if(e.admFrozen){tickWeapon(e,dt);e.speed=0;return;}_admNetEnt(e,dt);};
 /* ---------- panneau ---------- */
 function admBuild(){
  if(ADM.el)return;
@@ -11273,6 +11476,16 @@ function admBuild(){
    case 'announce':{const i=$('admAnn');admAnnounce(i.value);i.value='';break;}
    case 'vision':ADM.vision=!ADM.vision;admLog('Vision à travers les murs '+(ADM.vision?'activée':'coupée'));break;
    case 'allies':ADM.allies=!ADM.allies;break;
+   case 'freeze1':admFreeze(e);break;
+   case 'giveall':admGiveAll();break;
+   case 'coins':admGiveCoins(+b.dataset.t);break;
+   case 'lvl':admGiveLevels(+b.dataset.t);break;
+   case 'boxes':admGiveBoxes();break;
+   case 'god':ADM.god=!ADM.god;admLog('Immortel '+(ADM.god?'activé':'coupé'));break;
+   case 'ammo':ADM.ammo=!ADM.ammo;admLog('Balles infinies '+(ADM.ammo?'activées':'coupées'));break;
+   case 'nades':ADM.nades=!ADM.nades;admLog('Grenades infinies '+(ADM.nades?'activées':'coupées'));break;
+   case 'money':admMoney();break;
+   case 'weapon':admTakeWeapon(b.dataset.t);break;
    case 'aim':ADM.aim=!ADM.aim;admLog('Visée auto '+(ADM.aim?'activée':'coupée'));break;
    case 'aimmode':ADM.aimMode=b.dataset.t;break;
    case 'aimforce':ADM.aimForce=+b.dataset.t;break;
@@ -11310,6 +11523,7 @@ function admPlayersHTML(){
    let a='';
    if(act&&!e.zombie){
     if(np)a+=admChip('kick','Expulser',{id:np.id})+admChip('ban','Bannir',{id:np.id})+admChip('mute',ADM.muted.has(np.id)?'Parole':'Muet',{id:np.id});
+    if(!e.isPlayer)a+=admChip('freeze1',e.admFrozen?'Dégeler':'Geler',{id:e.id,on:!!e.admFrozen});
     a+=e.alive?admChip('kill','Tuer',{id:e.id})+admChip('heal','Soigner',{id:e.id}):admChip('revive','Réapparaître',{id:e.id});
     if(MODE().team&&!e.zombie)a+=admChip('team','Équipe',{id:e.id,tip:'Changer d\'équipe'});
     if(!e.isPlayer&&!e.remote)a+=admChip('rmbot','Retirer',{id:e.id});
@@ -11353,9 +11567,25 @@ function admAimHTML(){
   '<div class="note" style="color:'+(why?'#ffb36b':'#7dff9f')+'">'+(why?admEsc(why):ADM.aim?'Active : la visée se cale sur la tête de l\'ennemi visible le plus proche du réticule.':'Disponible ici.')+'</div>'+
   '<div class="note">Marche en solo et contre les bots. En ligne contre d\'autres joueurs, elle reste coupée.</div></div>';
 }
+function admGiveHTML(){
+ const li=levelInfo();
+ return '<div class="note" style="margin-top:0">Ton profil : niveau '+li.level+' · 🪙 '+PROF.coins+' · 📦 '+((PROF.boxes.std||0)+(PROF.boxes.prem||0))+'</div>'+
+  '<div class="sec"><h4>DÉBLOQUER</h4><div class="chips">'+admChip('giveall','Tout débloquer (camos, tenues, danses, passe premium)')+admChip('boxes','+5 caisses de chaque')+'</div></div>'+
+  '<div class="sec"><h4>PIÈCES</h4><div class="chips">'+[1000,10000,100000].map(n=>admChip('coins','+'+n.toLocaleString('fr-FR'),{t:n})).join('')+'</div></div>'+
+  '<div class="sec"><h4>NIVEAUX</h4><div class="chips">'+[1,10,50].map(n=>admChip('lvl','+'+n+' niveau'+(n>1?'x':''),{t:n})).join('')+'</div></div>'+
+  '<div class="note">Ça ne change que ton profil sur ce navigateur, personne d\'autre n\'est touché.</div>';
+}
+function admCheatsHTML(){
+ const why=admCheatWhy();let h='<div class="sec" style="margin-top:0"><h4>TRICHES EN PARTIE</h4><div class="chips">'+
+  admChip('god',ADM.god?'Immortel ✓':'Immortel',{on:ADM.god})+admChip('ammo',ADM.ammo?'Balles infinies ✓':'Balles infinies',{on:ADM.ammo})+admChip('nades',ADM.nades?'Grenades infinies ✓':'Grenades infinies',{on:ADM.nades})+admChip('money','Argent de partie au max')+'</div>';
+ if(G.running&&P&&!why){
+  h+='<div class="note">Prendre une arme :</div><div class="chips" style="margin-top:4px">'+Object.keys(W).filter(k=>!W[k].melee&&W[k].n&&(W[k].slot===0||W[k].slot===1)).map(k=>admChip('weapon',admEsc(W[k].n),{t:k})).join('')+'</div>';
+ }
+ return h+'<div class="note" style="color:'+(why?'#ffb36b':'#7dff9f')+'">'+(why?admEsc(why):'Disponible ici.')+'</div></div>';
+}
 function admVisionHTML(){
  const why=admVisionWhy();
- return '<div class="chips">'+admChip('vision',ADM.vision?'Vision activée ✓':'Activer la vision',{on:ADM.vision})+admChip('allies','Voir aussi mes alliés',{on:ADM.allies})+admChip('tags','Noms, PV et distance',{on:ADM.tags})+'</div>'+
+ return admCheatsHTML()+'<div class="sec"><h4>VISION À TRAVERS LES MURS</h4></div><div class="chips">'+admChip('vision',ADM.vision?'Vision activée ✓':'Activer la vision',{on:ADM.vision})+admChip('allies','Voir aussi mes alliés',{on:ADM.allies})+admChip('tags','Noms, PV et distance',{on:ADM.tags})+'</div>'+
   '<div class="note" style="color:'+(why?'#ffb36b':'#7dff9f')+'">'+(why?admEsc(why):ADM.vision?'Actif : ennemis en rouge, alliés en bleu, visibles à travers les murs.':'Disponible ici.')+'</div>'+
   '<div class="note">Marche en solo, contre les bots, et en spectateur. En ligne contre d\'autres joueurs, elle se coupe tant que tu es en vie, pour ne pas fausser leur partie.</div>'+
   admAimHTML();
@@ -11372,8 +11602,8 @@ function admDraw(){
   {const i=$('admCode');if(i)i.focus();}setTimeout(()=>{const i=$('admCode');if(i&&document.activeElement!==i)i.focus();},50);return;
  }
  const ann=$('admAnn'),annVal=ann?ann.value:'',focus=document.activeElement&&document.activeElement.id==='admAnn';
- const tabs=[['players','Joueurs'],['game','Partie'],['vision','Triche'],['log','Journal']];
- const body=ADM.tab==='players'?admPlayersHTML():ADM.tab==='game'?admGameHTML():ADM.tab==='vision'?admVisionHTML():admLogHTML();
+ const tabs=[['players','Joueurs'],['game','Partie'],['give','Donner'],['vision','Triche'],['log','Journal']];
+ const body=ADM.tab==='players'?admPlayersHTML():ADM.tab==='game'?admGameHTML():ADM.tab==='vision'?admVisionHTML():ADM.tab==='give'?admGiveHTML():admLogHTML();
  const html='<h3>PANNEAU ADMIN <span>'+admChip('lock','Verrouiller',{tip:'Oublier le code sur ce navigateur'})+' '+admChip('close','Fermer (Inser) ✕')+'</span></h3>'+
   '<div class="chips">'+tabs.map(t=>admChip('tab',t[1],{t:t[0],on:ADM.tab===t[0]})).join('')+'</div>'+
   '<div id="admBody" style="margin-top:6px">'+body+'</div>'+
@@ -11425,6 +11655,459 @@ updateFX=function(dt,t){
  if(ADM.on&&ADM.ok&&ADM.tab!=='log'){ADM.drawT-=rdt;if(ADM.drawT<=0){ADM.drawT=.5;const ae=document.activeElement;if(!ADM.md&&!(ae&&ae.id==='admAnn'))admDraw();}}
 };
 window.__adm={ADM,admOpen,admClose,admKick,admAddBot,admVisionWhy,admCheck,admAimWhy};
+/* =====================================================================
+   CORRECTIFS DE L'AUDIT (2026-10-14)
+   - Points d'apparition / d'errance placés dans un décor (caisse sous
+     un toit au Port, haut de mur à l'Entrepôt et au Métro) : déplacés
+     automatiquement sur la case libre la plus proche au chargement de
+     la carte. Avant, on pouvait réapparaître coincé dans une caisse et
+     les bots marchaient vers un mur jusqu'à abandonner.
+   ===================================================================== */
+function mapPointOk(cx,cz){
+ if(cx<0||cz<0||cx>=N||cz>=N||!walkableCell(cz*N+cx))return false;
+ const x=cc(cx),z=cc(cz);return !blocked(x,z,groundH(x,z),PR);
+}
+function mapPointFix(c){
+ if(mapPointOk(c[0],c[1]))return;
+ for(let r=1;r<8;r++)for(let dz=-r;dz<=r;dz++)for(let dx=-r;dx<=r;dx++){
+  if(Math.max(Math.abs(dx),Math.abs(dz))!==r)continue;
+  if(mapPointOk(c[0]+dx,c[1]+dz)){c[0]+=dx;c[1]+=dz;return;}
+ }
+}
+const _buildWorldAudit=buildWorld;
+buildWorld=function(id){
+ const r=_buildWorldAudit(id);
+ if(MAP&&!MAP._ptsOk){
+  for(const L of ['spawnT','spawnCT','spawnDM','roam','holdCT'])if(MAP[L])for(const c of MAP[L])mapPointFix(c);
+  MAP._ptsOk=true;
+ }
+ return r;
+};
+/* =====================================================================
+   DÉFIS DU JOUR ET DE LA SEMAINE
+   - Les défis du jour (3 par jour, 62_meta.js) gagnent de nouveaux
+     objectifs : éliminations par type d'arme, victoires par mode,
+     manches de Zombies, survie en Infecté.
+   - Nouveau : 3 défis de la semaine, plus longs et mieux payés, tirés
+     chaque lundi. Affichés sous les défis du jour (Progression).
+   ===================================================================== */
+MPOOL.push(
+ {id:'k_shotgun',n:'Élimine {t} adversaires au fusil à pompe',t:8,coins:180,xp:70},
+ {id:'k_sniper',n:'Élimine {t} adversaires au fusil de précision',t:5,coins:200,xp:80},
+ {id:'k_smg',n:'Élimine {t} adversaires au pistolet-mitrailleur',t:12,coins:160,xp:60},
+ {id:'k_pistol',n:'Élimine {t} adversaires au pistolet',t:8,coins:180,xp:70},
+ {id:'k_rifle',n:'Élimine {t} adversaires au fusil d\'assaut',t:15,coins:160,xp:60},
+ {id:'w_duel',n:'Gagne {t} Duel',t:1,coins:220,xp:90},
+ {id:'w_dom',n:'Gagne {t} partie de Domination',t:1,coins:220,xp:90},
+ {id:'w_gg',n:'Gagne {t} Course aux armes',t:1,coins:250,xp:100},
+ {id:'z_wave',n:'Survis à {t} manches de Zombies',t:5,coins:200,xp:80},
+ {id:'inf_surv',n:'Termine {t} partie d\'Infecté sans être infecté',t:1,coins:250,xp:100}
+);
+const WPOOL=[
+ {id:'kills',n:'Élimine {t} adversaires',t:150,coins:800,xp:300},
+ {id:'hs',n:'Fais {t} headshots',t:40,coins:700,xp:280},
+ {id:'win',n:'Gagne {t} parties',t:8,coins:900,xp:350},
+ {id:'matches',n:'Joue {t} parties',t:15,coins:700,xp:250},
+ {id:'k_sniper',n:'Élimine {t} adversaires au fusil de précision',t:25,coins:800,xp:300},
+ {id:'k_shotgun',n:'Élimine {t} adversaires au fusil à pompe',t:30,coins:800,xp:300},
+ {id:'knife',n:'Élimine {t} adversaires au couteau',t:5,coins:900,xp:350},
+ {id:'w_duel',n:'Gagne {t} Duels',t:3,coins:800,xp:300},
+ {id:'w_dom',n:'Gagne {t} parties de Domination',t:3,coins:800,xp:300},
+ {id:'z_wave',n:'Survis à {t} manches de Zombies',t:20,coins:900,xp:350},
+ {id:'dmg',n:'Inflige {t} dégâts',t:15000,coins:700,xp:280},
+ {id:'inf_surv',n:'Termine {t} parties d\'Infecté sans être infecté',t:3,coins:900,xp:350}
+];
+const wDef=id=>WPOOL.find(m=>m.id===id);
+// semaine commençant le lundi (même calcul que le mode de la semaine)
+function weekKey(){const d=new Date();return 'w'+Math.floor((Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())/864e5+3)/7);}
+function weekLeft(){const d=new Date(),dow=(d.getDay()+6)%7,end=new Date(d.getFullYear(),d.getMonth(),d.getDate()+7-dow);const h=Math.ceil((end-d)/36e5);return h>48?Math.ceil(h/24)+' j':h+' h';}
+function ensureWeekly(){
+ const k=weekKey();
+ if(!PROF.wmis||PROF.wmis.wk!==k){PROF.wmis={wk:k,list:shuffle(WPOOL.slice()).slice(0,3).map(m=>({id:m.id,p:0,done:false,claimed:false}))};saveProf();}
+}
+const _metaEventWk=metaEvent;
+metaEvent=function(id,n){
+ _metaEventWk(id,n);
+ ensureWeekly();let ch=false;
+ for(const m of PROF.wmis.list){if(m.id===id&&!m.done){const d=wDef(id);m.p+=n||1;if(m.p>=d.t){m.p=d.t;m.done=true;uiToast('Défi de la semaine terminé : '+d.n.replace('{t}',d.t));sfx('pickup');}ch=true;}}
+ if(ch)saveProf();
+};
+function claimWeekly(i){
+ ensureWeekly();const m=PROF.wmis.list[i];if(!m||!m.done||m.claimed)return null;
+ m.claimed=true;const d=wDef(m.id);applyReward({coins:d.coins});const ups=addXP(d.xp);saveProf();return {d,ups};
+}
+
+/* ---------- ce qui fait avancer les nouveaux défis ---------- */
+const _killEntDefis=killEnt;
+killEnt=function(v,att,w,hs){
+ const was=v.alive;_killEntDefis(v,att,w,hs);
+ if(was&&!v.alive&&att&&att.isPlayer&&att!==v&&att.team!==v.team&&!v.dummy&&w&&w.cat&&!G.netClient)metaEvent('k_'+w.cat);
+};
+const _commitMatchDefis=commitMatch;
+commitMatch=function(win){
+ const r=_commitMatchDefis(win);
+ if(win&&!G.netClient)metaEvent('w_'+G.variant);
+ return r;
+};
+const _zOnWaveDefis=zOnWave;
+zOnWave=function(){
+ _zOnWaveDefis();
+ if(Z.wave>1&&P&&P.alive&&!G.netClient)metaEvent('z_wave'); // manche précédente survécue
+};
+
+/* ---------- affichage sous les défis du jour ---------- */
+const _renderMissionsWk=renderMissions;
+renderMissions=function(){
+ _renderMissionsWk();
+ const day=$('missions');if(!day)return;
+ ensureWeekly();
+ let box=$('wmissions');
+ if(!box){box=document.createElement('div');box.id='wmissions';day.parentNode.insertBefore(box,day.nextSibling);}
+ box.innerHTML='<h4 style="margin-top:14px">DÉFIS DE LA SEMAINE <small style="color:var(--dim);letter-spacing:1px;font-weight:400">· nouveaux dans '+weekLeft()+'</small></h4>'+
+  PROF.wmis.list.map((m,i)=>{const d=wDef(m.id);
+   return '<div class="mis'+(m.done?' done':'')+'"><div>'+d.n.replace('{t}',d.t)+'</div><div class="bar"><i style="width:'+Math.round(m.p/d.t*100)+'%;background:#c77dff"></i></div><div style="display:flex;justify-content:space-between;align-items:center"><span class="rw">'+m.p+' / '+d.t+' • 🪙 '+d.coins+' • '+d.xp+' XP</span>'+(m.done&&!m.claimed?'<button data-w="'+i+'">RÉCUPÉRER</button>':m.claimed?'<span style="color:var(--good);font-size:.66rem">✔ récupéré</span>':'')+'</div></div>';}).join('');
+ box.querySelectorAll('button[data-w]').forEach(b=>b.onclick=()=>{const r=claimWeekly(+b.dataset.w);if(r){sfx('pickup');showLevelUps(r.ups);renderMissions();refreshProfile();}});
+};
+/* =====================================================================
+   MODE DOMINATION (façon Call of Duty)
+   - Trois drapeaux A, B, C. Reste seul dans le cercle pour le capturer
+     (5 s depuis neutre, 8 s pour retourner un drapeau adverse) ; un
+     adversaire dans le cercle bloque la capture.
+   - Chaque drapeau tenu rapporte 1 point par seconde. Premier à la
+     limite (100 / 200 / 300) ou meilleur score à la fin du chrono.
+   - Les éliminations ne donnent pas de points. Réapparition rapide.
+   Variante du mode « tdm » : réutilise ses réapparitions et sa fin.
+   ===================================================================== */
+MODES.dom={n:'Domination',ic:'🏳',c:'#ffd23a',team:true,respawn:3,desc:'Trois drapeaux A, B, C à capturer et à tenir. Chaque drapeau tenu rapporte des points.',limitLabel:'Points pour gagner',limits:[100,200,300]};
+VARIANT_BASE.dom='tdm';NOKILLSCORE.dom=1;
+MODE_GROUPS[1][1].push('dom');MODE_TAG.dom='Tiens A, B et C';
+if(typeof RTIME!=='undefined')RTIME.dom={l:'Durée de la partie',o:[5,10,15],d:10,u:'min'};
+const DOM={flags:[],pts:[0,0],tick:0};
+const DOM_R=3.4,DOM_CAP=5,DOM_COL=[0xff7a4a,0x4aa3ff];
+
+// un point de drapeau : case praticable, libre, accessible depuis les deux camps
+function domCellOk(cx,cz){
+ if(cx<1||cz<1||cx>=N-1||cz>=N-1||!walkableCell(cz*N+cx))return false;
+ const x=cc(cx),z=cc(cz);return !blocked(x,z,groundH(x,z),.6);
+}
+function domSpot(fx,fz){
+ const tx=Math.round(fx),tz=Math.round(fz);
+ for(let r=0;r<10;r++)for(let dz=-r;dz<=r;dz++)for(let dx=-r;dx<=r;dx++){
+  if(Math.max(Math.abs(dx),Math.abs(dz))!==r)continue;
+  const cx=tx+dx,cz=tz+dz;if(!domCellOk(cx,cz))continue;
+  const x=cc(cx),z=cc(cz);
+  if(findPath(cc(MAP.spawnT[0][0]),cc(MAP.spawnT[0][1]),x,z)&&findPath(cc(MAP.spawnCT[0][0]),cc(MAP.spawnCT[0][1]),x,z))return [cx,cz];
+ }
+ return [tx,tz];
+}
+function domLabel(letter){
+ const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d');
+ g.fillStyle='#000a';g.beginPath();g.arc(64,64,54,0,TAU);g.fill();g.lineWidth=7;g.strokeStyle='#fff';g.stroke();
+ g.fillStyle='#fff';g.font='900 72px Arial';g.textAlign='center';g.textBaseline='middle';g.fillText(letter,64,68);
+ const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthTest:false,toneMapped:false}));
+ s.scale.set(1.3,1.3,1);s.renderOrder=5;return s;
+}
+function domSetup(){
+ domCleanup();
+ const avg=l=>{let x=0,z=0;for(const c of l){x+=c[0];z+=c[1];}return [x/l.length,z/l.length];};
+ const t=avg(MAP.spawnT),ct=avg(MAP.spawnCT);
+ ['A','B','C'].forEach((n,i)=>{
+  const k=[.28,.5,.72][i],c=domSpot(t[0]+(ct[0]-t[0])*k,t[1]+(ct[1]-t[1])*k);
+  // A et C décalés sur les côtés pour que les trois drapeaux ne soient pas alignés
+  let cx=c[0],cz=c[1];
+  if(i!==1){const px=-(ct[1]-t[1]),pz=ct[0]-t[0],L=Math.hypot(px,pz)||1,s=(i===0?1:-1)*7;const c2=domSpot(cx+px/L*s,cz+pz/L*s);cx=c2[0];cz=c2[1];}
+  const x=cc(cx),z=cc(cz),y=groundH(x,z),ring=ringMesh(0xffffff,4.5);ring.position.set(x,y,z);ring.scale.set(DOM_R,1,DOM_R);
+  const lab=domLabel(n);lab.position.set(x,y+3.2,z);scene.add(lab);
+  DOM.flags.push({n,x,z,y,owner:-1,cap:-1,prog:0,ring,lab,contested:false});
+ });
+ DOM.pts=[0,0];DOM.tick=0;
+}
+function domCleanup(){for(const f of DOM.flags){scene.remove(f.ring);scene.remove(f.lab);}DOM.flags.length=0;}
+function domColor(f){ringColor(f.ring,f.contested?0xffd23a:f.owner<0?0xffffff:DOM_COL[f.owner]);}
+function domUpdate(dt,t){
+ for(const f of DOM.flags){f.ring.userData.ring.rotation.z+=dt*.5;f.lab.position.y=f.y+3.2+Math.sin(t*2+f.x)*.08;}
+ if(G.state!=='live')return;
+ for(const f of DOM.flags){
+  const c=[0,0];for(const e of ents)if(e.alive&&!e.downed&&Math.hypot(e.x-f.x,e.z-f.z)<DOM_R&&Math.abs(e.y-f.y)<2.5)c[e.team]++;
+  f.contested=c[0]>0&&c[1]>0;
+  const who=c[0]>0&&!c[1]?0:c[1]>0&&!c[0]?1:-1;
+  if(who>=0&&who!==f.owner){
+   if(f.cap!==who){f.cap=who;f.prog=0;}
+   f.prog+=dt*Math.min(2,1+.25*(c[who]-1))/(f.owner<0?DOM_CAP:DOM_CAP*1.6);
+   if(f.prog>=1){
+    const prev=f.owner;f.owner=who;f.prog=0;f.cap=-1;
+    const mine=who===P.team;uiBanner((mine?'DRAPEAU '+f.n+' CAPTURÉ':'DRAPEAU '+f.n+' PERDU'),'',1400,mine?'#7dff9f':'#ff6b6b');sfx(mine?'pickup':'alarm');
+    if(prev>=0)for(const b of ents)if(!b.isPlayer&&b.team===prev)b.domT=0; // les défenseurs réagissent
+   }
+  }else if(who<0&&!f.contested&&f.prog>0)f.prog=Math.max(0,f.prog-dt*.25);
+  domColor(f);
+ }
+ DOM.tick+=dt;
+ if(DOM.tick>=1){DOM.tick-=1;for(const f of DOM.flags)if(f.owner>=0)DOM.pts[f.owner]++;G.score=DOM.pts.slice();checkDMEnd();}
+ domHud();
+}
+function domHud(){
+ let el=$('domHud');
+ if(!el){el=document.createElement('div');el.id='domHud';$('hud').appendChild(el);}
+ const near=DOM.flags.find(f=>P&&P.alive&&Math.hypot(P.x-f.x,P.z-f.z)<DOM_R);
+ el.innerHTML=DOM.flags.map(f=>{const col=f.contested?'#ffd23a':f.owner<0?'#ffffff':TEAMCSS[f.owner];return '<i style="border-color:'+col+';color:'+col+'">'+f.n+(f.prog>0?'<b style="width:'+Math.round(f.prog*100)+'%;background:'+(f.cap>=0?TEAMCSS[f.cap]:'#fff')+'"></b>':'')+'</i>';}).join('')+
+  (near?'<div class="dn">'+(near.contested?'DRAPEAU '+near.n+' DISPUTÉ':near.owner===P.team?'DRAPEAU '+near.n+' TENU':'CAPTURE DE '+near.n+' — '+Math.round(near.prog*100)+' %')+'</div>':'');
+}
+// branchements sur le moteur de variantes
+const _variantInitDom=variantInit;
+variantInit=function(){
+ if(G.variant!=='dom')domCleanup();
+ _variantInitDom();
+ if(G.variant!=='dom'){const h=$('domHud');if(h)h.style.display='none';return;}
+ G.limit=limitOf('dom');domSetup();const h=$('domHud');if(h)h.style.display='';
+};
+const _variantUpdateDom=variantUpdate;
+variantUpdate=function(dt,t){_variantUpdateDom(dt,t);if(G.variant==='dom'&&(G.state==='live'||G.state==='freeze'))domUpdate(dt,t);};
+const _variantTimeUpDom=variantTimeUp;
+variantTimeUp=function(){
+ if(G.variant!=='dom')return _variantTimeUpDom();
+ G.score=DOM.pts.slice();G.winner=DOM.pts[0]===DOM.pts[1]?-1:DOM.pts[0]>DOM.pts[1]?0:1;
+ if(G.winner===-1){G.state='end';G.endT=4.5;G.final=true;uiBanner('ÉGALITÉ','Temps écoulé',4000);return true;}
+ endDM();return true;
+};
+const _variantSubDom=variantSub;
+variantSub=function(){return G.variant==='dom'?'Capture A, B et C — premier à '+G.limit+' points':_variantSubDom();};
+const _variantCleanupDom=variantCleanup;
+variantCleanup=function(){_variantCleanupDom();domCleanup();};
+// bots : chacun choisit un drapeau à prendre ou à défendre
+const _botGoalDom=botGoal;
+botGoal=function(b){
+ if(G.variant!=='dom'||!DOM.flags.length)return _botGoalDom(b);
+ if(!b.domF||G.t>(b.domT||0)){
+  const fl=DOM.flags,mine=fl.filter(f=>f.owner===b.team),other=fl.filter(f=>f.owner!==b.team);
+  let f;
+  if(other.length&&(Math.random()<.75||!mine.length)){f=other.slice().sort((a,c)=>Math.hypot(a.x-b.x,a.z-b.z)-Math.hypot(c.x-b.x,c.z-b.z))[Math.random()<.7?0:Math.floor(Math.random()*other.length)];}
+  else f=pick(mine.length?mine:fl);
+  b.domF=f;b.domT=G.t+rand(12,20);b.domX=f.x+rand(-1.8,1.8);b.domZ=f.z+rand(-1.8,1.8);
+ }
+ if(b.domF.owner===b.team&&!b.domF.contested&&Math.hypot(b.x-b.domF.x,b.z-b.domF.z)<DOM_R&&Math.random()<.002)b.domT=0;
+ return {x:b.domX,z:b.domZ};
+};
+(function(){const s=document.createElement('style');s.textContent=`
+#domHud{position:absolute;top:58px;left:50%;transform:translateX(-50%);display:flex;gap:10px;justify-content:center;flex-wrap:wrap;pointer-events:none}
+#domHud i{position:relative;width:34px;height:34px;border:3px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font:900 1rem Bahnschrift,Arial;font-style:normal;background:#0008;overflow:hidden}
+#domHud i b{position:absolute;left:0;bottom:0;height:4px;opacity:.9}
+#domHud .dn{flex-basis:100%;text-align:center;font:800 .78rem Bahnschrift,Arial;letter-spacing:2px;color:#fff;text-shadow:0 1px 4px #000}
+`;document.head.appendChild(s);})();
+/* =====================================================================
+   MODE INFECTÉ (façon Call of Duty / Roblox)
+   - Tout le monde commence survivant (armes normales). Après le compte
+     à rebours, un joueur au hasard devient l'infecté.
+   - Infectés : couteau seulement, plus rapides, réapparaissent.
+   - Un survivant tué rejoint les infectés.
+   - Les infectés gagnent s'il ne reste plus de survivant ; les
+     survivants gagnent s'il en reste au moins un à la fin du chrono.
+   Variante du mode « tdm » (équipes, réapparition).
+   ===================================================================== */
+MODES.inf={n:'Infecté',ic:'☣',c:'#9dff5a',team:true,respawn:2.5,desc:'Un joueur commence infecté. Chaque survivant tué rejoint les infectés. Tiens jusqu\'à la fin du chrono.',limitLabel:'',limits:[]};
+VARIANT_BASE.inf='tdm';NOKILLSCORE.inf=1;
+MODE_GROUPS[2][1].splice(1,0,'inf');MODE_TAG.inf='Survis aux infectés';
+if(typeof RTIME!=='undefined')RTIME.inf={l:'Durée de la partie',o:[3,5,8],d:5,u:'min'};
+const INF={started:false,startT:0,glow:new Map()};
+const isInf=()=>G.variant==='inf';
+
+function infCount(){let s=0,i=0;for(const e of ents){if(e.team===0)s++;else i++;}G.score=[s,i];return s;}
+function infLook(e){
+ if(!e.rig)return;
+ if(!e.rig.root.userData.infGlow){const g=zGlow(0x9dff5a,1.1);if(g){g.position.y=1.2;e.rig.root.add(g);e.rig.root.userData.infGlow=g;}}
+}
+function infArm(e){ // infecté : couteau seulement, plus rapide
+ e.wp.p=null;e.wp.s=null;e.cur='k';e.nade={f:0,fl:0,sm:0,mn:0};e.armor=0;e.shield=0;e.perks={stamin:1};
+ if(e.isPlayer)vmDraw&&vmDraw();
+}
+function infTurn(e,first){
+ e.team=1;e.keep=false;
+ // un mort garde son corps au sol : on change son apparence à la réapparition
+ if(e.alive){attachRig(e);infLook(e);infArm(e);}else e._infRig=true;
+ if(e.isPlayer)for(const o of ents)if(o.rig&&o.rig.label)o.rig.label.visible=o.team===P.team;
+ if(first){
+  const me=e.isPlayer;
+  uiBanner(me?'TU ES L\'INFECTÉ':e.name.toUpperCase()+' EST INFECTÉ',me?'Contamine tout le monde au couteau':'Survis jusqu\'à la fin du chrono',2600,'#9dff5a');sfx('alarm');
+ }else if(e.isPlayer)uiBanner('TU ES INFECTÉ','Contamine les survivants',2000,'#9dff5a');
+}
+// au départ, tout le monde est survivant
+const _variantPostSpawnInf=variantPostSpawn;
+variantPostSpawn=function(){
+ _variantPostSpawnInf();
+ if(!isInf())return;
+ INF.started=false;INF.startT=G.t+(G.timer||3)+2;
+ for(const e of ents){if(e.team!==0){e.team=0;attachRig(e);}}
+ if(P.rig)P.rig.root.visible=false;
+ infCount();
+};
+const _respawnInf=respawn;
+respawn=function(e){
+ if(isInf()&&e._infRig){e._infRig=false;attachRig(e);}
+ _respawnInf(e);
+ if(isInf()&&e.team===1){infArm(e);infLook(e);}
+};
+const _variantKillInf=variantKill;
+variantKill=function(att,v,w,hs){
+ _variantKillInf(att,v,w,hs);
+ if(!isInf())return;
+ if(v.team===0&&INF.started){infTurn(v,false);if(att&&att.isPlayer&&att!==v)uiToast('Survivant contaminé');}
+ if(infCount()===0&&G.state==='live'){G.winner=1;endDM();}
+};
+const _variantUpdateInf=variantUpdate;
+variantUpdate=function(dt,t){
+ _variantUpdateInf(dt,t);
+ if(!isInf()||G.state!=='live')return;
+ if(!INF.started&&G.t>=INF.startT){
+  INF.started=true;const alive=ents.filter(e=>e.alive);const z=pick(alive.length?alive:ents);infTurn(z,true);
+  for(const b of ents)if(!b.isPlayer)b.target=null;
+ }
+ infCount();
+};
+const _variantTimeUpInf=variantTimeUp;
+variantTimeUp=function(){
+ if(!isInf())return _variantTimeUpInf();
+ G.winner=infCount()>0?0:1;
+ if(G.winner===0&&P.team===0&&!G.netClient)metaEvent('inf_surv');
+ endDM();return true;
+};
+const _variantSubInf=variantSub;
+variantSub=function(){return isInf()?'Un joueur va être infecté… survis jusqu\'à la fin':_variantSubInf();};
+// bots infectés : ils foncent au couteau sur le survivant le plus proche
+const _botUpdateInf=botUpdate;
+botUpdate=function(b,dt){
+ if(!isInf()||b.team!==1||!b.alive||G.state!=='live')return _botUpdateInf(b,dt);
+ tickWeapon(b,dt);
+ if(b.blindT>0){b.blindT-=dt;b.vx*=.9;b.vz*=.9;physics(b,dt);return;}
+ let t=null,bd=1e9;for(const e of ents){if(!e.alive||e.team!==0)continue;const d=Math.hypot(e.x-b.x,e.z-b.z)+(Math.abs(e.y-b.y)>2?6:0);if(d<bd){bd=d;t=e;}}
+ if(!t){botMove(b,0,0,dt);return;}
+ const sp=RUN*.97*(b.diff?b.diff.speed:1);
+ if(bd>1.3)botGo(b,dt,t.x,t.z,sp);else botMove(b,0,0,dt);
+ const wy=Math.atan2(-(t.x-b.x),-(t.z-b.z)),wp=Math.atan2(t.y+1.1-(b.y+eyeOf(b)),Math.max(bd,.5));
+ if(bd<4)turnTo(b,wy,wp,12,dt);else if(Math.hypot(b.vx,b.vz)>.3)turnTo(b,Math.atan2(-b.vx,-b.vz),0,9,dt);
+ if(bd<1.9&&Math.abs(angDiff(b.yaw,wy))<.45)shoot(b);
+};
+// les infectés ne ramassent pas d'armes
+const _updatePickupsInf=updatePickups;
+updatePickups=function(dt,t){
+ if(!isInf())return _updatePickupsInf(dt,t);
+ const inf=ents.filter(e=>e.team===1&&e.alive);for(const e of inf)e._pkA=e.alive,e.alive=false;
+ try{_updatePickupsInf(dt,t);}finally{for(const e of inf)e.alive=e._pkA;}
+};
+const _variantInitInf=variantInit;
+variantInit=function(){_variantInitInf();if(isInf())G.limit=1e9;}; // pas de limite de score : fin au chrono ou quand tout le monde est infecté
+/* =====================================================================
+   KILL-CAM (façon Call of Duty)
+   Quand tu meurs dans un mode avec réapparition (MàM, Capture, Domination,
+   Infecté, Course aux armes…) ou en Bataille royale, on rejoue les
+   dernières secondes vues par-dessus l'épaule de celui qui t'a tué.
+   ESPACE ou clic pour passer. Réglage : Réglages › Plus d'options.
+   Réutilise le moteur de rediffusion de 6A_replay.js.
+   ===================================================================== */
+cfg.killcam=cfg.killcam===undefined?1:cfg.killcam;
+const KCAM={on:false,respT:0};
+const kcMode=()=>G.mode!=='bomb'&&G.variant!=='zombies'&&G.variant!=='train';
+function kcStart(){
+ const k=RP.kill;
+ if(!cfg.killcam||!kcMode()||G.netClient||NET.role||RP.on||POTG.playing)return;
+ if(!k||k.v!==P||!k.att||k.att===P||!k.att.rig||!RP.buf.length)return;
+ RP.t0=Math.max(RP.buf[0].t,k.t-2.2);RP.t1=k.t+.6;
+ if(k.t-RP.t0<.6)return;
+ KCAM.on=true;RP.on=true;RP.wait=.5;RP.rt=RP.t0;RP.prev=RP.t0;RP.cam=null;RP.orbit=0;RP.blood=false;RP.hold=.6;
+ // la réapparition attend la fin de la kill-cam
+ KCAM.respT=P.respT;if(isFinite(P.respT))P.respT=99;
+}
+function kcFinish(){
+ KCAM.on=false;
+ if(P&&!P.alive&&isFinite(KCAM.respT)&&P.respT>KCAM.respT)P.respT=Math.min(KCAM.respT,.4);
+ const tag=RP.el&&RP.el.querySelector('.tag');if(tag)tag.innerHTML='<i></i>REDIFFUSION · DERNIÈRE ÉLIMINATION';
+}
+const _killEntKc=killEnt;
+killEnt=function(v,att,w,hs){
+ const was=v.alive;_killEntKc(v,att,w,hs);
+ if(was&&!v.alive&&v===P&&G.state==='live')kcStart();
+};
+// pendant la kill-cam, les autres éliminations ne remplacent pas celle qu'on rejoue
+const _rpKillKc=rpKill;
+rpKill=function(att,v,w,hs){if(KCAM.on)return;_rpKillKc(att,v,w,hs);};
+const _rpEndKc=rpEnd;
+rpEnd=function(){
+ if(!KCAM.on)return _rpEndKc();
+ RP.on=false;rpOverlay(false);kcFinish();
+ for(const e of ents)if(e.rig&&!e.alive)e.rig.dieT=9; // corps déjà au sol après la rediffusion
+};
+const _rpOverlayKc=rpOverlay;
+rpOverlay=function(on,prog){
+ _rpOverlayKc(on,prog);
+ if(on&&KCAM.on){const tag=RP.el.querySelector('.tag');if(tag&&!tag.dataset.kc){tag.innerHTML='<i></i>KILL-CAM';}}
+};
+// fin de partie ou retour au menu : on coupe proprement
+const _matchOverKc=matchOver;
+matchOver=function(){if(KCAM.on){RP.on=false;rpOverlay(false);kcFinish();}return _matchOverKc();};
+const _endDMKc=endDM;
+endDM=function(){if(KCAM.on){RP.on=false;rpOverlay(false);kcFinish();}return _endDMKc();};
+addEventListener('mousedown',()=>{if(KCAM.on&&RP.on&&RP.wait<=0)rpEnd();});
+// réglage
+const _buildOptsKc=buildOpts;
+buildOpts=function(){
+ _buildOptsKc();
+ let g=$('gKillcam');
+ if(!g){
+  const anchor=$('cCine')&&$('cCine').closest('.grp');if(!anchor)return;
+  g=document.createElement('div');g.className='grp';g.id='gKillcam';g.innerHTML='<label>Kill-cam</label><div class="chips" id="cKillcam"></div><small>Rejoue ta mort du point de vue du tueur (modes avec réapparition).</small>';
+  anchor.parentNode.insertBefore(g,anchor.nextSibling);
+ }
+ chipsRow('cKillcam',[['Activée',1],['Désactivée',0]],()=>cfg.killcam?1:0,v=>cfg.killcam=v,buildOpts);
+};
+/* =====================================================================
+   QUALITÉ AUTOMATIQUE
+   Si les images par seconde restent basses en jeu, la résolution de
+   rendu baisse par paliers (jusqu'à 55 %), puis la qualité graphique
+   descend d'un cran (Haute → Moyenne → Basse). Quand ça redevient
+   fluide longtemps, la résolution remonte. Réglage : Réglages ›
+   Qualité automatique (activée par défaut).
+   ===================================================================== */
+cfg.autoGfx=cfg.autoGfx===undefined?1:cfg.autoGfx;
+const AQ={scale:1,acc:0,n:0,low:0,high:0,last:performance.now(),cool:0};
+const AQ_LOW=40,AQ_HIGH=57,AQ_MIN=.55;
+const _resizeAQ=resize;
+resize=function(){
+ _resizeAQ();
+ if(AQ.scale<1)renderer.setPixelRatio(renderer.getPixelRatio()*AQ.scale);
+ if(typeof postSize==='function')postSize();
+};
+function aqApply(msg){resize();if(msg)uiToast(msg);}
+function aqStep(dt){
+ const fps=AQ.n/AQ.acc;AQ.acc=0;AQ.n=0;
+ if(AQ.cool>0){AQ.cool-=1;return;}
+ if(fps<AQ_LOW){AQ.low++;AQ.high=0;}else if(fps>AQ_HIGH){AQ.high++;AQ.low=0;}else{AQ.low=0;AQ.high=0;}
+ if(AQ.low>=3){ // ~3 s sous 40 FPS
+  AQ.low=0;AQ.cool=3;
+  if(AQ.scale>AQ_MIN+.01){AQ.scale=Math.max(AQ_MIN,AQ.scale-.15);aqApply('Qualité auto : résolution '+Math.round(AQ.scale*100)+' %');}
+  else if(cfg.gfx>0){cfg.gfx--;AQ.scale=.85;saveCfg();aqApply('Qualité auto : graphismes '+['Basse','Moyenne','Haute'][cfg.gfx]);if(typeof buildOpts==='function')try{buildOpts();}catch(e){}}
+ }else if(AQ.high>=12&&AQ.scale<1){ // ~12 s au-dessus de 57 FPS
+  AQ.high=0;AQ.cool=3;AQ.scale=Math.min(1,AQ.scale+.15);aqApply();
+ }
+}
+const _renderAQ=render;
+render=function(dt,t){
+ _renderAQ(dt,t);
+ const now=performance.now(),rd=(now-AQ.last)/1000;AQ.last=now;
+ if(!cfg.autoGfx||!G.running||G.paused||document.hidden||rd>.5)return; // pause, onglet caché : on ne compte pas
+ AQ.acc+=rd;AQ.n++;
+ if(AQ.acc>=1)aqStep();
+};
+// réglage
+const _buildOptsAQ=buildOpts;
+buildOpts=function(){
+ _buildOptsAQ();
+ let g=$('gAutoGfx');
+ if(!g){
+  const anchor=$('cGfx')&&$('cGfx').closest('.grp');if(!anchor)return;
+  g=document.createElement('div');g.className='grp';g.id='gAutoGfx';g.innerHTML='<label>Qualité automatique</label><div class="chips" id="cAutoGfx"></div><small>Baisse la résolution puis la qualité si le jeu rame.</small>';
+  anchor.parentNode.insertBefore(g,anchor.nextSibling);
+ }
+ chipsRow('cAutoGfx',[['Activée',1],['Désactivée',0]],()=>cfg.autoGfx?1:0,v=>{cfg.autoGfx=v;if(!v&&AQ.scale<1){AQ.scale=1;resize();}},buildOpts);
+};
 /* =====================================================================
    BOUCLE PRINCIPALE
    ===================================================================== */
@@ -11515,10 +12198,11 @@ let last=performance.now()/1000;
 function frame(){
  requestAnimationFrame(frame);
  const now=performance.now()/1000;let dt=Math.min(.05,now-last);last=now;
- if(G.running&&!G.paused)update(dt);else if(!G.running)immersionUpdate(dt);
+ // en multijoueur la pause n'arrête pas la partie (les autres joueurs continuent)
+ if(G.running&&(!G.paused||NET.role))update(dt);else if(!G.running)immersionUpdate(dt);
  if(pvOn&&pvR&&pvPivot&&!G.running){if(!pvHold)pvPivot.rotation.y+=dt*.7*pvSpin;pvR.render(pvS,pvC);}
  if(lkOn&&!G.running)lkFrame(dt,now);
- render(G.paused?0:dt,now);
+ render(G.paused&&!NET.role?0:dt,now);
 }
 /* ---------- démarrage avec écran de chargement ---------- */
 (function boot(){

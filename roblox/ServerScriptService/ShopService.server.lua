@@ -1,6 +1,6 @@
 --!strict
 -- ServerScriptService/ShopService (Script)
--- Boutique : achats en pièces (armes, skins, viseurs, tenues), offres du jour, équipement, et produits Robux.
+-- Boutique : achats en pièces (armes, skins, viseurs, tenues), offres du jour, équipement, produits Robux et exclusifs payants.
 -- Le catalogue est dans ReplicatedStorage/Shared/ShopCatalog. Le serveur revérifie TOUT (prix, possession, pièces) : ne jamais croire le client.
 -- C'est le SEUL ProcessReceipt du jeu (Roblox n'en accepte qu'un) : pièces, caisses et passe Premium passent tous par ici.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -23,7 +23,7 @@ end
 -- ---------- Robux (Developer Products) ----------
 local byProduct: { [number]: any } = {}
 for _, it in ipairs(Catalog.ITEMS) do
-	if it.kind == "devproduct" and it.productId > 0 then byProduct[it.productId] = it end
+	if (it.kind == "devproduct" or it.kind == "exclusive") and it.productId > 0 then byProduct[it.productId] = it end
 end
 
 MarketplaceService.ProcessReceipt = function(info)
@@ -39,6 +39,12 @@ MarketplaceService.ProcessReceipt = function(info)
 	if it.coins then profile.coins += it.coins end
 	if it.box then profile.boxes[it.box] = (profile.boxes[it.box] or 0) + (it.boxes or 1) end
 	if it.premium then ProgressService.grantPremium(player) end
+	if it.kind == "exclusive" then                                            -- camos animés : ajoutés pour toujours
+		profile.inv.exclusive = profile.inv.exclusive or {}
+		for _, c in ipairs(it.camos) do
+			if not table.find(profile.inv.exclusive, c) then table.insert(profile.inv.exclusive, c) end
+		end
+	end
 	local ok = pcall(function() receipts:SetAsync(key, true) end)
 	if not ok then return Enum.ProductPurchaseDecision.NotProcessedYet end
 	DataService.save(player)
@@ -89,7 +95,8 @@ buy.OnServerInvoke = function(player: Player, id: any)
 	local it = Catalog.get(id)
 	if not it then return { ok = false, err = "Objet inconnu" } end
 
-	if it.kind == "devproduct" then
+	if it.kind == "devproduct" or it.kind == "exclusive" then
+		if it.kind == "exclusive" and Catalog.owns(profile, it) then return { ok = false, err = "Déjà possédé" } end
 		if it.productId <= 0 then return { ok = false, err = "Bientôt disponible" } end
 		MarketplaceService:PromptProductPurchase(player, it.productId)   -- le crédit se fait dans ProcessReceipt
 		return { ok = true, pending = true }
@@ -123,6 +130,10 @@ equip.OnServerInvoke = function(player: Player, id: any, weapon: any)
 	elseif it.kind == "sight" then
 		if typeof(weapon) ~= "string" or not Config.WEAPONS[weapon] or Config.WEAPONS[weapon].melee then return false end
 		eq.sights[weapon] = it.sight
+	elseif it.kind == "exclusive" and it.camo then   -- un camo animé se pose arme par arme (le lot se possède, il ne s'équipe pas)
+		if typeof(weapon) ~= "string" or not Config.WEAPONS[weapon] or Config.WEAPONS[weapon].melee then return false end
+		eq.animCamo = eq.animCamo or {}
+		eq.animCamo[weapon] = it.camo
 	else
 		return false
 	end
@@ -132,10 +143,10 @@ end
 -- Vérification au démarrage : un productId en double ferait créditer le mauvais produit
 do
 	local seen = {}
-	for _, it in ipairs(X.SHOP) do
+	for _, list in ipairs({ X.SHOP, X.EXCLUSIVES }) do for _, it in ipairs(list) do
 		if it.productId > 0 then
 			if seen[it.productId] then warn("[ShopService] productId en double dans ConfigExtra.SHOP :", it.productId) end
 			seen[it.productId] = true
 		end
-	end
+	end end
 end

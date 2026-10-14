@@ -64,11 +64,16 @@ function attAllowed(k){
  for(const k in cfg.att){const a=cfg.att[k];if(!a||typeof a!=='object')continue;
   for(const o in conv)if(a[o]===true||a[o]===false){if(a[o])a[conv[o][0]]=conv[o][1];delete a[o];}}
 })();
+/* déblocage réaliste : un accessoire demande un niveau de joueur ET un nombre d'éliminations avec CETTE arme */
+const ATT_REQ={1:[3,15],2:[6,40],3:[9,80],4:[12,130],5:[15,200],6:[18,280],8:[24,450]};
+function attReq(a){const d=ATTS[a];return ATT_REQ[d.lv]||[d.lv*3,d.lv*55];}
+function attOpen(k,a){const r=attReq(a);return myLv()>=r[0]&&(PROF.wk[k]||0)>=r[1];}
+function attLockTxt(k,a){const r=attReq(a),n=PROF.wk[k]||0,o=[];if(myLv()<r[0])o.push('niveau '+r[0]);if(n<r[1])o.push(r[1]+' éliminations avec cette arme ('+n+'/'+r[1]+')');return o.length?'Requis : '+o.join(' + '):'';}
 function attSel(e,k){return e&&e.isPlayer&&cfg.att[k]?cfg.att[k]:{};}
 // liste des accessoires actifs (respecte le niveau et la catégorie)
 function attList(k,sel){
- const ok=attAllowed(k),lv=myLv(),out=[];
- for(const s in sel){const a=sel[s];if(a&&ATTS[a]&&ATTS[a].s===s&&ok[s]&&ok[s].includes(a)&&lv>=ATTS[a].lv)out.push(a);}
+ const ok=attAllowed(k),out=[];
+ for(const s in sel){const a=sel[s];if(a&&ATTS[a]&&ATTS[a].s===s&&ok[s]&&ok[s].includes(a)&&attOpen(k,a))out.push(a);}
  return out;
 }
 const ATT_NEUTRAL={dmg:1,rec:1,recH:1,adsSpr:1,hip:1,mob:1,ads:1,rng:1,rel:1,mag:1,snd:1,zoom:0,sil:0,noFlash:0};
@@ -293,7 +298,7 @@ function gsCss(){
 }
 function gsDraw(){
  const k=pvKey,host=$('gsPanel');if(!host)return;
- const ok=attAllowed(k),sel=cfg.att[k]||{},lv=myLv();
+ const ok=attAllowed(k),sel=cfg.att[k]||{};
  if(!Object.keys(ok).length){host.innerHTML='<h4>ARMURIER</h4><small style="color:#8fa3c0">Pas d\'accessoires pour cette arme.</small>';return;}
  if(!ok[gsSlot])gsSlot=Object.keys(ok)[0];
  const n=gsCount(sel);
@@ -303,8 +308,8 @@ function gsDraw(){
  h+='</div><div class="gsOpts">';
  const cur=sel[gsSlot];
  h+='<div class="gsOpt'+(!cur?' on':'')+'" data-a=""><b>'+(gsSlot==='optic'?opticNone(k):'Aucun')+'</b><small>'+(gsSlot==='optic'?'Viseur de base de l\'arme':'Retirer l\'accessoire')+'</small></div>';
- for(const a of ok[gsSlot]||[]){const d=ATTS[a],lock=lv<d.lv;
-  h+='<div class="gsOpt'+(cur===a?' on':'')+(lock?' lock':'')+'" data-a="'+a+'"><b>'+d.n+(lock?' 🔒':'')+'</b><small>'+(lock?'Débloqué au niveau '+d.lv+'. ':'')+d.d+'</small></div>';}
+ for(const a of ok[gsSlot]||[]){const d=ATTS[a],lock=!attOpen(k,a);
+  h+='<div class="gsOpt'+(cur===a?' on':'')+(lock?' lock':'')+'" data-a="'+a+'"><b>'+d.n+(lock?' 🔒':'')+'</b><small>'+(lock?attLockTxt(k,a)+'. ':'')+d.d+'</small></div>';}
  h+='</div>';host.innerHTML=h;
  host.querySelectorAll('.gsSlot').forEach(el=>el.onclick=()=>{if(el.classList.contains('off'))return;sfxUI();gsSlot=el.dataset.s;gsDraw();});
  host.querySelectorAll('.gsOpt').forEach(el=>{
@@ -313,7 +318,7 @@ function gsDraw(){
   el.onmouseenter=()=>{if(lock)return;gsPrev=trial();pvSet(k);gsStats();};
   el.onmouseleave=()=>{if(!gsPrev)return;gsPrev=null;pvSet(k);gsStats();};
   el.onclick=()=>{
-   if(lock){sfxUI();uiToast('Débloqué au niveau '+ATTS[a].lv);return;}
+   if(lock){sfxUI();uiToast(attLockTxt(k,a));return;}
    const s=trial();
    if(gsCount(s)>ATT_MAX){sfxUI();uiToast('Maximum '+ATT_MAX+' accessoires : retire-en un d\'abord');return;}
    cfg.att[k]=s;saveCfg();gsPrev=null;sfx('reload',undefined,undefined,.35);pvSet(k);gsDraw();gsStats();

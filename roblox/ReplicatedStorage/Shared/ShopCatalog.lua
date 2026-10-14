@@ -1,15 +1,15 @@
 --!strict
 -- ReplicatedStorage/Shared/ShopCatalog (ModuleScript)
 -- Catalogue de la boutique, partagé client + serveur : le client l'affiche, le serveur s'en sert pour vérifier chaque achat.
--- Tout s'achète avec les pièces gagnées en jouant (niveaux, récompense du jour, défis, succès, passe de combat).
--- Les Robux servent seulement à acheter des pièces / caisses / le passe Premium : aucun objet n'est réservé aux joueurs qui paient.
+-- Armes, skins, viseurs et tenues s'achètent avec les pièces gagnées en jouant (lentement : voir Config.xpNeeded et RewardService).
+-- Les Robux achètent des pièces, des caisses, le passe Premium, et les EXCLUSIFS (camos animés) qu'on ne peut obtenir qu'en payant.
 local Config = require(script.Parent.Config)
 local X = require(script.Parent.ConfigExtra)
 
 local Catalog = {}
 
 -- ---------- Prix ----------
-Catalog.PRICE_BY_RARITY = { 0, 400, 1000, 2500 }  -- commun (gratuit), rare, épique, légendaire
+Catalog.PRICE_BY_RARITY = { 0, 800, 2000, 5000 }  -- commun (gratuit), rare, épique, légendaire (~35 pièces gagnées par partie)
 Catalog.OFFER_DISCOUNT = 0.25                     -- -25 % sur les offres du jour
 
 -- Armes disponibles dès le départ ; les autres se débloquent une fois pour toutes avec des pièces
@@ -18,7 +18,7 @@ Catalog.STARTER_WEAPONS = { knife = true, glock = true, usp = true, p250 = true,
 function Catalog.weaponPrice(key: string): number
 	if Catalog.STARTER_WEAPONS[key] then return 0 end
 	local w = Config.WEAPONS[key]
-	return math.max(300, math.floor(w.price * 0.4 / 50 + 0.5) * 50)   -- ex. AK-47 (2700 $ en partie) -> 1100 pièces
+	return math.max(500, math.floor(w.price * 0.6 / 50 + 0.5) * 50)   -- ex. AK-47 (2700 $ en partie) -> 1600 pièces
 end
 
 -- Onglets dans l'ordre d'affichage
@@ -27,7 +27,8 @@ Catalog.TABS = {
 	{ id = "skins", name = "Skins" },
 	{ id = "sights", name = "Viseurs" },
 	{ id = "style", name = "Tenues & style" },
-	{ id = "robux", name = "Pièces" },
+	{ id = "exclusive", name = "Exclusifs ✨" },
+	{ id = "robux", name = "Robux" },
 }
 
 -- ---------- Liste des objets ----------
@@ -95,6 +96,12 @@ for _, it in ipairs(X.SHOP) do
 	end
 end
 
+-- Exclusifs (Robux uniquement, permanents) : camos animés, ou lot de plusieurs camos
+for _, it in ipairs(X.EXCLUSIVES) do
+	add({ id = it.id, tab = "exclusive", kind = "exclusive", name = it.name, rarity = 5, robux = it.robux, productId = it.productId,
+		camos = it.camos or { it.camo }, camo = it.camo })
+end
+
 Catalog.ITEMS = items
 function Catalog.get(id: string): any
 	return byId[id]
@@ -104,8 +111,14 @@ end
 -- Inventaire du profil (voir DataService) : inv.weapons, inv.skins[arme], inv.outfits, inv.sights, inv.reticles, inv.misc
 function Catalog.owns(profile: any, it: any): boolean
 	if it.kind == "devproduct" then return false end
-	if it.price == 0 then return true end
 	local inv = profile.inv
+	if it.kind == "exclusive" then
+		for _, c in ipairs(it.camos) do
+			if not table.find(inv.exclusive or {}, c) then return false end
+		end
+		return true
+	end
+	if it.price == 0 then return true end
 	if it.kind == "weapon" then return table.find(inv.weapons or {}, it.weapon) ~= nil end
 	if it.kind == "skin" then return table.find(inv.skins[it.weapon] or {}, it.skin) ~= nil end
 	if it.kind == "outfit" then return table.find(inv.outfits or {}, it.outfit) ~= nil end
