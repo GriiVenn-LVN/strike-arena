@@ -275,6 +275,8 @@ addEventListener('mousemove',e=>{
  const w=curW(P),z=P.scoped?1/sightZoom(P,w):1-.25*P.ads,s=.0022*cfg.sens*z*wsensMul();
  P.yaw-=e.movementX*s;P.pitch=clamp(P.pitch-e.movementY*s,-1.5,1.5);
 });
+// un clic sur le jeu reprend la capture de la souris (utile au joueur invité, qui n'a pas cliqué sur « Jouer »)
+addEventListener('mousedown',e=>{const t=e.target;if(t&&t.closest&&t.closest('button,input,select,textarea,a,#menu,#buy,.ov'))return;if(G.running&&!focusLocked&&!buyOpen&&G.state!=='over')lockMouse();});
 let rebindCb=null;
 function inputDown(code){
  tutDown(code);
