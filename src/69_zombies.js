@@ -61,7 +61,8 @@ const PERKS={
  revive:{n:'Second Souffle',price:1500,c:'#4aa3ff',ic:'♥',d:'Te relève une fois quand tu tombes'},
  stamin:{n:'Pas de Course',price:2000,c:'#ff9a3a',ic:'»',d:'Course 18 % plus rapide'}
 };
-const WALLBUYS=[['mp9',1000],['ump',1200],['nova',900],['famas',1500],['galil',1400],['m4',2000],['xm',1800],['deagle',800]];
+const ZSTART_RES=104;          // réserve du pistolet de départ (8 chargeurs de P250 au lieu de 2)
+const WALLBUYS=[['mac10',500],['mp9',1000],['ump',1200],['nova',900],['famas',1500],['galil',1400],['m4',2000],['xm',1800],['deagle',800]];
 const BOXPOOL=['mac10','mp9','ump','p90','nova','xm','sawedoff','galil','famas','ak','m4','sg553','aug','ssg','awp','scar','negev','m249','deagle','fiveseven','raygun','raygun','thunder','winter','winter'];
 const PAP_PRICE=5000,BOX_PRICE=950;
 const zOn=()=>G.variant==='zombies';
@@ -198,7 +199,10 @@ function zSetup(){
  const sp=MAP.spawnCT[0],home={x:cc(sp[0]),z:cc(sp[1])};
  // armes murales proches du départ, puis tout le reste réparti sur la carte
  const near=spots.slice().sort((a,b)=>Math.hypot(a.x-home.x,a.z-home.z)-Math.hypot(b.x-home.x,b.z-home.z));
- const walls=zPickSpread(near.slice(0,Math.max(10,near.length>>1)),Math.min(WALLBUYS.length,6),[]);
+ // MAC-10 à 500 : le mur le plus proche du départ, dans la zone accessible dès la manche 1
+ const inStart=s=>!ZD.reach||!!ZD.reach[Math.floor(s.z/S)*N+Math.floor(s.x/S)];
+ const first=near.find(s=>inStart(s)&&Math.hypot(s.x-home.x,s.z-home.z)>2)||near.find(inStart)||near[0];
+ const walls=first?[first].concat(zPickSpread(near.slice(0,Math.max(10,near.length>>1)).filter(s=>s!==first),Math.min(WALLBUYS.length,7)-1,[first])):[];
  const rest=spots.filter(s=>!walls.includes(s));
  const boxSpots=zPickSpread(rest,3,walls);
  // la boîte mystère démarre dans la zone de départ (avant d'ouvrir les portes)
@@ -291,7 +295,7 @@ function zDrop(x,z){
 function zApplyDrop(key,who){
  const d=DROPS[key];uiBanner(d.n,'',1800,'#'+d.c.toString(16).padStart(6,'0'));sfx('powerup');
  const humans=ents.filter(e=>!e.zombie);
- if(key==='ammo'){for(const h of humans)for(const s of ['p','s']){const wi=h.wp[s];if(wi){wi.mag=magMax(h,wi.k);wi.res=W[wi.k].res*(wi.pap?2:1);}}}
+ if(key==='ammo'){for(const h of humans)for(const s of ['p','s']){const wi=h.wp[s];if(wi){wi.mag=magMax(h,wi.k);wi.res=Math.max(wi.res,W[wi.k].res*(wi.pap?2:1));}}}
  if(key==='insta')ZB.insta=G.t+30;
  if(key==='dbl')ZB.dbl=G.t+30;
  if(key==='fire')ZB.fire=G.t+30;
