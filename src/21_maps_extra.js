@@ -236,12 +236,12 @@ MAPS.asile={
   const R=GB.rect,T=TY,Wl=T.WALL;
   R(Wl,0,0,39,0);R(Wl,0,39,39,39);R(Wl,0,0,0,39);R(Wl,39,0,39,39);
   // murs intérieurs (axes x=13 et x=26, cloisons z=19 et z=25)
-  R(Wl,13,1,13,38);R(Wl,26,1,26,38);R(Wl,13,25,26,25);R(Wl,1,19,12,19);R(Wl,27,19,38,19);
-  GB.clear(13,31,13,32);GB.clear(26,31,26,32);GB.clear(19,25,20,25);GB.clear(13,8,13,9);GB.clear(26,8,26,9);
-  // chapelle (départ) : bancs, autel, piliers
-  GB.ceil(14,26,25,38,5.6);
+  R(Wl,13,1,13,38);R(Wl,26,1,26,38);R(Wl,13,22,26,22);R(Wl,1,19,12,19);R(Wl,27,19,38,19);
+  GB.clear(13,31,13,32);GB.clear(26,31,26,32);GB.clear(19,22,20,22);GB.clear(13,8,13,9);GB.clear(26,8,26,9);
+  // chapelle (départ, agrandie de 3 rangées vers le nord) : bancs, autel, piliers
+  GB.ceil(14,23,25,38,5.6);
   for(const z of [29,31,33,35]){R(T.LOW,15,z,18,z,.5);R(T.LOW,21,z,24,z,.5);}
-  R(T.PLAT,17,26,22,27,.45);R(T.PILLAR,14,37,14,37,5.6);R(T.PILLAR,25,37,25,37,5.6);R(T.PILLAR,14,27,14,27,5.6);R(T.PILLAR,25,27,25,27,5.6);
+  R(T.PLAT,17,23,22,24,.45);R(T.PILLAR,14,37,14,37,5.6);R(T.PILLAR,25,37,25,37,5.6);R(T.PILLAR,14,24,14,24,5.6);R(T.PILLAR,25,24,25,24,5.6);
   // cimetière (ouest) : tombes et mausolée
   for(const x of [3,5,7,11])for(const z of [22,25,28,34,37])R(T.LOW,x,z,x,z,.9);
   R(T.LOW,9,22,9,22,.9);R(T.LOW,9,25,9,25,.9);R(T.LOW,9,37,9,37,.9);
@@ -251,9 +251,9 @@ MAPS.asile={
   for(const [a,b] of [[28,30],[35,37]]){R(T.LOW,a,22,b,22,1.3);R(T.LOW,a,36,b,36,1.3);}
   R(T.PILLAR,28,26,28,26,3.4);R(T.PILLAR,37,26,37,26,3.4);R(T.PILLAR,28,33,28,33,3.4);R(T.PILLAR,37,33,37,33,3.4);R(T.CRATE,38,37,38,38);
   // aile des malades (hall) : lits
-  GB.ceil(14,13,25,24,4.2);
+  GB.ceil(14,13,25,21,4.2);
   for(const z of [15,18,21]){R(T.LOW,15,z,16,z,.8);R(T.LOW,23,z,24,z,.8);}
-  R(T.CRATE,19,17,20,17);R(T.BARREL,14,23,14,23);
+  R(T.CRATE,19,17,20,17);R(T.BARREL,14,20,14,20);
   // cour nord : clocher, muret
   R(T.PLAT,17,2,22,4,2.6);GB.ramp(17,5,18,6,'z',2.6,0);GB.ramp(21,5,22,6,'z',2.6,0);
   R(T.LOW,15,9,17,9,1);R(T.LOW,22,9,24,9,1);R(T.BARREL,14,1,14,1);R(T.BARREL,25,1,25,1);
@@ -265,20 +265,20 @@ MAPS.asile={
   GB.ceil(27,1,38,18,4.6);
   for(const x of [29,32,35]){R(T.CRATE,x,2,x,6);R(T.CRATE,x,11,x,15);}
   R(T.LOW,30,9,31,9,.7);R(T.LOW,33,9,34,9,.7);R(T.LOW,37,8,38,9,.7);
-  GB.tag(14,26,25,38,1);GB.tag(1,20,12,38,0);GB.tag(27,20,38,38,3);GB.tag(14,13,25,24,2);GB.tag(14,1,25,12,5);GB.tag(1,1,12,18,4);GB.tag(27,1,38,18,6);
+  GB.tag(14,23,25,38,1);GB.tag(1,20,12,38,0);GB.tag(27,20,38,38,3);GB.tag(14,13,25,22,2);GB.tag(14,1,25,12,5);GB.tag(1,1,12,18,4);GB.tag(27,1,38,18,6);
  },
  sites:[{n:'A',cx:6,cz:30,r:5},{n:'B',cx:33,cz:30,r:5}],
  spawnCT:[[19,30],[20,30],[19,33],[20,33],[19,36],[20,36],[14,29],[25,29],[14,35],[25,35]],
  spawnT:[[19,11],[17,7],[22,7],[15,14],[24,14],[19,20],[6,8],[33,9],[19,1],[15,4]],
  spawnDM:[[19,33],[6,27],[33,26],[19,20],[19,7],[6,8],[33,9],[3,36],[36,37],[24,16],[10,14],[30,16]],
- zdoors:[{cells:[[13,31],[13,32]],price:750},{cells:[[26,31],[26,32]],price:750},{cells:[[19,25],[20,25]],price:1000},{cells:[[13,8],[13,9]],price:1250},{cells:[[26,8],[26,9]],price:1250}],
+ zdoors:[{cells:[[13,31],[13,32]],price:750},{cells:[[26,31],[26,32]],price:750},{cells:[[19,22],[20,22]],price:1000},{cells:[[13,8],[13,9]],price:1250},{cells:[[26,8],[26,9]],price:1250}],
  pickups:[[19,37,'ammo'],[6,27,'shield'],[33,26,'health'],[19,7,'ammo']],
  koth:[[19,32,4],[6,28,4],[33,29,4],[19,18,4]],
  holdCT:[[19,30],[6,27],[33,26],[19,19]],
  roam:[[19,30],[16,37],[23,37],[6,27],[3,32],[10,35],[33,26],[30,34],[36,24],[19,20],[19,15],[19,8],[15,3],[24,6],[6,8],[10,15],[33,9],[30,16],[37,4]],
  arches:[],
  locName(cx,cz,x,z){
-  if(cz>=26&&cx>=14&&cx<=25)return 'Chapelle';
+  if(cz>=23&&cx>=14&&cx<=25)return 'Chapelle';
   if(cz>=20&&cx<=12)return 'Cimetière';
   if(cz>=20&&cx>=27)return 'Jardin';
   if(cx>=14&&cx<=25&&cz>=13)return 'Aile des malades';
