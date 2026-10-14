@@ -71,7 +71,8 @@ function redDot(u){
 }
 function decorateVM(g,k){
  const u=g.userData,w=W[k];if(w.melee)return;
- attBuild(g,k,attSel(P,k));
+ const e=VM.ent||P;attBuild(g,k,attSel(e,k));
+ if(e!==P)return;   // spectateur : ni porte-clés ni compteur du joueur sur l'arme d'un autre
  if(cfg.charm&&cfg.charm!==''){const ch=charmMesh(cfg.charm);if(ch){ch.position.set(.032,-.07,.05);g.add(ch);g.userData.charm=ch;}}
  if(cfg.counter&&(w.cat!=='pistol'||true)){const c=counterMesh(k);c.position.set(.031,.045,-.12);g.add(c);g.userData.counter=c;counterDraw(c);}
 }

@@ -167,6 +167,7 @@ function shoot(e){
   // douille
   const cy=Math.cos(e.yaw),sy=Math.sin(e.yaw);if(w.cat!=='shotgun'||w.auto)ejectShell(ox+cy*.1+d0[0]*.3,oy-.12,oz-sy*.1+d0[2]*.3,e.yaw,1);
  }else{
+  if(e===VM.ent&&!P.alive)vmFire(w);   // joueur regardé en spectateur : recul de l'arme en vue subjective
   const d0=dirOf(e.yaw,e.pitch),m=muzzlePos(e,d0);fxMuzzleSmoke(m[0],m[1],m[2],d0[0],d0[1],d0[2]);muzzleFlash3D(m[0],m[1],m[2],w.cat==='sniper'||w.cat==='shotgun'?.8:.5);
   if(Math.random()<.5)ejectShell(ox,oy-.2,oz,e.yaw,1);
  }
@@ -194,7 +195,7 @@ function startReload(e){
  const wi=curWi(e),w=W[wi.k];
  if(w.melee||e.reload>0||wi.mag>=magMax(e,wi.k)||wi.res<=0)return;
  const rm=(e.perks&&e.perks.speed?.5:1)*attMods(e,wi.k).rel;e.reload=w.rel*rm;e.reloadMax=w.rel*rm;e.reloadWi=wi;e.ads=0;
- if(e.isPlayer)vmReload(w);else sfx('reload',e.x,e.z,.8);
+ if(e.isPlayer)vmReload(w);else{sfx('reload',e.x,e.z,.8);if(e===VM.ent&&!P.alive)vmReload(w);}
 }
 function tickWeapon(e,dt){
  if(e.switchT>0)e.switchT-=dt;
@@ -301,8 +302,8 @@ function safeSpawn(e){
  let best=null,bs=-1e9;
  for(let i=0;i<8;i++){
   const c=pick(list),x=cc(c[0]),z=cc(c[1]);let md=1e9;
-  for(const o of ents){if(o===e||!o.alive||o.team===e.team)continue;md=Math.min(md,Math.hypot(o.x-x,o.z-z));}
-  let sc=Math.min(md,60)+Math.random()*6;if(visibleFromEnemies(x,z,e.team))sc-=40;
+  let busy=0;for(const o of ents){if(o===e||!o.alive)continue;const dd=Math.hypot(o.x-x,o.z-z);if(dd<1.2)busy=1;if(o.team===e.team)continue;md=Math.min(md,dd);}
+  let sc=Math.min(md,60)+Math.random()*6-busy*100;if(visibleFromEnemies(x,z,e.team))sc-=40;   // busy : pas deux joueurs sur la même case
   if(sc>bs){bs=sc;best=c;}
  }
  return best;
