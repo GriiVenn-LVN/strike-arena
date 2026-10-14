@@ -41,7 +41,8 @@ function drawMenu(){
  chipsRow('cSide',[['Attaquants (T)','t'],['Défenseurs (CT)','ct'],['Aléatoire','rnd']],()=>cfg.side,v=>cfg.side=v);
  if(m.team){
   $('lSize').textContent='Joueurs par équipe';
-  const mx=(cfg.mode==='bomb'||cfg.mode==='rapid')?5:8;chipsRow('cSize',Array.from({length:mx},(_,i)=>[(i+1)+' v '+(i+1),i+1]),()=>Math.min(cfg.size,mx),v=>cfg.size=v);
+  const mx=(cfg.mode==='bomb'||cfg.mode==='rapid')?5:8;if(cfg.size>mx)cfg.size=mx; // sinon le menu affiche 5 v 5 mais la partie se lance en 8 v 8
+  chipsRow('cSize',Array.from({length:mx},(_,i)=>[(i+1)+' v '+(i+1),i+1]),()=>Math.min(cfg.size,mx),v=>cfg.size=v);
  }else{
   $('lSize').textContent='Nombre de joueurs';
   chipsRow('cSize',[4,6,8,10,12].map(n=>[n+'',n]),()=>cfg.ffa,v=>cfg.ffa=v);

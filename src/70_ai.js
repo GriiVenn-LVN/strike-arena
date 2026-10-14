@@ -121,7 +121,7 @@ function botUpdate(b,dt){
 
  if(b.target){
   b.seeT+=dt;
-  const t=b.target,dx=t.x-b.x,dz=t.z-b.z,dist=Math.hypot(dx,dz);
+  const t=b.target,dx=t.x-b.x,dz=t.z-b.z,dist=Math.hypot(dx,dz)||.01; // jamais 0 : sinon position NaN
   const ty=t.y+(b.aimHead?1.64:1.1)*(t.crouch?.75:1);
   const wy=Math.atan2(-dx,-dz),wp=Math.atan2(ty-(b.y+eyeOf(b)),dist);
   const ready=b.seeT>=d.react;
