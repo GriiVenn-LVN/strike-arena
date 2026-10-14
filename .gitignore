@@ -4,3 +4,4 @@ strike-arena-v2.html
 .mcp.json
 build/
 CONTEXTE_PROJET.md
+__pycache__/
