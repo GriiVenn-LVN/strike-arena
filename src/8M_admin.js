@@ -60,11 +60,13 @@ netHostMsg=function(m,from){
  }
  if(m.t==='bye'){const p=NET.players.get(from);if(p)admLog(p.name+' a quitté le salon','#ffb36b');}
  if(m.t==='chat'&&ADM.muted.has(from))return;
+ {const p=NET.players.get(from);if(p&&p.ent&&p.ent.admFrozen&&/^(shot|nade|mine|buy|reload|slot)$/.test(m.t))return;}
  _admHostMsg(m,from);
 };
 const _admClientMsg=netClientMsg;
 netClientMsg=function(m){
  if(m.t==='ping'){netSend({t:'pong',ts:m.ts},'host');return;}
+ if(m.t==='frz'){G.admFrozenMe=!!m.on;uiToast(m.on?'L\'hôte t\'a gelé':'L\'hôte t\'a dégelé');return;}
  if(m.t==='kick'){const r=m.r||'L\'hôte t\'a expulsé du salon';if(G.running)toMenu();netLeave();netStatus(r);uiToast(r);admLog(r,'#ff6b6b');return;}
  _admClientMsg(m);
 };
@@ -120,7 +122,7 @@ function admAddBot(team){
 }
 function admSpec(e){if(!e||P.alive||!e.alive)return;G.spec=e;}
 const _admBot=botUpdate;
-botUpdate=function(b,dt){if(ADM.freeze){b.speed=0;tickWeapon(b,dt);return;}_admBot(b,dt);};
+botUpdate=function(b,dt){if(ADM.freeze||b.admFrozen){b.speed=0;tickWeapon(b,dt);return;}_admBot(b,dt);};
 /* ---------- actions sur la partie ---------- */
 function admEndRound(win){if(!admCanAct()||G.mode!=='bomb'||G.state!=='live')return;endRound(win,'Décision de l\'admin');admLog('Manche donnée aux '+(win===0?'Attaquants':'Défenseurs'));}
 function admEndMatch(){
@@ -144,7 +146,7 @@ uiFeed=function(a,v,w,hs){_admFeed(a,v,w,hs);if(a&&v)admLog(a===v?v.name+' est m
 const _admChat=chatAdd;
 chatAdd=function(name,msg,col){_admChat(name,msg,col);ADM.log.push({t:'💬',txt:name+' : '+msg,col:'#9fe3ff'});if(ADM.log.length>150)ADM.log.shift();};
 const _admStart=startMatch;
-startMatch=function(){_admStart();admLog('Partie lancée : '+((MODES[G.variant]||{}).n||G.variant)+' sur '+((MAPS[cfg.map]||{}).n||cfg.map),'#7dff9f');};
+startMatch=function(){G.admFrozenMe=false;_admStart();admLog('Partie lancée : '+((MODES[G.variant]||{}).n||G.variant)+' sur '+((MAPS[cfg.map]||{}).n||cfg.map),'#7dff9f');};
 /* ---------- vision à travers les murs ---------- */
 const XRM={};
 function xrMat(col,skin){
@@ -224,7 +226,60 @@ function admAimUpdate(dt){
  P.yaw+=angDiff(P.yaw,ty)*k;P.pitch=clamp(P.pitch+(tp-P.pitch)*k,-1.5,1.5);
 }
 const _admUpdPlayer=updatePlayer;
-updatePlayer=function(dt){_admUpdPlayer(dt);admAimUpdate(dt);};
+updatePlayer=function(dt){
+ if(G.admFrozenMe&&NET.role==='client'&&P.alive){P.vx=P.vz=0;P.speed=0;tickWeapon(P,dt);return;}
+ _admUpdPlayer(dt);admAimUpdate(dt);admCheatTick();
+};
+/* ---------- se donner des choses (profil local : ne touche personne d'autre) ---------- */
+function admProfSaved(msg){
+ saveProf();
+ for(const f of [()=>refreshProfile(),()=>buildLocker(),()=>buildBoxesTab(),()=>drawProgressTab()])try{f();}catch(e){}
+ admLog(msg,'#7dff9f');uiToast(msg);
+}
+function admGiveAll(){
+ let n=0;
+ for(const k in W)for(let i=1;i<SKINS.length;i++)if(grantItem({t:'skin',w:k,s:i}))n++;
+ for(let i=1;i<OUTFITS.length;i++)if(grantItem({t:'outfit',o:i}))n++;
+ for(const d of DANCES)if(grantItem({t:'dance',id:d.id}))n++;
+ ensureBP();PROF.bp.prem=true;PROF.bp.xp=Math.max(PROF.bp.xp,SEASON.tiers*SEASON.xpPer);
+ admProfSaved('Tout débloqué ('+n+' objets, passe de combat premium au max)');
+}
+function admGiveCoins(n){PROF.coins+=n;admProfSaved('+'+n+' pièces');}
+function admGiveLevels(n){
+ const li=levelInfo();let x=li.need-li.cur;for(let l=li.level+1;l<li.level+n;l++)x+=xpNeed(l);
+ addXP(x);admProfSaved('+'+n+' niveau'+(n>1?'x':'')+' (niveau '+levelInfo().level+')');
+}
+function admGiveBoxes(){PROF.boxes.std=(PROF.boxes.std||0)+5;PROF.boxes.prem=(PROF.boxes.prem||0)+5;admProfSaved('+5 caisses standard et +5 premium');}
+/* ---------- triches en partie ---------- */
+Object.assign(ADM,{god:false,ammo:false,nades:false});
+const admHumansFacing=()=>{if(!NET.role)return false;if(NET.role==='client')return true;const team=MODE().team;for(const p of NET.players.values())if(p.ent&&(!team||p.ent.team!==P.team))return true;return false;};
+// '' = triche autorisée (solo, ou salon sans humain en face)
+function admCheatWhy(){
+ if(!G.running||!P)return 'Lance une partie pour l\'utiliser';
+ return admHumansFacing()?'Des joueurs humains sont en face : coupé pour ne pas fausser leur partie':'';
+}
+function admTakeWeapon(k){
+ if(!W[k]||admCheatWhy()||!P.alive)return;
+ giveWeapon(P,k);P.cur=slotOf(k);admLog('Arme prise : '+W[k].n);
+}
+function admMoney(){if(admCheatWhy())return;P.money=16000;admLog('Argent de partie au max');}
+const _admHurt=hurt;
+hurt=function(v,att,w,zone,dist,raw){if(ADM.god&&v===P&&!admCheatWhy())return;_admHurt(v,att,w,zone,dist,raw);};
+function admCheatTick(){
+ if(!G.running||!P||!P.alive||admCheatWhy())return;
+ if(ADM.god)P.hp=Math.max(P.hp,100);
+ if(ADM.ammo)for(const sl of ['p','s']){const wi=P.wp[sl];if(wi&&!W[wi.k].melee){wi.mag=magMax(P,wi.k);wi.res=Math.max(wi.res,W[wi.k].res||90);}}
+ if(ADM.nades){const n=P.nade;n.f=Math.max(n.f||0,1);n.fl=Math.max(n.fl||0,1);n.sm=Math.max(n.sm||0,1);n.mn=Math.max(n.mn||0,1);}
+}
+/* ---------- geler un joueur (modération : l'hôte peut toujours le faire) ---------- */
+function admFreeze(e){
+ if(!e||e.isPlayer||!admCanAct())return;
+ e.admFrozen=!e.admFrozen;e.speed=0;e.vx=e.vz=0;
+ if(e.remote)netSend({t:'frz',on:e.admFrozen?1:0},e.remote);
+ admLog(e.name+(e.admFrozen?' gelé':' dégelé'),'#9fe3ff');
+}
+const _admNetEnt=netEntUpdate;
+netEntUpdate=function(e,dt){if(e.admFrozen){tickWeapon(e,dt);e.speed=0;return;}_admNetEnt(e,dt);};
 /* ---------- panneau ---------- */
 function admBuild(){
  if(ADM.el)return;
@@ -264,6 +319,16 @@ function admBuild(){
    case 'announce':{const i=$('admAnn');admAnnounce(i.value);i.value='';break;}
    case 'vision':ADM.vision=!ADM.vision;admLog('Vision à travers les murs '+(ADM.vision?'activée':'coupée'));break;
    case 'allies':ADM.allies=!ADM.allies;break;
+   case 'freeze1':admFreeze(e);break;
+   case 'giveall':admGiveAll();break;
+   case 'coins':admGiveCoins(+b.dataset.t);break;
+   case 'lvl':admGiveLevels(+b.dataset.t);break;
+   case 'boxes':admGiveBoxes();break;
+   case 'god':ADM.god=!ADM.god;admLog('Immortel '+(ADM.god?'activé':'coupé'));break;
+   case 'ammo':ADM.ammo=!ADM.ammo;admLog('Balles infinies '+(ADM.ammo?'activées':'coupées'));break;
+   case 'nades':ADM.nades=!ADM.nades;admLog('Grenades infinies '+(ADM.nades?'activées':'coupées'));break;
+   case 'money':admMoney();break;
+   case 'weapon':admTakeWeapon(b.dataset.t);break;
    case 'aim':ADM.aim=!ADM.aim;admLog('Visée auto '+(ADM.aim?'activée':'coupée'));break;
    case 'aimmode':ADM.aimMode=b.dataset.t;break;
    case 'aimforce':ADM.aimForce=+b.dataset.t;break;
@@ -301,6 +366,7 @@ function admPlayersHTML(){
    let a='';
    if(act&&!e.zombie){
     if(np)a+=admChip('kick','Expulser',{id:np.id})+admChip('ban','Bannir',{id:np.id})+admChip('mute',ADM.muted.has(np.id)?'Parole':'Muet',{id:np.id});
+    if(!e.isPlayer)a+=admChip('freeze1',e.admFrozen?'Dégeler':'Geler',{id:e.id,on:!!e.admFrozen});
     a+=e.alive?admChip('kill','Tuer',{id:e.id})+admChip('heal','Soigner',{id:e.id}):admChip('revive','Réapparaître',{id:e.id});
     if(MODE().team&&!e.zombie)a+=admChip('team','Équipe',{id:e.id,tip:'Changer d\'équipe'});
     if(!e.isPlayer&&!e.remote)a+=admChip('rmbot','Retirer',{id:e.id});
@@ -344,9 +410,25 @@ function admAimHTML(){
   '<div class="note" style="color:'+(why?'#ffb36b':'#7dff9f')+'">'+(why?admEsc(why):ADM.aim?'Active : la visée se cale sur la tête de l\'ennemi visible le plus proche du réticule.':'Disponible ici.')+'</div>'+
   '<div class="note">Marche en solo et contre les bots. En ligne contre d\'autres joueurs, elle reste coupée.</div></div>';
 }
+function admGiveHTML(){
+ const li=levelInfo();
+ return '<div class="note" style="margin-top:0">Ton profil : niveau '+li.level+' · 🪙 '+PROF.coins+' · 📦 '+((PROF.boxes.std||0)+(PROF.boxes.prem||0))+'</div>'+
+  '<div class="sec"><h4>DÉBLOQUER</h4><div class="chips">'+admChip('giveall','Tout débloquer (camos, tenues, danses, passe premium)')+admChip('boxes','+5 caisses de chaque')+'</div></div>'+
+  '<div class="sec"><h4>PIÈCES</h4><div class="chips">'+[1000,10000,100000].map(n=>admChip('coins','+'+n.toLocaleString('fr-FR'),{t:n})).join('')+'</div></div>'+
+  '<div class="sec"><h4>NIVEAUX</h4><div class="chips">'+[1,10,50].map(n=>admChip('lvl','+'+n+' niveau'+(n>1?'x':''),{t:n})).join('')+'</div></div>'+
+  '<div class="note">Ça ne change que ton profil sur ce navigateur, personne d\'autre n\'est touché.</div>';
+}
+function admCheatsHTML(){
+ const why=admCheatWhy();let h='<div class="sec" style="margin-top:0"><h4>TRICHES EN PARTIE</h4><div class="chips">'+
+  admChip('god',ADM.god?'Immortel ✓':'Immortel',{on:ADM.god})+admChip('ammo',ADM.ammo?'Balles infinies ✓':'Balles infinies',{on:ADM.ammo})+admChip('nades',ADM.nades?'Grenades infinies ✓':'Grenades infinies',{on:ADM.nades})+admChip('money','Argent de partie au max')+'</div>';
+ if(G.running&&P&&!why){
+  h+='<div class="note">Prendre une arme :</div><div class="chips" style="margin-top:4px">'+Object.keys(W).filter(k=>!W[k].melee&&W[k].n&&(W[k].slot===0||W[k].slot===1)).map(k=>admChip('weapon',admEsc(W[k].n),{t:k})).join('')+'</div>';
+ }
+ return h+'<div class="note" style="color:'+(why?'#ffb36b':'#7dff9f')+'">'+(why?admEsc(why):'Disponible ici.')+'</div></div>';
+}
 function admVisionHTML(){
  const why=admVisionWhy();
- return '<div class="chips">'+admChip('vision',ADM.vision?'Vision activée ✓':'Activer la vision',{on:ADM.vision})+admChip('allies','Voir aussi mes alliés',{on:ADM.allies})+admChip('tags','Noms, PV et distance',{on:ADM.tags})+'</div>'+
+ return admCheatsHTML()+'<div class="sec"><h4>VISION À TRAVERS LES MURS</h4></div><div class="chips">'+admChip('vision',ADM.vision?'Vision activée ✓':'Activer la vision',{on:ADM.vision})+admChip('allies','Voir aussi mes alliés',{on:ADM.allies})+admChip('tags','Noms, PV et distance',{on:ADM.tags})+'</div>'+
   '<div class="note" style="color:'+(why?'#ffb36b':'#7dff9f')+'">'+(why?admEsc(why):ADM.vision?'Actif : ennemis en rouge, alliés en bleu, visibles à travers les murs.':'Disponible ici.')+'</div>'+
   '<div class="note">Marche en solo, contre les bots, et en spectateur. En ligne contre d\'autres joueurs, elle se coupe tant que tu es en vie, pour ne pas fausser leur partie.</div>'+
   admAimHTML();
@@ -363,8 +445,8 @@ function admDraw(){
   {const i=$('admCode');if(i)i.focus();}setTimeout(()=>{const i=$('admCode');if(i&&document.activeElement!==i)i.focus();},50);return;
  }
  const ann=$('admAnn'),annVal=ann?ann.value:'',focus=document.activeElement&&document.activeElement.id==='admAnn';
- const tabs=[['players','Joueurs'],['game','Partie'],['vision','Triche'],['log','Journal']];
- const body=ADM.tab==='players'?admPlayersHTML():ADM.tab==='game'?admGameHTML():ADM.tab==='vision'?admVisionHTML():admLogHTML();
+ const tabs=[['players','Joueurs'],['game','Partie'],['give','Donner'],['vision','Triche'],['log','Journal']];
+ const body=ADM.tab==='players'?admPlayersHTML():ADM.tab==='game'?admGameHTML():ADM.tab==='vision'?admVisionHTML():ADM.tab==='give'?admGiveHTML():admLogHTML();
  const html='<h3>PANNEAU ADMIN <span>'+admChip('lock','Verrouiller',{tip:'Oublier le code sur ce navigateur'})+' '+admChip('close','Fermer (Inser) ✕')+'</span></h3>'+
   '<div class="chips">'+tabs.map(t=>admChip('tab',t[1],{t:t[0],on:ADM.tab===t[0]})).join('')+'</div>'+
   '<div id="admBody" style="margin-top:6px">'+body+'</div>'+
