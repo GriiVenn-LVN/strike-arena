@@ -29,8 +29,8 @@ const K=a=>!!keys[cfg.binds[a]];
 
 /* ---------------- difficulté des bots ---------------- */
 const DIFFS=[
- {n:'Novice', react:1.0, turn:90,  spread:8,   aimHead:0,   speed:.8,  strafe:0,   hear:.25,dmg:.75,sight:40, bmin:2,bmax:5, pmin:.6,pmax:1.2,semi:.55,crouch:0,  nade:.2,desc:'Réagit lentement, vise très mal, ne bouge presque pas.'},
- {n:'Facile', react:.7,  turn:150, spread:5,   aimHead:.03, speed:.88, strafe:.15, hear:.45,dmg:.9, sight:55, bmin:3,bmax:7, pmin:.4,pmax:.8, semi:.4, crouch:0,  nade:.4,desc:'Un adversaire facile à battre, tire en rafales imprécises.'},
+ {n:'Novice', react:1.25,turn:70,  spread:10,  aimHead:0,   speed:.78, strafe:0,   hear:.2, dmg:.55,sight:40, bmin:2,bmax:5, pmin:.6,pmax:1.2,semi:.55,crouch:0,  nade:.2,desc:'Pour découvrir le jeu : réagit lentement, vise très mal, fait peu de dégâts. En Zombies : zombies lents et fragiles.'},
+ {n:'Facile', react:.8,  turn:130, spread:6,   aimHead:.02, speed:.86, strafe:.1,  hear:.4, dmg:.8, sight:55, bmin:3,bmax:7, pmin:.4,pmax:.8, semi:.4, crouch:0,  nade:.4,desc:'Un adversaire facile à battre, tire en rafales imprécises. En Zombies : zombies moins forts et moins nombreux.'},
  {n:'Normal', react:.45, turn:240, spread:3,   aimHead:.12, speed:.95, strafe:.45, hear:.7, dmg:1,  sight:70, bmin:4,bmax:9, pmin:.25,pmax:.55,semi:.28,crouch:.1, nade:.6,desc:'Équilibré : se déplace, entend les tirs, vise correctement.'},
  {n:'Pro',    react:.26, turn:380, spread:1.6, aimHead:.3,  speed:1,   strafe:.8,  hear:.9, dmg:1,  sight:90, bmin:5,bmax:12,pmin:.12,pmax:.3, semi:.16,crouch:.3, nade:.8,desc:'Réflexes rapides, strafe + arrêt pour tirer, vise la tête.'},
  {n:'Légende',react:.13, turn:650, spread:.75, aimHead:.55, speed:1.05,strafe:1,   hear:1,  dmg:1.05,sight:110,bmin:6,bmax:16,pmin:.05,pmax:.18,semi:.1, crouch:.5, nade:1,desc:'Réaction quasi instantanée, headshots constants, grenades utiles.'}

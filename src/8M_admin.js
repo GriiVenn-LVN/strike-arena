@@ -9,19 +9,28 @@
      solo, contre les bots et en spectateur ; en ligne contre d'autres
      joueurs elle ne marche que quand on est mort (pour ne pas tricher).
    - Journal : arrivées, départs, éliminations, discussion, actions admin.
-   Le jeu est un site public : seule l'empreinte du code admin est ici,
-   ce n'est pas une vraie sécurité. Les actions sur les joueurs ne
+   - Visée auto : la visée se cale sur la tête de l'ennemi visible le plus
+     proche du réticule (clic droit ou en permanence). Mêmes règles que
+     la vision, sauf qu'elle ne sert à rien en spectateur.
+   Accès : rien ne s'affiche tant qu'on n'a pas ouvert le jeu avec #admin à
+   la fin de l'adresse et tapé le code (16 caractères). Seule son empreinte
+   SHA-256 est ici ; le code reste ensuite mémorisé sur ce navigateur. Le
+   jeu étant un site public, quelqu'un qui modifie sa copie du jeu peut
+   toujours tricher chez lui, mais il ne peut pas toucher aux salons des
+   autres. Les actions sur les joueurs ne
    marchent que pour l'hôte du salon (c'est lui qui fait tourner la partie).
    ===================================================================== */
 const ADM={on:false,ok:false,tab:'players',log:[],vision:false,allies:false,tags:true,freeze:false,muted:new Set(),banned:new Set(),pingT:0,drawT:0,el:null,tagEl:null,tagMap:new Map()};
-const ADM_HASH='11emjfh3g1v';
-function admHash(s){
- let h1=0xdeadbeef^0x5a,h2=0x41c6ce57^0x5a;
- for(let i=0,ch;i<s.length;i++){ch=s.charCodeAt(i);h1=Math.imul(h1^ch,2654435761);h2=Math.imul(h2^ch,1597334677);}
- h1=Math.imul(h1^(h1>>>16),2246822507);h1^=Math.imul(h2^(h2>>>13),3266489909);h2=Math.imul(h2^(h2>>>16),2246822507);h2^=Math.imul(h1^(h1>>>13),3266489909);
- return(4294967296*(2097151&h2)+(h1>>>0)).toString(36);
+const ADM_HASH='c3305d1fef32b4a6a887b3695f33d4a89cf38cfb4a0f69290aa83f3299b47849';
+async function admHash(code){
+ const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('strike-arena-admin:'+code));
+ return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
 }
-try{ADM.ok=localStorage.getItem('sa_admin')===ADM_HASH;}catch(e){}
+const admNorm=c=>String(c||'').toUpperCase().replace(/[^A-Z0-9]/g,'').replace(/(.{4})(?=.)/g,'$1-');
+async function admCheck(code){try{return (await admHash(admNorm(code)))===ADM_HASH;}catch(e){return false;}}
+// le code mémorisé est revérifié à chaque chargement (recopier l'empreinte ne suffit pas)
+try{const c=localStorage.getItem('sa_admin');if(c)admCheck(c).then(ok=>{ADM.ok=ok;if(ok)admPauseBtn();else localStorage.removeItem('sa_admin');});}catch(e){}
+const admAsked=()=>/(^|[#?&])admin\b/i.test(location.hash+location.search);
 const admEsc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
 function admLog(txt,col){
  const d=new Date(),t=('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)+':'+('0'+d.getSeconds()).slice(-2);
@@ -185,6 +194,37 @@ function admVisionUpdate(){
  }
  for(const [e,t] of ADM.tagMap)if(!seen.has(e)){if(!ents.includes(e)){t.remove();ADM.tagMap.delete(e);}else t.style.display='none';}
 }
+/* ---------- visée auto ---------- */
+Object.assign(ADM,{aim:false,aimMode:'ads',aimForce:2,aimFov:25});
+// '' = visée auto autorisée, sinon la raison (même règle que la vision, mais il faut être en vie)
+function admAimWhy(){
+ if(!G.running||!P)return 'Lance une partie pour l\'utiliser';
+ if(!P.alive)return 'Tu es éliminé';
+ if(!NET.role)return '';
+ if(NET.role==='client'||admVisionWhy())return 'Des joueurs humains sont en face : la visée auto est coupée pour ne pas fausser leur partie';
+ return '';
+}
+function admAimUpdate(dt){
+ if(!ADM.aim||!ADM.ok||ADM.on||!P||!P.alive||G.state==='cine'||admAimWhy())return;
+ const act=ADM.aimMode==='always'||(ADM.aimMode==='fire'?mouseL:(mouseR||P.ads>.1));
+ if(!act)return;
+ const ex=P.x,ey=P.y+P.eyeH,ez=P.z,team=MODE().team,lim=ADM.aimMode==='always'?ADM.aimFov*RAD:ADM.aimFov*RAD*1.6;
+ let best=null,bd=lim,by=0,bp=0;
+ for(const e of ents){
+  if(e===P||!e.alive||(team&&e.team===P.team))continue;
+  const hx=e.x,hy=e.y+eyeOf(e)+.06,hz=e.z,dx=hx-ex,dy=hy-ey,dz=hz-ez,hd=Math.hypot(dx,dz);
+  if(hd<.3||hd>120)continue;
+  const yw=Math.atan2(-dx,-dz),pt=Math.atan2(dy,hd),d=Math.hypot(angDiff(P.yaw,yw),pt-P.pitch);
+  if(d>=bd||!losClear(ex,ey,ez,hx,hy,hz))continue;
+  best=e;bd=d;by=yw;bp=pt;
+ }
+ if(!best)return;
+ // on vise en tenant compte du recul, pour que la balle parte bien sur la tête
+ const ty=by-(P.punchY||0)*RAD,tp=bp-(P.punchP||0)*RAD,k=ADM.aimForce>=3?1:Math.min(1,dt*(ADM.aimForce===2?14:6));
+ P.yaw+=angDiff(P.yaw,ty)*k;P.pitch=clamp(P.pitch+(tp-P.pitch)*k,-1.5,1.5);
+}
+const _admUpdPlayer=updatePlayer;
+updatePlayer=function(dt){_admUpdPlayer(dt);admAimUpdate(dt);};
 /* ---------- panneau ---------- */
 function admBuild(){
  if(ADM.el)return;
@@ -205,7 +245,7 @@ function admBuild(){
    case 'close':admClose();return;
    case 'tab':ADM.tab=b.dataset.t;break;
    case 'unlock':admUnlock();return;
-   case 'lock':try{localStorage.removeItem('sa_admin');}catch(_){}ADM.ok=false;ADM.vision=false;break;
+   case 'lock':try{localStorage.removeItem('sa_admin');}catch(_){}ADM.ok=false;ADM.vision=false;ADM.aim=false;{const b=$('admPauseBtn');if(b)b.remove();}admClose();return;
    case 'kick':admKick(b.dataset.id,false);break;
    case 'ban':admKick(b.dataset.id,true);break;
    case 'unban':ADM.banned.delete(b.dataset.id);admLog(b.dataset.id+' débanni');break;
@@ -224,6 +264,9 @@ function admBuild(){
    case 'announce':{const i=$('admAnn');admAnnounce(i.value);i.value='';break;}
    case 'vision':ADM.vision=!ADM.vision;admLog('Vision à travers les murs '+(ADM.vision?'activée':'coupée'));break;
    case 'allies':ADM.allies=!ADM.allies;break;
+   case 'aim':ADM.aim=!ADM.aim;admLog('Visée auto '+(ADM.aim?'activée':'coupée'));break;
+   case 'aimmode':ADM.aimMode=b.dataset.t;break;
+   case 'aimforce':ADM.aimForce=+b.dataset.t;break;
    case 'tags':ADM.tags=!ADM.tags;break;
    case 'clearlog':ADM.log=[];break;
   }
@@ -234,8 +277,11 @@ function admBuild(){
 }
 function admUnlock(){
  const i=$('admCode');if(!i)return;
- if(admHash(i.value.trim().toUpperCase())===ADM_HASH){ADM.ok=true;try{localStorage.setItem('sa_admin',ADM_HASH);}catch(_){}admLog('Accès admin ouvert','#7dff9f');admDraw();admPauseBtn();}
- else{i.value='';i.placeholder='Code incorrect';i.style.borderColor='var(--accent)';}
+ const code=admNorm(i.value);
+ admCheck(code).then(ok=>{
+  if(ok){ADM.ok=true;try{localStorage.setItem('sa_admin',code);}catch(_){}admLog('Accès admin ouvert','#7dff9f');admDraw();admPauseBtn();}
+  else{i.value='';i.placeholder=window.crypto&&crypto.subtle?'Code incorrect':'Ouvre le jeu par son lien internet';i.style.borderColor='var(--accent)';}
+ });
 }
 const admChip=(a,txt,o)=>'<button class="chip'+(o&&o.on?' on':'')+'" data-a="'+a+'"'+(o&&o.id!==undefined?' data-id="'+admEsc(o.id)+'"':'')+(o&&o.t!==undefined?' data-t="'+o.t+'"':'')+(o&&o.tip?' title="'+admEsc(o.tip)+'"':'')+'>'+txt+'</button>';
 function admTeamName(e){if(!MODE().team)return '—';return '<span style="color:'+TEAMCSS[e.team]+'">'+(e.team===0?'Attaquants':'Défenseurs')+'</span>';}
@@ -290,11 +336,20 @@ function admGameHTML(){
  }
  return h;
 }
+function admAimHTML(){
+ const why=admAimWhy();
+ return '<div class="sec"><h4>VISÉE AUTO</h4><div class="chips">'+admChip('aim',ADM.aim?'Visée auto activée ✓':'Activer la visée auto',{on:ADM.aim})+'</div>'+
+  '<div class="chips" style="margin-top:6px">'+[['ads','En visant (clic droit)'],['fire','En tirant'],['always','Toujours']].map(o=>admChip('aimmode',o[1],{t:o[0],on:ADM.aimMode===o[0]})).join('')+'</div>'+
+  '<div class="chips" style="margin-top:6px">'+[[1,'Douce'],[2,'Forte'],[3,'Verrouillée']].map(o=>admChip('aimforce',o[1],{t:o[0],on:ADM.aimForce===o[0]})).join('')+'</div>'+
+  '<div class="note" style="color:'+(why?'#ffb36b':'#7dff9f')+'">'+(why?admEsc(why):ADM.aim?'Active : la visée se cale sur la tête de l\'ennemi visible le plus proche du réticule.':'Disponible ici.')+'</div>'+
+  '<div class="note">Marche en solo et contre les bots. En ligne contre d\'autres joueurs, elle reste coupée.</div></div>';
+}
 function admVisionHTML(){
  const why=admVisionWhy();
  return '<div class="chips">'+admChip('vision',ADM.vision?'Vision activée ✓':'Activer la vision',{on:ADM.vision})+admChip('allies','Voir aussi mes alliés',{on:ADM.allies})+admChip('tags','Noms, PV et distance',{on:ADM.tags})+'</div>'+
   '<div class="note" style="color:'+(why?'#ffb36b':'#7dff9f')+'">'+(why?admEsc(why):ADM.vision?'Actif : ennemis en rouge, alliés en bleu, visibles à travers les murs.':'Disponible ici.')+'</div>'+
-  '<div class="note">Marche en solo, contre les bots, et en spectateur. En ligne contre d\'autres joueurs, elle se coupe tant que tu es en vie, pour ne pas fausser leur partie.</div>';
+  '<div class="note">Marche en solo, contre les bots, et en spectateur. En ligne contre d\'autres joueurs, elle se coupe tant que tu es en vie, pour ne pas fausser leur partie.</div>'+
+  admAimHTML();
 }
 function admLogHTML(){
  if(!ADM.log.length)return '<div class="note">Rien pour l\'instant.</div>';
@@ -304,11 +359,11 @@ function admDraw(){
  admBuild();
  const el=ADM.el;
  if(!ADM.ok){
-  ADM.html='';el.innerHTML='<h3>ACCÈS ADMIN '+admChip('close','Fermer ✕')+'</h3><div style="display:flex;gap:8px"><input type="password" id="admCode" placeholder="Code admin" autocomplete="off" style="flex:1"><button class="btn cut" data-a="unlock" style="font-size:.8rem;padding:9px 16px">ENTRER</button></div><div class="note">Entre ton code admin. Il reste mémorisé sur ce navigateur.</div>';
+  ADM.html='';el.innerHTML='<h3>ACCÈS ADMIN '+admChip('close','Fermer ✕')+'</h3><div style="display:flex;gap:8px"><input type="password" id="admCode" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off" style="flex:1"><button class="btn cut" data-a="unlock" style="font-size:.8rem;padding:9px 16px">ENTRER</button></div><div class="note">Entre ton code admin. Il reste mémorisé sur ce navigateur.</div>';
   setTimeout(()=>{const i=$('admCode');if(i)i.focus();},0);return;
  }
  const ann=$('admAnn'),annVal=ann?ann.value:'',focus=document.activeElement&&document.activeElement.id==='admAnn';
- const tabs=[['players','Joueurs'],['game','Partie'],['vision','Vision'],['log','Journal']];
+ const tabs=[['players','Joueurs'],['game','Partie'],['vision','Triche'],['log','Journal']];
  const body=ADM.tab==='players'?admPlayersHTML():ADM.tab==='game'?admGameHTML():ADM.tab==='vision'?admVisionHTML():admLogHTML();
  const html='<h3>PANNEAU ADMIN <span>'+admChip('lock','Verrouiller',{tip:'Oublier le code sur ce navigateur'})+' '+admChip('close','Fermer (F2) ✕')+'</span></h3>'+
   '<div class="chips">'+tabs.map(t=>admChip('tab',t[1],{t:t[0],on:ADM.tab===t[0]})).join('')+'</div>'+
@@ -329,7 +384,8 @@ function admClose(){
 // le panneau ne met pas le jeu en pause (en salon, ça figerait tout le monde)
 document.addEventListener('pointerlockchange',()=>{if(ADM.on&&!document.pointerLockElement&&G.running){G.paused=false;$('pause').classList.remove('show');}});
 addEventListener('keydown',e=>{
- if(e.code==='F2'){e.preventDefault();e.stopPropagation();if(ADM.on)admClose();else admOpen();return;}
+ // sans code mémorisé ni #admin dans l'adresse, F2 ne fait rien : le panneau reste invisible pour les autres
+ if(e.code==='F2'&&(ADM.on||ADM.ok||admAsked())){e.preventDefault();e.stopPropagation();if(ADM.on)admClose();else admOpen();return;}
  if(!ADM.on)return;
  if(e.code==='Escape'){e.preventDefault();e.stopPropagation();admClose();return;}
  if(e.code==='Enter'||e.code==='NumpadEnter'){const id=e.target&&e.target.id;if(id==='admCode')admUnlock();if(id==='admAnn'){admAnnounce(e.target.value);e.target.value='';}}
@@ -352,4 +408,4 @@ updateFX=function(dt,t){
  if(ADM.vision||ADM.xrOn||ADM.tagMap.size)admVisionUpdate();
  if(ADM.on&&ADM.ok&&ADM.tab!=='log'){ADM.drawT-=rdt;if(ADM.drawT<=0){ADM.drawT=.5;const ae=document.activeElement;if(!ADM.md&&!(ae&&ae.id==='admAnn'))admDraw();}}
 };
-window.__adm={ADM,admOpen,admClose,admKick,admAddBot,admVisionWhy,admHash};
+window.__adm={ADM,admOpen,admClose,admKick,admAddBot,admVisionWhy,admCheck,admAimWhy};
