@@ -90,16 +90,25 @@ function gunProfile(g,k){
   const m=new THREE.Matrix4().multiplyMatrices(inv,o.matrixWorld),p=o.geometry.attributes.position,st=Math.max(1,Math.floor(p.count/4000));
   for(let i=0;i<p.count;i+=st){v.fromBufferAttribute(p,i).applyMatrix4(m);pts.push(v.x,v.y,v.z);}});
  let z0=1e9,z1=-1e9;for(let i=2;i<pts.length;i+=3){z0=Math.min(z0,pts[i]);z1=Math.max(z1,pts[i]);}
- const NB=48,top=new Array(NB).fill(-1e9),bot=new Array(NB).fill(1e9),bin=z=>clamp(Math.floor((z-z0)/(z1-z0+1e-6)*NB),0,NB-1);
+ const NB=160,top=new Array(NB).fill(-1e9),bot=new Array(NB).fill(1e9),bin=z=>clamp(Math.floor((z-z0)/(z1-z0+1e-6)*NB),0,NB-1);
  for(let i=0;i<pts.length;i+=3){const b=bin(pts[i+2]);top[b]=Math.max(top[b],pts[i+1]);bot[b]=Math.min(bot[b],pts[i+1]);}
  const at=(arr,z,f)=>{let b=bin(z),r=arr[b];for(let d=1;!isFinite(r)||Math.abs(r)>1e8;d++){if(d>NB)return 0;r=arr[clamp(b-d,0,NB-1)];if(Math.abs(r)>1e8)r=arr[clamp(b+d,0,NB-1)];}return r;};
  // hauteur de l'âme du canon : milieu de la section à la bouche
- const mz=g.userData.muzzle||z0,bore=(at(top,mz+.01)+at(bot,mz+.01))/2;
- return GPROF[key]={z0,z1,top:z=>at(top,z),bot:z=>at(bot,z),bore,
+ // (uniquement la tranche du bout du canon : le guidon, plus en arrière, ne fausse plus la hauteur)
+ const mz=g.userData.muzzle||z0;let ty=-1e9,by=1e9;
+ for(let i=0;i<pts.length;i+=3)if(pts[i+2]<mz+.012){ty=Math.max(ty,pts[i+1]);by=Math.min(by,pts[i+1]);}
+ const bore=ty>-1e8?(ty+by)/2:(at(top,mz+.01)+at(bot,mz+.01))/2;
+ // dessous du garde-main à z : ignore chargeur, pontet et poignée (points trop bas sous le canon)
+ const under=(z,depth)=>{let m=1e9;const lo=bore-(depth||.08);for(let i=0;i<pts.length;i+=3)if(Math.abs(pts[i+2]-z)<.015&&pts[i+1]>lo&&pts[i+1]<bore)m=Math.min(m,pts[i+1]);return m<1e8?m:at(bot,z);};
+ // haut / bas réels de la matière entre za et zb (pour habiller la crosse sans pièce flottante)
+ const slice=(za,zb)=>{let t=-1e9,b=1e9;for(let i=0;i<pts.length;i+=3)if(pts[i+2]>=za&&pts[i+2]<=zb){t=Math.max(t,pts[i+1]);b=Math.min(b,pts[i+1]);}return t>-1e8?{t,b}:null;};
+ return GPROF[key]={z0,z1,top:z=>at(top,z),bot:z=>at(bot,z),bore,under,slice,
   topR:(za,zb)=>{let m=-1e9;for(let z=za;z<=zb;z+=.01)m=Math.max(m,at(top,z));return m;}};
 }
 
 /* ---------- modèles 3D des accessoires ---------- */
+// optique sur pistolet : réduite autour de sa semelle (sinon elle est taillée pour un fusil) ; renvoie la nouvelle ligne de visée
+function pistolOptic(o,base,z,cy){const k=.62;o.scale.setScalar(k);o.position.set(0,base*(1-k),z*(1-k));return base+(cy-base)*k;}
 const AM={
  blk:new THREE.MeshStandardMaterial({color:C(0x17191d),roughness:.5,metalness:.75}),
  dark:new THREE.MeshStandardMaterial({color:C(0x2b3037),roughness:.45,metalness:.7}),
@@ -132,8 +141,10 @@ function attBuild(g,k,sel,opt){
  const list=attList(k,sel||{});if(!list.length)return list;
  const pr=gunProfile(g,k),pistol=w.cat==='pistol',S=pistol?.7:1,bore=pr.bore;
  u.att=list;
+ const ORD=['barrel','muzzle','optic','under','mag','stock'];
+ const todo=list.slice().sort((a,b)=>ORD.indexOf(ATTS[a].s)-ORD.indexOf(ATTS[b].s));
  const add=(o,tag)=>{o.userData.att=tag;g.add(o);return o;};
- for(const a of list){
+ for(const a of todo){
   switch(a){
    case 'sil':{const L=pistol?.13:.19,r=pistol?.017:.022,z=u.muzzle-L/2+.01;const o=new THREE.Group();
     o.add(cylZ(r,r,L,AM.blk,0,0,0,20));o.add(cylZ(r*1.08,r*1.08,.012,AM.dark,0,0,-L/2+.006,20));o.add(cylZ(r*1.08,r*1.08,.012,AM.dark,0,0,L/2-.006,20));
@@ -148,59 +159,63 @@ function attBuild(g,k,sel,opt){
    case 'flash':{const L=.045*S,r=.014*S,o=new THREE.Group();o.add(cylZ(r,r*.9,L*.5,AM.blk,0,0,L*.25,12));
     for(let i=0;i<4;i++){const an=i*Math.PI/2+Math.PI/4,p=boxA(.005,.005,L*.6,AM.blk,Math.cos(an)*r*.8,Math.sin(an)*r*.8,-L*.2);o.add(p);}
     o.position.set(0,bore,u.muzzle-L/2+.005);add(o,a);u.muzzle-=L-.005;break;}
-   case 'reddot':{const z=clamp(u.muzzle*.28,-.2,-.03);const o=redDot({sight:pr.topR(z-.04,z+.04)-.002});o.position.z=z+.15;o.userData.att=a;g.add(o);   // redDot() construit à z=-.15 : recalé sur le rail
+   case 'reddot':{const z=clamp(u.muzzle*.28,-.2,-.03),base=pr.topR(z-.04,z+.04)-.002,k2=pistol?.62:1;
+    // redDot() construit à z=-.15 au-dessus de y=0 : réduit sur pistolet puis recalé sur la glissière / le rail
+    const o=redDot({sight:1e-6});o.scale.setScalar(k2);o.position.set(0,base,z+.15*k2);o.userData.att=a;g.add(o);
     retSwapDot(o,'reddot',.018);
-    u.sight=pr.topR(z-.04,z+.04)-.002+.034;u.optic=a;break;}
-   case 'mini':{const z=clamp(u.muzzle*(pistol?.2:.26),-.18,-.02),base=pr.topR(z-.03,z+.03)-.002,o=new THREE.Group(),cy=base+.02;
+    u.sight=base+.034*k2;u.optic=a;break;}
+   case 'mini':{let z=clamp(u.muzzle*(pistol?.2:.26),-.18,-.02),base=pr.topR(z-.03,z+.03)-.002,o=new THREE.Group(),cy=base+.02;
     // mini réflex : semelle basse + fenêtre inclinée
     o.add(boxA(.026,.008,.04,AM.dark,0,base+.004,z+.004));
     o.add(boxA(.004,.026,.012,AM.blk,-.013,cy-.002,z-.01),boxA(.004,.026,.012,AM.blk,.013,cy-.002,z-.01),boxA(.03,.004,.014,AM.blk,0,cy+.012,z-.01));
     const lens=new THREE.Mesh(new THREE.PlaneGeometry(.022,.022),AM.lensB);lens.position.set(0,cy,z-.016);o.add(lens);
     const ret=retMesh('mini',.012);ret.position.set(0,cy,z-.017);o.add(ret);
-    add(o,a);u.sight=cy;u.optic=a;break;}
+    if(pistol)cy=pistolOptic(o,base,z,cy);add(o,a);u.sight=cy;u.optic=a;break;}
    case 'sc4':case 'sc6':case 'sc8':case 'sc10':{
     if(w.cat==='sniper'||u.scope){u.optic=a;break;}  // le sniper garde sa lunette : seul le grossissement change
-    const L=a==='sc4'?.17:.21,r=a==='sc4'?.019:.022,z=clamp(u.muzzle*.32,-.26,-.08),base=pr.topR(z-L/2,z+L/2),cy=base+r+.022,o=new THREE.Group();
+    let L=a==='sc4'?.17:.21,r=a==='sc4'?.019:.022,z=clamp(u.muzzle*.32,-.26,-.08),base=pr.topR(z-L/2,z+L/2),cy=base+r+.022,o=new THREE.Group();
     const tube=new THREE.MeshStandardMaterial({color:C(0x15171b),roughness:.45,metalness:.75,side:THREE.DoubleSide});
     o.add(cylZ(r*.8,r*.8,L,tube,0,cy,z,22,true));
     o.add(cylZ(r*1.3,r*.8,.045,tube,0,cy,z-L/2-.012,22,true),cylZ(r*.8,r*1.15,.035,tube,0,cy,z+L/2+.01,22,true));
     o.add(cylZ(r*.95,r*.95,.03,AM.blk,0,cy+r*.95,z,14),cylZ(r*.95,r*.95,.03,AM.blk,r*.95,cy,z,14));
     for(const dz of [-L*.28,L*.28]){o.add(boxA(.012,cy-base,.016,AM.dark,0,base+(cy-base)/2,z+dz));o.add(new THREE.Mesh(new THREE.TorusGeometry(r*.85,.004,6,18),AM.blk).translateX(0).translateY(cy).translateZ(z+dz));}
     const lens=new THREE.Mesh(new THREE.CircleGeometry(r*1.2,22),AM.lensB);lens.position.set(0,cy,z-L/2-.034);o.add(lens);
-    add(o,a);u.sight=cy;u.optic=a;break;}
-   case 'holo':{const z=clamp(u.muzzle*.3,-.22,-.05),base=pr.topR(z-.05,z+.05),o=new THREE.Group(),h=.04,cy=base+.026;
+    if(pistol)cy=pistolOptic(o,base,z,cy);add(o,a);u.sight=cy;u.optic=a;break;}
+   case 'holo':{let z=clamp(u.muzzle*.3,-.22,-.05),base=pr.topR(z-.05,z+.05),o=new THREE.Group(),h=.04,cy=base+.026;
     o.add(boxA(.034,.012,.085,AM.dark,0,base+.006,z));
     // cadre ouvert (fenêtre rectangulaire)
     o.add(boxA(.005,h,.05,AM.blk,-.02,cy+.003,z),boxA(.005,h,.05,AM.blk,.02,cy+.003,z),boxA(.045,.006,.054,AM.blk,0,cy+h/2+.003,z));
     o.add(boxA(.045,.006,.034,AM.dark,0,base+.012,z+.016));
     const lens=new THREE.Mesh(new THREE.PlaneGeometry(.035,.034),AM.lensB);lens.position.set(0,cy,z-.023);o.add(lens);
     const ret=retMesh('holo',.017);ret.position.set(0,cy,z-.024);o.add(ret);
-    add(o,a);u.sight=cy;u.optic=a;break;}
-   case 'acog':{const z=clamp(u.muzzle*.3,-.24,-.06),base=pr.topR(z-.06,z+.06),o=new THREE.Group(),r=.021,cy=base+.036;
+    if(pistol)cy=pistolOptic(o,base,z,cy);add(o,a);u.sight=cy;u.optic=a;break;}
+   case 'acog':{let z=clamp(u.muzzle*.3,-.24,-.06),base=pr.topR(z-.06,z+.06),o=new THREE.Group(),r=.021,cy=base+.036;
     o.add(boxA(.028,.016,.07,AM.dark,0,base+.008,z));
     o.add(cylZ(r,r,.12,new THREE.MeshStandardMaterial({color:C(0x1a1c20),roughness:.5,metalness:.7,side:THREE.DoubleSide}),0,cy,z,22,true));
     o.add(cylZ(r*1.25,r,.03,AM.blk,0,cy,z-.07,22,true),cylZ(r,r*1.15,.02,AM.blk,0,cy,z+.065,22,true));
     o.add(boxA(.014,.014,.02,AM.blk,0,cy+r+.004,z),boxA(.014,.014,.02,AM.blk,r+.004,cy,z));
     const lens=new THREE.Mesh(new THREE.CircleGeometry(r*.95,22),AM.lensB);lens.position.set(0,cy,z-.05);o.add(lens);
     const ret=retMesh('acog',.022);ret.position.set(0,cy,z-.051);o.add(ret);
-    add(o,a);u.sight=cy;u.optic=a;break;}
+    if(pistol)cy=pistolOptic(o,base,z,cy);add(o,a);u.sight=cy;u.optic=a;break;}
    case 'long':{const L=.09*S,r=.012*S,o=new THREE.Group();o.add(cylZ(r,r,L,AM.blk,0,0,0,14));o.add(cylZ(r*1.5,r*1.5,.025,AM.dark,0,0,L/2-.012,14));
     o.position.set(0,bore,u.muzzle-L/2+.005);add(o,a);u.muzzle-=L-.005;break;}
    case 'heavy':{const L=.07*S,r=.016*S,o=new THREE.Group();o.add(cylZ(r,r,L,AM.dark,0,0,0,14));
     for(let i=0;i<4;i++)o.add(cylZ(r*1.15,r*1.15,.006,AM.blk,0,0,-L/2+.01+i*.016,14));
     o.position.set(0,bore,u.muzzle-L/2+.005);add(o,a);u.muzzle-=L-.005;break;}
-   case 'grip':{const z=u.left?u.left.z:-.25,b=pr.bot(z),o=new THREE.Group();
+   case 'grip':{const z=u.left?u.left.z:-.25,b=pr.under(z),o=new THREE.Group();
     o.add(boxA(.022,.012,.04,AM.dark,0,b-.004,z),cylZ(.012,.012,.075,AM.rub,0,b-.045,z,12));o.children[1].rotation.x=0;
     add(o,a);u.left=V3(u.left?u.left.x:0,b-.05,z);break;}
-   case 'angled':{const z=u.left?u.left.z:-.25,b=pr.bot(z),o=new THREE.Group();
+   case 'angled':{const z=u.left?u.left.z:-.25,b=pr.under(z),o=new THREE.Group();
     const p=boxA(.02,.03,.07,AM.dark,0,b-.016,z+.005);p.rotation.x=-.5;o.add(p);o.add(boxA(.022,.008,.075,AM.blk,0,b-.002,z));
     add(o,a);u.left=V3(u.left?u.left.x:0,b-.03,z+.01);break;}
-   case 'laser':{const z=pistol?clamp(u.muzzle*.55,-.12,-.03):(u.left?u.left.z-.06:-.3),b=pistol?pr.bot(z):(pr.top(z)+pr.bot(z))/2,x=pistol?0:.024,o=new THREE.Group();
+   case 'laser':{const z=pistol?clamp(u.muzzle*.55,-.12,-.03):(u.left?u.left.z-.06:-.3),b=pistol?pr.under(z,.06):(pr.under(z)+bore)/2,x=pistol?0:.024,o=new THREE.Group();
     o.add(boxA(pistol?.022:.016,pistol?.018:.022,pistol?.045:.06,AM.blk,x,pistol?b-.01:b,z));
     const dot=new THREE.Mesh(new THREE.CircleGeometry(.004,10),AM.red);dot.position.set(x,pistol?b-.01:b,z-(pistol?.023:.031));dot.rotation.y=Math.PI;o.add(dot);
     const BL=opt.preview?.3:6,beam=cylZ(.0012,.0012,BL,AM.beam,x,pistol?b-.01:b,z-.03-BL/2,4);beam.userData.beam=1;o.add(beam);u.laser=beam;
     add(o,a);break;}
-   case 'ext':{if(u.mag){u.mag.scale.y*=1.28;u.mag.userData.extMag=1;}else{const z=u.left?u.left.z*.4:-.08;add(boxA(.022,.06,.035,AM.dark,0,pr.bot(z)-.03,z),a);}break;}
+   case 'ext':{if(u.mag){u.mag.scale.y*=1.28;u.mag.userData.extMag=1;}
+    // pas de chargeur séparé dans le modèle : talon allongé sous la crosse du pistolet (rien de flottant sur les autres armes)
+    else if(pistol){let zb=0,yb=1e9;for(let z=-.03;z<=.06;z+=.005){const b=pr.bot(z);if(b<yb){yb=b;zb=z;}}add(boxA(.03,.018,.05,AM.dark,0,yb-.007,zb),a);}break;}
    case 'fast':{if(u.mag){const tw=u.mag.clone(true);tw.position.x+=.03;tw.position.y+=.012;tw.userData.att=a;(u.mag.parent||g).add(tw);
      // bande adhésive entre les deux chargeurs
      const bb=new THREE.Box3().setFromObject(u.mag),c=bb.getCenter(new THREE.Vector3());g.worldToLocal(c);
@@ -208,8 +223,10 @@ function attBuild(g,k,sel,opt){
    case 'light':case 'tac':{if(pistol)break;const z=pr.z1-.012,t=pr.top(z),b=pr.bot(z),y=(t+b)/2,o=new THREE.Group(),stocked=pr.z1>.12;
     // arme qui a déjà une crosse : on habille la crosse existante (plaque de couche, busc, anneau de sangle)
     if(stocked){
-     if(a==='tac'){o.add(boxA(.036,Math.max(.05,t-b+.01),.028,AM.rub,0,y,pr.z1+.012));o.add(boxA(.028,.02,.09,AM.tape,0,pr.top(pr.z1-.08)+.008,pr.z1-.07));}
-     else{o.add(boxA(.03,.016,.07,new THREE.MeshStandardMaterial({color:C(0x8a7a5a),roughness:.8}),0,pr.top(pr.z1-.07)+.006,pr.z1-.06));const r=new THREE.Mesh(new THREE.TorusGeometry(.012,.003,6,12),AM.blk);r.position.set(.02,b+.01,pr.z1-.05);r.rotation.y=Math.PI/2;o.add(r);}
+     // plaque de couche sur la vraie section arrière, busc posé sur le dessus réel de la crosse
+     const end=pr.slice(pr.z1-.015,pr.z1)||{t,b},cheek=pr.slice(pr.z1-.11,pr.z1-.05);
+     if(a==='tac'){o.add(boxA(.036,end.t-end.b+.008,.026,AM.rub,0,(end.t+end.b)/2,pr.z1+.011));if(cheek)o.add(boxA(.028,.016,.06,AM.tape,0,cheek.t+.006,pr.z1-.08));}
+     else{o.add(boxA(.032,end.t-end.b+.004,.012,new THREE.MeshStandardMaterial({color:C(0x8a7a5a),roughness:.8}),0,(end.t+end.b)/2,pr.z1+.005));}
     }else if(a==='light'){o.add(boxA(.008,.008,.16,AM.blk,0,y+.02,z+.08),boxA(.008,.008,.17,AM.blk,0,y-.035,z+.085),boxA(.01,.075,.012,AM.blk,0,y-.006,z+.165),boxA(.014,.08,.02,AM.rub,0,y-.006,z+.18));}
     else{o.add(boxA(.03,.05,.14,AM.dark,0,y,z+.07),boxA(.034,.085,.03,AM.rub,0,y-.01,z+.15),boxA(.026,.012,.09,AM.blk,0,y+.03,z+.07));}
     add(o,a);break;}
