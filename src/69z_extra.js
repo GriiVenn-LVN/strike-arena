@@ -131,9 +131,10 @@ function zSpecialType(def){
  return def;
 }
 function zStyleZombie(z){
- if(z.ztype==='crawler'){z.hp=Math.round(z.hp*.55);z.zspeed=4.6;z.zdmg=Math.round(z.zdmg*.7);if(z.rig)z.rig.root.scale.setScalar(.95);}
+ if(z.ztype==='crawler'){z.hp=Math.round(z.hp*.55);z.zspeed=4.6;z.zdmg=Math.round(z.zdmg*.7);if(z.rig&&!z.rig.real)z.rig.root.scale.setScalar(.95);}
  if(z.ztype==='boss'){z.hp=Math.round(1500+Z.wave*400);z.zspeed=2.9;z.zdmg=45;
-  if(z.rig){z.rig.root.scale.setScalar(1.8);z.rig.root.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.color.setHex(0xff9a8a);o.material.emissive=new THREE.Color(0x550000);o.material.emissiveIntensity=.6;}});}
+  if(z.rig&&z.rig.real)z.rig.root.scale.setScalar(1.15);   // la Brute est déjà un grand monstre
+  else if(z.rig){z.rig.root.scale.setScalar(1.8);z.rig.root.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.color.setHex(0xff9a8a);o.material.emissive=new THREE.Color(0x550000);o.material.emissiveIntensity=.6;}});}
   sfx('growl',z.x,z.z,1.4);}
 }
 /* ---------- easter egg : 3 fragments de l'Orbe ---------- */

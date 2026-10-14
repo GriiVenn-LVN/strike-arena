@@ -146,7 +146,7 @@ function netEntUpdate(e,dt){
 function netHostTick(dt){
  NET.sendT-=dt;if(NET.sendT>0||!NET.players.size)return;NET.sendT=1/15;
  const es=ents.filter(e=>!e.dummy).map(e=>{const o={i:e.id,n:e.name,tm:e.team,x:+e.x.toFixed(2),y:+e.y.toFixed(2),z:+e.z.toFixed(2),yw:+e.yaw.toFixed(3),pt:+e.pitch.toFixed(3),a:e.alive?1:0,hp:Math.round(e.hp),ar:Math.round(e.armor),sh:Math.round(e.shield),cw:curWi(e).k,fa:+(e.fireAnim||0).toFixed(2),cr:e.crouch?1:0,sp:+(e.speed||0).toFixed(2),k:e.kills,d:e.deaths,dm:e.dmg,tp:e.tp||0,m:e.money};
-  if(e.zombie)o.z=1;if(e.remote){o.r=e.remote;o.wp=['p','s'].map(s=>e.wp[s]?[e.wp[s].k,e.wp[s].mag,e.wp[s].res]:null);o.nd=[e.nade.f,e.nade.fl,e.nade.sm,e.nade.mn||0];o.pg=e.prog||0;o.pm=e.progMsg||'';o.um=e.useMsg||'';o.kit=e.kit?1:0;}
+  if(e.zombie){o.z=1;if(e.ztype&&e.ztype!=='normal')o.zt=e.ztype;}if(e.remote){o.r=e.remote;o.wp=['p','s'].map(s=>e.wp[s]?[e.wp[s].k,e.wp[s].mag,e.wp[s].res]:null);o.nd=[e.nade.f,e.nade.fl,e.nade.sm,e.nade.mn||0];o.pg=e.prog||0;o.pm=e.progMsg||'';o.um=e.useMsg||'';o.kit=e.kit?1:0;}
   return o;});
  const g={st:G.state,tm:+(G.timer||0).toFixed(2),tl:+(G.timeLeft||0).toFixed(1),sc:G.score,rd:G.round,pr:G.pistolRound?1:0,lim:G.limit,ko:typeof KO!=='undefined'?KO.idx:0,kp:typeof KO!=='undefined'?KO.pts:null,
   bm:{s:BM.state,x:BM.x,y:BM.y,z:BM.z,t:BM.timer,c:BM.carrier}};
@@ -171,7 +171,7 @@ function netClientStart(m){
 }
 function netEnt(o){
  let e=NET.view.get(o.i);
- if(!e){e=newEnt(o.n,o.tm,false,o.i);e.id=o.i;if(o.z){e.zombie=true;e.tone='#7ba35a';}e.wp={p:null,s:null,k:{k:'knife',mag:0,res:0}};const sl=slotOf(o.cw);e.wp[sl]={k:o.cw,mag:30,res:90};e.cur=sl;ents.push(e);attachRig(e);e.netT={x:o.x,y:o.y,z:o.z,yw:o.yw};e.x=o.x;e.y=o.y;e.z=o.z;NET.view.set(o.i,e);}
+ if(!e){e=newEnt(o.n,o.tm,false,o.i);e.id=o.i;if(o.z){e.zombie=true;e.ztype=o.zt||'normal';e.tone='#7ba35a';}e.wp={p:null,s:null,k:{k:'knife',mag:0,res:0}};const sl=slotOf(o.cw);e.wp[sl]={k:o.cw,mag:30,res:90};e.cur=sl;ents.push(e);attachRig(e);e.netT={x:o.x,y:o.y,z:o.z,yw:o.yw};e.x=o.x;e.y=o.y;e.z=o.z;NET.view.set(o.i,e);}
  return e;
 }
 function netApplySnap(m){

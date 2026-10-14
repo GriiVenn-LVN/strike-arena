@@ -1,7 +1,7 @@
 /* =====================================================================
    PERSONNAGES 3D ANIMÉS (glTF binaire avec squelette + animations)
    Lecteur glTF complet minimal : os, poids, textures, clips d'animation.
-   Utilisé pour les zombies (modèle Quaternius, domaine public).
+   Utilisé pour les zombies (modèles CC0, voir plus bas).
    ===================================================================== */
 const CHARF={};
 function charFactory(key){
@@ -28,7 +28,7 @@ function buildCharFactory(buf){
   const img=new Image();img.onload=()=>{tex.image=img;tex.needsUpdate=true;};img.src=URL.createObjectURL(blob);return tex;});
  const mats=(json.materials||[]).map(m=>{const pb=m.pbrMetallicRoughness||{},f=pb.baseColorFactor||[1,1,1,1];
   const mt=new THREE.MeshStandardMaterial({color:new THREE.Color(f[0],f[1],f[2]),roughness:pb.roughnessFactor!==undefined?pb.roughnessFactor:.8,metalness:pb.metallicFactor!==undefined?pb.metallicFactor:0,skinning:true});
-  if(pb.baseColorTexture)mt.map=texs[pb.baseColorTexture.index];return mt;});
+  if(pb.baseColorTexture)mt.map=texs[pb.baseColorTexture.index];if(m.doubleSided)mt.side=THREE.DoubleSide;return mt;});
  // géométries
  const geos={};
  const prim=(mi,pi)=>{const key=mi+'_'+pi;if(geos[key])return geos[key];const p=json.meshes[mi].primitives[pi],g=new THREE.BufferGeometry(),at=p.attributes;
@@ -78,19 +78,52 @@ function buildCharFactory(buf){
  }
  return {instance,clips};
 }
-/* ---------- zombies animés ---------- */
-const zombieModelReady=()=>!!charFactory('zombie');
+/* ---------- zombies animés (réalistes, variés) ----------
+   Modèles photo-réalistes CC0 (elbolilloduro, via Mesh2Motion) avec des
+   textures « zombifiées » par tools/zombies/build_zombies.py. Tous partagent
+   un squelette : une seule banque d'animations (zanim) sert à tous. */
+const ZLOOKS={
+ normal:['civ1','civ2','civ3','civ4','civ5','civ6','civ7','civ8','doc','cop1','cop2','civ1','civ3','civ6','hazmat'],
+ runner:['ghoul','ghoul','civ2','civ4','civ5','civ7','civ8','cop1'],
+ crawler:['rotten','rotten','civ1','civ3','civ6','doc'],
+ tank:['swat','swat','hazmat'],
+ boss:['brute']
+};
+const zombieModelReady=()=>!!charFactory('zanim')&&!!charFactory('z_civ1');
+const ZCLIPS={};   // clips adaptés à la taille de chaque modèle (hauteur du bassin)
+function zClipsFor(key,inner){
+ if(ZCLIPS[key])return ZCLIPS[key];
+ const A=charFactory('zanim'),pel=inner.getObjectByName('pelvis'),out={};
+ const restA=A.restPelvis||(A.restPelvis=(()=>{const r=A.instance().getObjectByName('pelvis');return r?r.position.length():1;})());
+ const k=pel?pel.position.length()/restA:1;
+ for(const n in A.clips){const c=A.clips[n].clone();
+  if(Math.abs(k-1)>.02)for(const t of c.tracks)if(t.name==='pelvis.position'){t.values=t.values.slice();for(let i=0;i<t.values.length;i++)t.values[i]*=k;}
+  out[n]=c;}
+ return ZCLIPS[key]=out;
+}
+function zHash(n){n=Math.imul((n|0)^0x5bd1e995,2654435761);n^=n>>>15;n=Math.imul(n,2246822519);n^=n>>>13;return (n>>>0)/4294967296;}
 function attachZombieModel(e){
- const F=charFactory('zombie');
- const root=new THREE.Group(),inner=F.instance();inner.rotation.y=Math.PI;inner.scale.setScalar(1.4);root.add(inner);   // le modèle regarde vers +Z, le jeu vers -Z
+ const type=e.ztype||'normal',pool=ZLOOKS[type]||ZLOOKS.normal,h=zHash((e.id||0)+7);
+ let key=pool[Math.floor(h*pool.length)];if(!charFactory('z_'+key))key='civ1';
+ const F=charFactory('z_'+key);
+ const root=new THREE.Group(),inner=F.instance();
+ const sc=type==='boss'?1.08:type==='tank'?1.12:.93+zHash(e.id*3+1)*.14;   // tailles variées
+ inner.scale.setScalar(sc);root.add(inner);
+ // teinte propre à chaque zombie : plus ou moins pâle, verdâtre ou violacé
+ const tint=new THREE.Color().setHSL(.08+zHash(e.id*5+2)*.25,.12+zHash(e.id*11)*.12,.78+zHash(e.id*13)*.14);
+ if(type==='boss')tint.setRGB(.95,.72,.7);
+ // léger éclairage propre (texture) : ils restent lisibles dans les coins sombres
+ inner.traverse(o=>{if(o.isMesh){const m=o.material=o.material.clone();m.color.copy(tint);if(m.map){m.emissiveMap=m.map;m.emissive.setRGB(.24,.24,.24);}}});
  scene.add(root);
- const mixer=new THREE.AnimationMixer(inner),act={};
- for(const k in F.clips){act[k]=mixer.clipAction(F.clips[k]);}
- if(act.Death){act.Death.setLoop(THREE.LoopOnce,1);act.Death.clampWhenFinished=true;}
- if(act.Punch){act.Punch.setLoop(THREE.LoopOnce,1);}
- if(act.HitReact){act.HitReact.setLoop(THREE.LoopOnce,1);}
- const R={root,zm:true,mixer,act,cur:null,dieT:-1,label:null,ph:Math.random()*3};
- e.rig=R;zmPlay(R,'Walk',0);
+ const clips=zClipsFor(key,inner),mixer=new THREE.AnimationMixer(inner),act={};
+ for(const k in clips)act[k]=mixer.clipAction(clips[k]);
+ for(const k of ['Death','Death2','Death3','Punch','HitReact','HitHead','Yell'])if(act[k]){act[k].setLoop(THREE.LoopOnce,1);act[k].clampWhenFinished=k.startsWith('Death');}
+ // démarches variées (deux styles, vitesse propre à chacun) ; les costauds marchent lourdement
+ const walks=type==='tank'||type==='boss'?['Stomp']:['Walk','Walk2','Walk'];
+ const R={root,inner,zm:true,real:true,look:key,mixer,act,cur:null,label:null,ph:Math.random()*3,
+  walk:walks[Math.floor(zHash(e.id*17+3)*walks.length)],death:['Death','Death2','Death3'][Math.floor(zHash(e.id*19)*3)],
+  gait:.85+zHash(e.id*23)*.3,yellT:2+Math.random()*6};
+ e.rig=R;zmPlay(R,R.walk,0);if(act[R.walk])act[R.walk].time=R.ph;
  return R;
 }
 function zmPlay(R,name,fade){
@@ -100,16 +133,17 @@ function zmPlay(R,name,fade){
  R.cur=name;
 }
 function zmUpdate(e,R,dt){
- R.root.visible=true;R.root.position.set(e.x,e.y,e.z);R.root.rotation.y=e.yaw;
- let sp=1;
- if(!e.alive){if(R.cur!=='Death'){zmPlay(R,'Death',.15);}}
+ R.root.visible=true;R.root.position.set(e.x,e.y,e.z);R.root.rotation.y=e.yaw+Math.PI;   // le modèle regarde vers +Z, le jeu vers -Z
+ let sp=1;const s=e.speed||0;
+ if(!e.alive){if(R.cur!==R.death)zmPlay(R,R.death,.12);sp=1.15;}
  else if(e.frozenT>0){sp=0;}
- else if(e.fireAnim>.6&&R.cur!=='Punch'){zmPlay(R,'Punch',.1);R.punchT=.7;}
- else if(R.punchT>0){R.punchT-=dt;}
- else if(e.hurtFlag&&R.cur!=='HitReact'&&Math.random()<.3){zmPlay(R,'HitReact',.08);R.punchT=.35;}
- else if(e.ztype==='crawler'&&R.act.Crawl){zmPlay(R,'Crawl',.2);sp=clamp((e.speed||0)/2.5,.6,1.8);}
- else{const s=e.speed||0;zmPlay(R,s>3.8?(R.act.Run_Attack&&e.target&&Math.hypot(e.target.x-e.x,e.target.z-e.z)<5?'Run_Attack':'Run'):s>.3?'Walk':'Idle',.25);
-  if(R.cur==='Walk')sp=clamp(s/2.4,.6,1.6);else if(R.cur==='Run')sp=clamp(s/5,.8,1.4);}
+ else if(e.fireAnim>.6&&R.cur!=='Punch'){zmPlay(R,'Punch',.1);R.punchT=.75;sp=2;}
+ else if(R.punchT>0){R.punchT-=dt;sp=R.cur==='Punch'?2:1.3;}
+ else if(e.hurtFlag&&e.ztype!=='boss'&&Math.random()<.3){const h=Math.random()<.5?'HitReact':'HitHead';zmPlay(R,h,.08);R.punchT=.35;sp=1.3;}
+ else if(e.ztype==='crawler'&&R.act.Crawl){zmPlay(R,'Crawl',.2);sp=clamp(s/1.6,.7,2.2);}
+ else if(s>3.8){zmPlay(R,'Run',.2);sp=clamp(s/5.5,.8,1.3);}
+ else if(s>.3){zmPlay(R,R.walk,.25);sp=clamp(s/1.6,.6,2.4)*R.gait;}
+ else{R.yellT-=dt;if(R.yellT<=0&&R.act.Yell){zmPlay(R,'Yell',.2);R.punchT=1.6;R.yellT=6+Math.random()*8;}else if(R.cur!=='Yell'||!R.act.Yell.isRunning())zmPlay(R,'Idle',.3);}
  e.hurtFlag=false;
  R.mixer.timeScale=sp;R.mixer.update(dt);
 }

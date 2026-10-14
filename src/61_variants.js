@@ -161,8 +161,8 @@ function zSpawn(){
  z.zspeed=(type==='runner'?5+Math.min(1,w*.05):type==='tank'?2.6:2.3+Math.min(1.6,w*.13));z.zdmg=type==='tank'?28:12+w;z.atkT=0;
  z.wp.p=null;z.wp.s=null;z.cur='k';z.x=cc(best[0]);z.z=cc(best[1]);z.y=groundH(z.x,z.z);z.alive=true;z.yaw=rand(0,TAU);z.diff=DIFFS[2];
  ents.push(z);attachRig(z);
- if(z.rig&&type==='tank')z.rig.root.scale.setScalar(1.3);
- if(z.rig&&type==='runner')z.rig.root.scale.setScalar(.92);
+ if(z.rig&&!z.rig.real&&type==='tank')z.rig.root.scale.setScalar(1.3);
+ if(z.rig&&!z.rig.real&&type==='runner')z.rig.root.scale.setScalar(.92);
  zStyleZombie(z);
  z.riseT=1.1;fxDust(z.x,z.y+.1,z.z,10,.35);sfx('growl',z.x,z.z,.9);
 }
