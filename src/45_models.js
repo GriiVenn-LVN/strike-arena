@@ -295,12 +295,12 @@ let SG=null;
 function initSoldierGeos(){
  if(SG)return;SG={};
  const taper=(rT,rB,len,seg)=>{const g=new THREE.CylinderGeometry(rT,rB,len,seg||10);g.translate(0,-len/2,0);return g;};
- SG.thigh=taper(.088,.066,.46);SG.shin=taper(.064,.046,.45);SG.uarm=taper(.052,.044,.29);SG.farm=taper(.044,.036,.27);SG.neck=taper(.05,.056,.08,10);
- SG.ball=new THREE.SphereGeometry(1,14,10);
+ SG.thigh=taper(.102,.074,.46,14);SG.shin=taper(.074,.052,.45,14);SG.uarm=taper(.063,.052,.29,12);SG.farm=taper(.054,.043,.27,12);SG.neck=taper(.055,.062,.08,12);
+ SG.ball=new THREE.SphereGeometry(1,18,12);
  // torse
  const t=new THREE.Shape();t.moveTo(-.15,0);t.lineTo(.15,0);t.lineTo(.2,.34);t.lineTo(.22,.5);t.lineTo(-.22,.5);t.lineTo(-.2,.34);t.closePath();
  SG.torso=new THREE.ExtrudeGeometry(t,{depth:.16,bevelEnabled:true,bevelThickness:.04,bevelSize:.035,bevelSegments:2,curveSegments:2});SG.torso.translate(0,0,-.08);
- SG.hips=rbGeo(.34,.18,.22,.05);
+ SG.hips=rbGeo(.37,.2,.25,.07);
 }
 function placeLimb(mesh,a,b){
  const dx=b.x-a.x,dy=b.y-a.y,dz=b.z-a.z,L=Math.hypot(dx,dy,dz)||1e-4;
@@ -467,7 +467,9 @@ function animateSoldier(R,st,dt,t){
   return;
  }
  R.dieT=-1;R.root.rotation.x=0;R.root.rotation.z=0;R.root.position.y=st.y||0;R.gunMount.visible=true;
- const spd=st.speed,k=clamp(spd/5.2,0,1.4);
+ const spd=st.speed,ae=1-Math.exp(-dt*9);
+ // poids d'animation lissés : la marche démarre et s'arrête sans à-coups
+ R.ks=(R.ks||0)+(clamp(spd/5.2,0,1.4)-(R.ks||0))*ae;const k=R.ks;
  // coordonnées locales de la vitesse
  const sy=Math.sin(st.yaw),cy=Math.cos(st.yaw);
  const lf=st.vx*(-sy)+st.vz*(-cy),lr=st.vx*cy+st.vz*(-sy);
@@ -475,7 +477,11 @@ function animateSoldier(R,st,dt,t){
  const ph=R.ph,sw=Math.sin(ph),sw2=Math.sin(ph+Math.PI);
  R.ck+=((st.crouch?1:0)-R.ck)*Math.min(1,dt*10);
  const air=!st.onGround;
- const fw=clamp(lf/5.2,-1.2,1.2),sd=clamp(lr/5.2,-1.2,1.2);
+ R.fw=(R.fw||0)+(clamp(lf/5.2,-1.2,1.2)-(R.fw||0))*ae;R.sd=(R.sd||0)+(clamp(lr/5.2,-1.2,1.2)-(R.sd||0))*ae;
+ const fw=R.fw,sd=R.sd;
+ // virage : le buste se penche dans la courbe
+ if(R.lyaw===undefined)R.lyaw=st.yaw;const yr=angDiff(R.lyaw,st.yaw)/Math.max(dt,1e-3);R.lyaw=st.yaw;
+ R.turn=(R.turn||0)+(clamp(yr*.05,-.12,.12)-(R.turn||0))*(1-Math.exp(-dt*6));
  const amp=.75*Math.min(1,k*1.15);
  hips.position.y=.94-R.ck*.4+(air?.03:Math.abs(sw)*.035*k);
  hips.position.x=Math.sin(ph)*.012*k;
@@ -496,13 +502,13 @@ function animateSoldier(R,st,dt,t){
  const p=clamp(st.pitch,-1.3,1.3);
  const lowered=(1-R.ready);
  sp.rotation.x=p*.5-R.ck*.18+R.flinch*.18+R.rec*.04;
- sp.rotation.z=-sd*.06*k;sp.rotation.y=sd*.25*k*0+Math.sin(t*1.3+R.ph)*.01*(1-k)+R.flinch*(Math.sin(t*40)*.03);
+ sp.rotation.z=-sd*.06*k-R.turn;sp.rotation.y=-Math.sin(ph)*.07*Math.min(1,k)+Math.sin(t*1.3+R.ph)*.01*(1-Math.min(1,k))+R.flinch*(Math.sin(t*40)*.03);
  R.neckG.rotation.x=p*.35;R.head.rotation.x=0;R.head.rotation.y=clamp(Math.sin(t*.6+R.ph*3)*.1*(1-st.alert),-.2,.2);
  // clin d'œil / respiration
  sp.position.y=.07+Math.sin(t*2+R.ph)*.004;
  // pose de l'arme
  const rl=st.reloadMax>0&&st.reload>0?1-st.reload/st.reloadMax:-1;
- let gx=.12,gy=.2-lowered*.08,gz=-.2+lowered*.04;
+ let gx=.12+Math.sin(ph)*.012*Math.min(1,k),gy=.2-lowered*.08-Math.abs(Math.cos(ph))*.02*Math.min(1,k),gz=-.2+lowered*.04;
  let rx=-lowered*.55,rz=0,ry=lowered*.18;
  let leftDown=0;
  if(rl>=0){ // rechargement

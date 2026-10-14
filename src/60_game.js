@@ -361,9 +361,14 @@ function syncRigs(dt,t){
   if(G.state==='cine'){R.root.visible=!!e.cineSeat;}
   else if(e.isPlayer){R.root.visible=!e.alive||!!e.emote;}else R.root.visible=e!==sp;
   if(e.isPlayer&&e.alive&&!e.emote&&!e.cineSeat)continue;
-  if(!e.cineSeat){R.root.position.x=e.x;R.root.position.z=e.z;R.root.rotation.y=e.yaw;}
+  if(!e.cineSeat){R.root.position.x=e.x;R.root.position.z=e.z;
+   // rotation et hauteur lissées : pas de demi-tour instantané ni de saut sec dans les escaliers
+   if(R.vyaw===undefined||!e.alive)R.vyaw=e.yaw;else R.vyaw+=angDiff(R.vyaw,e.yaw)*(1-Math.exp(-dt*16));
+   R.root.rotation.y=R.vyaw;
+   if(R.vy===undefined||!e.onGround||Math.abs(e.y-R.vy)>1.2)R.vy=e.y;else R.vy+=(e.y-R.vy)*(1-Math.exp(-dt*16));}
+  else{R.vy=e.y;R.vyaw=undefined;}
   const wk=curWi(e).k;if(R.gk!==wk){setSoldierGun(R,wk);R.swT=.35;}
-  const st={vx:e.vx,vz:e.vz,yaw:e.yaw,pitch:e.pitch,speed:e.speed,onGround:e.onGround,crouch:e.crouch,alive:e.alive,reload:e.reload,reloadMax:e.reloadMax,fire:e.fireAnim,ready:G.t-e.lastShot<2.5||!!e.target||e.isPlayer,alert:(e.target||G.t-e.lastShot<3)?1:0,hurt:e.hurtFlag,dieDir:e.dieDir,y:e.y,dance:e.emote?e.emote.id:null,danceT:e.emote?e.emote.t:0,seated:e.seated||0};
+  const st={vx:e.vx,vz:e.vz,yaw:e.yaw,pitch:e.pitch,speed:e.speed,onGround:e.onGround,crouch:e.crouch,alive:e.alive,reload:e.reload,reloadMax:e.reloadMax,fire:e.fireAnim,ready:G.t-e.lastShot<2.5||!!e.target||e.isPlayer,alert:(e.target||G.t-e.lastShot<3)?1:0,hurt:e.hurtFlag,dieDir:e.dieDir,y:R.vy,dance:e.emote?e.emote.id:null,danceT:e.emote?e.emote.t:0,seated:e.seated||0};
   e.hurtFlag=false;
   // pour la mort, on garde les positions y du corps ; animateSoldier gère l'inclinaison
   animateSoldier(R,st,dt,t);
@@ -649,7 +654,7 @@ function updatePlayer(dt){
  let spd=RUN*w.spd*spdMul(p)*am.mob*(p.downed?.15:1);if(K('walk')&&sprM===1)spd*=.5;if(p.crouch&&!p.slide)spd*=.5;spd*=1-.25*p.ads;spd*=sprM;
  if(G.state==='freeze'&&G.mode==='bomb')spd=0;
  const tx=(-Math.sin(p.yaw)*fz+Math.cos(p.yaw)*fx)*spd,tz=(-Math.cos(p.yaw)*fz-Math.sin(p.yaw)*fx)*spd;
- if(!mvSlide(p,dt)){const ac=Math.min(1,dt*(p.onGround?12:2.2));p.vx+=(tx-p.vx)*ac;p.vz+=(tz-p.vz)*ac;}
+ if(!mvSlide(p,dt)){const ac=1-Math.exp(-dt*(p.onGround?12:2.2));p.vx+=(tx-p.vx)*ac;p.vz+=(tz-p.vz)*ac;}
  moveEnt(p,p.vx,p.vz,dt);
  p.speed=Math.hypot(p.vx,p.vz);
  if(K('jump')&&p.onGround&&!(p.mv&&p.mv.jl>G.t)&&!(G.state==='freeze'&&G.mode==='bomb')){p.vy=JUMPV;p.onGround=false;sfx('jump');}
