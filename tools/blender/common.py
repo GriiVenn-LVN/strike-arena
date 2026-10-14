@@ -115,7 +115,7 @@ def mat(name, color, metal=0.0, rough=0.5, kind=None):
         nt.links.new(nz.outputs['Fac'], rr.inputs['Value']); nt.links.new(rr.outputs['Result'], p.inputs['Roughness'])
     return m
 
-def render_preview(path, objs_center=(0,0.1,0), dist=1.5, res=(1400,700), views=('side',)):
+def render_preview(path, objs_center=(0,0.1,0), dist=1.5, res=(1400,700), views=('side',), light=1.0):
     sc = bpy.context.scene
     sc.render.engine = 'BLENDER_EEVEE' if 'BLENDER_EEVEE' in [e.identifier for e in bpy.types.RenderSettings.bl_rna.properties['engine'].enum_items] else 'BLENDER_EEVEE_NEXT'
     sc.render.resolution_x, sc.render.resolution_y = res; sc.render.film_transparent = False
@@ -125,7 +125,7 @@ def render_preview(path, objs_center=(0,0.1,0), dist=1.5, res=(1400,700), views=
         o = bpy.data.objects.get('L_'+n)
         if not o:
             l = bpy.data.lights.new('L_'+n, 'AREA'); o = bpy.data.objects.new('L_'+n, l); sc.collection.objects.link(o)
-        o.data.energy = en; o.data.size = sz; o.location = loc
+        o.data.energy = en * light; o.data.size = sz; o.location = loc
         d = Vector(objs_center) - o.location; o.rotation_euler = d.to_track_quat('-Z', 'Y').to_euler()
     cam = bpy.data.objects.get('CamP')
     if not cam:
