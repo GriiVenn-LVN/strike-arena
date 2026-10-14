@@ -114,7 +114,7 @@ function svCurOpt(k){const o=(cfg.att[k]||{}).optic;return o&&(attAllowed(k).opt
 function svZoomTxt(k,o){if(o)return o.startsWith('sc')?'×'+o.slice(2):o==='acog'?'×2,5':'';return W[k].overlay?'×'+Math.round(W[k].zoom*2):'';}
 function drawSightsTab(){
  const host=$('svWeap');if(!host)return;
- const ws=sightWeapons(),lv=myLv();
+ const ws=sightWeapons();
  if(!svKey||!W[svKey]||!attAllowed(svKey).optic)svKey=(W[pvKey]&&attAllowed(pvKey).optic)?pvKey:(ws.rifle||ws.smg||Object.values(ws)[0])[0];
  // armes
  host.innerHTML='';
@@ -129,11 +129,11 @@ function drawSightsTab(){
  const k=svKey,cur=svCurOpt(k),list=$('svList');
  let h='<h5>Viseur — '+W[k].n+'</h5>';
  h+='<div class="svo'+(!cur?' on':'')+'" data-a=""><div><b>'+opticNone(k)+'</b><br><small>Viseur de base de l\'arme</small></div><i>'+svZoomTxt(k,null)+'</i></div>';
- for(const a of attAllowed(k).optic){const d=ATTS[a],lock=lv<d.lv;
-  h+='<div class="svo'+(cur===a?' on':'')+(lock?' lock':'')+'" data-a="'+a+'" title="'+d.d.replace(/"/g,'&quot;')+'"><div><b>'+d.n+(lock?' 🔒':'')+'</b><br><small>'+(lock?'Niveau '+d.lv:d.d.split(':')[0].split('.')[0])+'</small></div><i>'+svZoomTxt(k,a)+'</i></div>';}
+ for(const a of attAllowed(k).optic){const d=ATTS[a],lock=!attOpen(k,a);
+  h+='<div class="svo'+(cur===a?' on':'')+(lock?' lock':'')+'" data-a="'+a+'" title="'+d.d.replace(/"/g,'&quot;')+'"><div><b>'+d.n+(lock?' 🔒':'')+'</b><br><small>'+(lock?attLockTxt(k,a).replace('Requis : ',''):d.d.split(':')[0].split('.')[0])+'</small></div><i>'+svZoomTxt(k,a)+'</i></div>';}
  list.innerHTML=h;
  list.querySelectorAll('.svo').forEach(el=>el.onclick=()=>{
-  const a=el.dataset.a;if(el.classList.contains('lock')){sfxUI();uiToast('Débloqué au niveau '+ATTS[a].lv);return;}
+  const a=el.dataset.a;if(el.classList.contains('lock')){sfxUI();uiToast(attLockTxt(k,a));return;}
   if(!svSetOpt(k,a))return;sfx('reload',undefined,undefined,.3);drawSightsTab();
  });
  // réticule

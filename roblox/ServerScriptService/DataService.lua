@@ -16,13 +16,13 @@ local function template()
 	return {
 		version = 1,
 		xp = 0,
-		coins = 500,
+		coins = 250,
 		lastLoginDay = 0,            -- jour UTC (os.time() // 86400)
 		streak = 0,
-		inv = { skins = {}, dances = { "wave", "clap" }, weapons = {}, outfits = {}, sights = {}, reticles = {}, misc = {} },   -- skins[weaponKey] = { skinIndex, ... } ; voir Shared/ShopCatalog
+		inv = { skins = {}, dances = { "wave", "clap" }, weapons = {}, outfits = {}, sights = {}, reticles = {}, misc = {}, exclusive = {} },   -- exclusive = camos animés achetés en Robux   -- skins[weaponKey] = { skinIndex, ... } ; voir Shared/ShopCatalog
 		equippedDance = "wave",
-		equipped = { outfit = 1, reticle = "dot_red", trail = "", sights = {} },   -- sights[weaponKey] = id de ConfigExtra.SIGHTS
-		boxes = { std = 2, prem = 0 },
+		equipped = { outfit = 1, reticle = "dot_red", trail = "", sights = {}, animCamo = {} },   -- animCamo[weaponKey] = camo animé (ConfigExtra.EXCLUSIVES)   -- sights[weaponKey] = id de ConfigExtra.SIGHTS
+		boxes = { std = 1, prem = 0 },
 		pity = { epic = 0, legend = 0 },
 		opened = 0,
 		stats = { matches = 0, wins = 0, kills = 0, deaths = 0, hs = 0, dmg = 0, shots = 0, hits = 0, seconds = 0, bestStreak = 0, byMode = {}, byMap = {}, byWeapon = {} },

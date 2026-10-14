@@ -99,6 +99,12 @@ local function actionFor(it: any): (string, Color3, (() -> ())?)
 		end
 	end
 	local owned = state.owned[it.id]
+	if it.kind == "exclusive" and not owned then                 -- exclusif : Robux uniquement
+		if it.productId <= 0 then return "Bientôt", MUTED, nil end
+		return "R$ " .. it.robux, Color3.fromRGB(0, 176, 111), function()
+			shopBuy:InvokeServer(it.id)
+		end
+	end
 	if not owned then
 		local price = it.price
 		for _, o in ipairs(state.offers) do if o.id == it.id then price = o.price end end
@@ -113,8 +119,9 @@ local function actionFor(it: any): (string, Color3, (() -> ())?)
 	local isEquipped = (it.kind == "outfit" and eq.outfit == it.outfit) or (it.kind == "reticle" and eq.reticle == it.reticle)
 		or (it.kind == "trail" and eq.trail == it.trail) or (it.kind == "sight" and eq.sights[weapon] == it.sight)
 		or (it.kind == "skin" and state.equippedSkins[it.weapon] == it.skin)
+		or (it.kind == "exclusive" and it.camo ~= nil and (eq.animCamo or {})[weapon] == it.camo)
 	if isEquipped then return "Équipé", MUTED, nil end
-	if it.kind == "weapon" or it.kind == "misc" then return "Possédé", MUTED, nil end
+	if it.kind == "weapon" or it.kind == "misc" or (it.kind == "exclusive" and not it.camo) then return "Possédé", MUTED, nil end
 	return "Équiper", Color3.fromRGB(74, 163, 255), function()
 		local ok
 		if it.kind == "skin" then ok = equipSkin:InvokeServer(it.weapon, it.skin)
@@ -147,7 +154,7 @@ render = function()
 	for i, o in ipairs(state.offers) do card(Catalog.get(o.id), offersRow, i, true) end
 
 	local weapon = gunKeys[weaponIndex]
-	weaponBar.Visible = currentTab == "skins" or currentTab == "sights"
+	weaponBar.Visible = currentTab == "skins" or currentTab == "sights" or currentTab == "exclusive"
 	weaponLabel.Text = Config.WEAPONS[weapon].name
 	grid.Position = UDim2.fromOffset(20, if weaponBar.Visible then 236 else 198)
 	grid.Size = UDim2.new(1, -40, 1, if weaponBar.Visible then -270 else -232)

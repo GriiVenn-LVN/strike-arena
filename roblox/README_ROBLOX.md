@@ -49,13 +49,14 @@ Régénérer les cartes après modification du prototype : `perl tools/export_ma
 
 ## 3. Boutique
 
-- **Monnaie** : les pièces gagnées en jouant (niveaux, récompense du jour, défis, succès, passe de combat) achètent tout le catalogue. Les Robux achètent seulement des pièces, des caisses ou le passe Premium : aucun objet n'est réservé aux joueurs qui paient.
-- **Onglets** : Armes (débloquées pour toujours ; 8 armes de départ gratuites), Skins (par arme), Viseurs (modèle d'optique par arme + réticule commun, purement visuels), Tenues & style (tenues, traînées, titres), Pièces (Robux).
+- **Monnaie** : les pièces gagnées en jouant (niveaux, récompense du jour, défis, succès, passe de combat) achètent armes, skins, viseurs et tenues. L'économie est volontairement lente (~35 pièces par partie, ~28 parties pour le niveau 10, ~260 pour le niveau 30).
+- **Robux** : pièces (49 à 699 R$), caisses Premium (79 / 349 R$), passe Premium (399 R$) et les **Exclusifs** : 6 camos animés (249 à 449 R$, ou 1 299 R$ les six) qu'on ne peut obtenir qu'en payant. Prix alignés sur Arsenal, RIVALS et Phantom Forces.
+- **Onglets** : Armes (débloquées pour toujours ; 8 armes de départ gratuites), Skins (par arme), Viseurs (modèle d'optique par arme + réticule commun, purement visuels), Tenues & style (tenues, traînées, titres), Exclusifs ✨ (camos animés, Robux uniquement, à poser arme par arme), Robux.
 - **Prix** : par rareté (`ShopCatalog.PRICE_BY_RARITY`) ; armes = 40 % de leur prix en partie (`ShopCatalog.weaponPrice`). 4 **offres du jour** à -25 % (une par onglet), identiques pour tous les joueurs, renouvelées à minuit UTC.
 - **Menu d'achat en partie** (à faire) : ne proposer que les armes débloquées avec `ShopCatalog.ownsWeapon(profile, key)`.
 
 **Activer les achats Robux** (quand tu auras un compte Roblox et un jeu publié) :
-1. Creator Hub → ton expérience → **Monetization → Developer Products** → crée un produit par ligne de `ConfigExtra.SHOP` (même nom, même prix en Robux).
+1. Creator Hub → ton expérience → **Monetization → Developer Products** → crée un produit par ligne de `ConfigExtra.SHOP` **et** de `ConfigExtra.EXCLUSIVES` (même nom, même prix en Robux).
 2. Copie l'identifiant de chaque produit dans le champ `productId` de la ligne correspondante. Tant qu'il vaut 0, le bouton affiche « Bientôt ».
 3. Teste dans Studio : les achats y sont simulés, aucun Robux n'est débité.
 
@@ -64,6 +65,7 @@ Régénérer les cartes après modification du prototype : `perl tools/export_ma
 - **Hélicoptère** : modèle dans `ReplicatedStorage/Assets/Helicopter` (PrimaryPart = fuselage, une pièce nommée `Rotor`). Un modèle de secours simple est généré sinon.
 - **Armes** : un `Tool` par arme de `Config.WEAPONS`, avec `Handle`, sons (tir, recharge) et animations.
 - **Animations de danse** : 8 `Animation` R15 → colle les `rbxassetid://…` dans `Config.DANCES[...].animationId`.
+- **Camos animés** : `ConfigExtra.EXCLUSIVES[...].anim` donne les couleurs et la vitesse ; sur l'arme, anime un `Texture` (OffsetStudsU/V pour le défilement) et la `Color3` d'un `SurfaceAppearance`/`PointLight` pour la pulsation, depuis un script client. Le rendu de référence est dans le prototype web (`src/44b_animcamo.js`).
 - **Textures** : peins/sculpte dans Blender ou utilise `Material`/`SurfaceAppearance` ; garde le style « semi-réaliste et bon enfant » (couleurs vives, formes arrondies, lumière douce) comme dans le prototype.
 - **Sons / musique** : mixe-les toi-même ou prends ceux de la Toolbox *en vérifiant la licence*.
 - **Interface finale** : le prototype web est ta maquette (menus, HUD, boutique, casier, caisses).

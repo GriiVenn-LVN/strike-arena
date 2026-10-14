@@ -61,16 +61,16 @@ X.SPRAYS = { "smile", "heart", "skull", "bolt", "flame", "crown", "target", "gho
 X.KNIVES = { "classic", "karambit", "bayonet", "tanto" }
 
 -- ---------- Passe de combat ----------
-X.SEASON = { id = "s1", name = "Saison 1 · Néon", tiers = 30, xpPerTier = 180, premiumRobux = 499, premiumCoins = 1500 }
+X.SEASON = { id = "s1", name = "Saison 1 · Néon", tiers = 30, xpPerTier = 900, premiumRobux = 399, premiumCoins = 3500 }
 function X.bpReward(tier: number, premium: boolean)
 	if not premium then
-		if tier == X.SEASON.tiers then return { box = "prem", coins = 300 } end
-		if tier % 5 == 0 then return { box = "std", coins = 100 } end
-		return { coins = 60 + tier * 8 }
+		if tier == X.SEASON.tiers then return { box = "prem", coins = 200 } end
+		if tier % 10 == 0 then return { box = "std", coins = 60 } end
+		return { coins = 20 + tier * 2 }
 	end
 	if tier == 1 then return { box = "prem" } end
 	if tier % 5 == 0 then return { item = true, rarity = if tier >= 25 then 4 elseif tier >= 10 then 3 else 2 } end -- choisi côté serveur (graine = palier)
-	return { coins = 100 + tier * 10 }
+	return { coins = 40 + tier * 4 }
 end
 
 -- ---------- Classement ----------
@@ -120,15 +120,30 @@ X.WEATHER = {
 X.TIME_OF_DAY = { day = 14, dusk = 18.2, night = 23 } -- Lighting.ClockTime
 
 -- ---------- Boutique : produits Robux (Developer Products) ----------
--- Le reste du catalogue (armes, skins, viseurs, tenues) est construit dans Shared/ShopCatalog et se paie en pièces.
+-- Prix alignés sur les FPS Roblox comparables (Arsenal, RIVALS, Phantom Forces) : petit pack ~50 R$, passe de combat 399 R$,
+-- objet cosmétique exclusif 249-449 R$, gros lot ~1300 R$.
 -- Renseigne productId après création de chaque produit dans le Creator Hub (0 = bouton désactivé). Voir README_ROBLOX.md.
 X.SHOP = {
-	{ id = "pass_premium", kind = "devproduct", robux = 499, name = "Passe de combat Premium", productId = 0, premium = true },
-	{ id = "coins_s", kind = "devproduct", robux = 99, name = "500 pièces", productId = 0, coins = 500 },
-	{ id = "coins_m", kind = "devproduct", robux = 249, name = "1500 pièces", productId = 0, coins = 1500 },
-	{ id = "coins_l", kind = "devproduct", robux = 599, name = "4000 pièces", productId = 0, coins = 4000 },
-	{ id = "boxes_std5", kind = "devproduct", robux = 199, name = "5 Caisses Standard", productId = 0, box = "std", boxes = 5 },
-	{ id = "boxes_prem3", kind = "devproduct", robux = 349, name = "3 Caisses Premium", productId = 0, box = "prem", boxes = 3 },
+	{ id = "pass_premium", kind = "devproduct", robux = 399, name = "Passe de combat Premium", productId = 0, premium = true },
+	{ id = "coins_s", kind = "devproduct", robux = 49, name = "300 pièces", productId = 0, coins = 300 },
+	{ id = "coins_m", kind = "devproduct", robux = 129, name = "900 pièces", productId = 0, coins = 900 },
+	{ id = "coins_l", kind = "devproduct", robux = 299, name = "2 200 pièces", productId = 0, coins = 2200 },
+	{ id = "coins_xl", kind = "devproduct", robux = 699, name = "5 500 pièces", productId = 0, coins = 5500 },
+	{ id = "boxes_prem1", kind = "devproduct", robux = 79, name = "1 Caisse Premium", productId = 0, box = "prem", boxes = 1 },
+	{ id = "boxes_prem5", kind = "devproduct", robux = 349, name = "5 Caisses Premium", productId = 0, box = "prem", boxes = 5 },
+}
+
+-- ---------- Exclusifs payants : camos animés ----------
+-- Ne s'obtiennent QU'en Robux (jamais dans les caisses, le passe ou contre des pièces). Un camo s'applique à toutes les armes.
+-- anim = paramètres de l'animation de texture (défilement en studs/s, pulsation de l'éclat), même rendu que le prototype web.
+X.EXCLUSIVES = {
+	{ id = "camo_plasma", camo = "plasma", name = "Camo animé Plasma", robux = 299, productId = 0, anim = { scroll = 0.6, pulse = 1.2, colors = { "#7a1fff", "#ff2bd6", "#21e6c1" } } },
+	{ id = "camo_magma", camo = "magma", name = "Camo animé Magma vivant", robux = 349, productId = 0, anim = { scroll = 0.3, pulse = 2.2, colors = { "#1a0806", "#ff6a14", "#ffd070" } } },
+	{ id = "camo_code", camo = "code", name = "Camo animé Code vivant", robux = 249, productId = 0, anim = { scroll = 1.5, pulse = 0, colors = { "#021209", "#3ce678", "#e6fff0" } } },
+	{ id = "camo_nebula", camo = "nebula", name = "Camo animé Nébuleuse", robux = 399, productId = 0, anim = { scroll = 0.2, pulse = 0.8, colors = { "#07051a", "#3a4bff", "#d84bff" } } },
+	{ id = "camo_prism", camo = "prism", name = "Camo animé Prisme", robux = 449, productId = 0, anim = { scroll = 0.8, pulse = 0, colors = { "#ff3b3b", "#3bff8a", "#3b7bff" } } },
+	{ id = "camo_storm", camo = "storm", name = "Camo animé Tempête électrique", robux = 349, productId = 0, anim = { scroll = 0, pulse = 9, colors = { "#0a0f1a", "#3caaff", "#c8f2ff" } } },
+	{ id = "camo_bundle", camos = { "plasma", "magma", "code", "nebula", "prism", "storm" }, name = "Collection des 6 camos animés", robux = 1299, productId = 0 },
 }
 
 return X

@@ -29,9 +29,10 @@ end
 RewardService.applyReward = applyReward
 
 local function levelReward(level: number)
-	if level % 5 == 0 then return { box = "prem", coins = 200 } end
-	if level % 3 == 0 then return { box = "std", coins = 100 } end
-	return { coins = 100 + level * 10 }
+	if level % 25 == 0 then return { box = "prem", coins = 250 } end
+	if level % 10 == 0 then return { box = "std", coins = 150 } end
+	if level % 5 == 0 then return { coins = 120 } end
+	return { coins = 30 + level * 3 }
 end
 
 function RewardService.addXP(player: Player, amount: number)
@@ -73,14 +74,14 @@ end
 
 -- ---------- défis du jour ----------
 local MISSION_POOL = {
-	{ id = "kills", target = 15, coins = 150, xp = 60 },
-	{ id = "hs", target = 5, coins = 120, xp = 50 },
-	{ id = "win", target = 1, coins = 200, xp = 80 },
-	{ id = "matches", target = 3, coins = 180, xp = 60 },
-	{ id = "plant", target = 2, coins = 150, xp = 60 },
-	{ id = "nade", target = 2, coins = 200, xp = 70 },
-	{ id = "knife", target = 1, coins = 250, xp = 90 },
-	{ id = "dmg", target = 1500, coins = 150, xp = 60 },
+	{ id = "kills", target = 15, coins = 50, xp = 60 },
+	{ id = "hs", target = 5, coins = 40, xp = 50 },
+	{ id = "win", target = 1, coins = 65, xp = 80 },
+	{ id = "matches", target = 3, coins = 60, xp = 60 },
+	{ id = "plant", target = 2, coins = 50, xp = 60 },
+	{ id = "nade", target = 2, coins = 65, xp = 70 },
+	{ id = "knife", target = 1, coins = 85, xp = 90 },
+	{ id = "dmg", target = 1500, coins = 50, xp = 60 },
 }
 
 local function ensureMissions(profile)
@@ -137,7 +138,7 @@ function RewardService.finishMatch(player: Player, summary)
 	table.insert(profile.history, 1, { t = os.time(), mode = summary.mode, map = summary.map, won = summary.won, k = summary.kills, d = summary.deaths })
 	while #profile.history > 25 do table.remove(profile.history) end
 	local xp = 40 + summary.kills * 10 + summary.hs * 5 + (summary.won and 120 or 0) + (summary.plants + summary.defuses) * 25
-	local coins = math.floor(xp * 0.45)
+	local coins = math.floor(xp * 0.15)   -- ~35 pièces par partie : progression lente, comme sur le web
 	profile.coins += coins
 	RewardService.missionEvent(player, "matches")
 	if summary.won then RewardService.missionEvent(player, "win") end
