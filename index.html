@@ -10854,7 +10854,7 @@ function admDraw(){
  const el=ADM.el;
  if(!ADM.ok){
   ADM.html='';el.innerHTML='<h3>ACCÈS ADMIN '+admChip('close','Fermer ✕')+'</h3><div style="display:flex;gap:8px"><input type="password" id="admCode" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off" style="flex:1"><button class="btn cut" data-a="unlock" style="font-size:.8rem;padding:9px 16px">ENTRER</button></div><div class="note">Entre ton code admin. Il reste mémorisé sur ce navigateur.</div>';
-  setTimeout(()=>{const i=$('admCode');if(i)i.focus();},0);return;
+  {const i=$('admCode');if(i)i.focus();}setTimeout(()=>{const i=$('admCode');if(i&&document.activeElement!==i)i.focus();},50);return;
  }
  const ann=$('admAnn'),annVal=ann?ann.value:'',focus=document.activeElement&&document.activeElement.id==='admAnn';
  const tabs=[['players','Joueurs'],['game','Partie'],['vision','Triche'],['log','Journal']];
@@ -10892,6 +10892,13 @@ function admPauseBtn(){
  const b=document.createElement('button');b.className='btn alt cut';b.id='admPauseBtn';b.textContent='ADMIN (Inser)';b.onclick=()=>{$('pause').classList.remove('show');admOpen();};row.appendChild(b);
 }
 admPauseBtn();
+// lien avec #admin : la fenêtre du code s'ouvre toute seule à la fin du chargement (pas besoin de touche)
+(function admAutoOpen(){
+ if(!admAsked())return;
+ const tryOpen=()=>{const l=$('loading');if(l&&l.style.display!=='none'){setTimeout(tryOpen,300);return;}if(!ADM.ok&&!ADM.on)admOpen();};
+ setTimeout(tryOpen,800);
+})();
+addEventListener('hashchange',()=>{if(admAsked()&&!ADM.ok&&!ADM.on)admOpen();});
 /* ---------- boucle : ping des joueurs, vision, rafraîchissement ---------- */
 let _admT=performance.now();
 const _updateFXAdm=updateFX;
