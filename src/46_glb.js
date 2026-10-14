@@ -76,6 +76,11 @@ function glbRole(c){
  if(lum<.035)return 'body';
  return 'acc';
 }
+/* hauteur de la ligne de visée (haut du guidon, repère du modèle) : avant, on visait 4 mm au-dessus du point le plus haut
+   de l'arme, donc le guidon restait sous le centre de l'écran (jusqu'à 2 cm sous la FAMAS) */
+const SIGHT_FIX={glock:.050,usp:.054,p250:.055,fiveseven:.059,deagle:.057,mac10:.082,mp9:.100,ump:.120,p90:.172,nova:.054,sawedoff:.060,
+ xm:.175,galil:.069,famas:.1265,ak:.091,m4:.096,sg553:.089,aug:.144,m249:.151,negev:.089};
+const SIGHT_FIX_REAL={ak:.074,deagle:.068};
 function glbGun(k,M,sk,real){
  const tpl=glbTemplate(k,real);if(!tpl)return null;
  const info=(real?GLB_REAL_INFO[k]:GLB_INFO[k])||{},w=W[k],g=new THREE.Group();
@@ -100,7 +105,9 @@ function glbGun(k,M,sk,real){
  // ligne de visée : on vise par-dessus les organes de visée (sinon la hausse pleine du modèle masque le centre)
  if(!tpl.userData.top){const bb=new THREE.Box3().setFromObject(tpl);tpl.userData.top=bb.max.y;}
  // modèles réalistes : ligne de visée réglée à la préparation (centre du viseur holographique / de la lunette)
- const sightY=info.ads!==undefined?info.ads:real&&info.sight?info.sight:Math.max(info.sight||.06,tpl.userData.top+.004);
+ let sightY=info.ads!==undefined?info.ads:real&&info.sight?info.sight:Math.max(info.sight||.06,tpl.userData.top+.004);
+ // mires mesurées sur chaque modèle (hauteur du guidon) : en visée, le guidon tombe pile au centre de l'écran
+ {const f=(real?SIGHT_FIX_REAL:SIGHT_FIX)[k];if(f!==undefined)sightY=f;}
  return finishGun(g,{len:info.len||w.len,muzzle:info.muzzle||-.4,glb:true,
   right:V3(0,-.03,.012),left:pistol?V3(-.012,-.04,.02):V3(L[0],L[1]-.012,L[2]),
   sight:sightY,eject:V3(.025,sightY*.6,(info.muzzle||-.4)*.18),

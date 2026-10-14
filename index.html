@@ -3321,6 +3321,11 @@ function glbRole(c){
  if(lum<.035)return 'body';
  return 'acc';
 }
+/* hauteur de la ligne de visée (haut du guidon, repère du modèle) : avant, on visait 4 mm au-dessus du point le plus haut
+   de l'arme, donc le guidon restait sous le centre de l'écran (jusqu'à 2 cm sous la FAMAS) */
+const SIGHT_FIX={glock:.050,usp:.054,p250:.055,fiveseven:.059,deagle:.057,mac10:.082,mp9:.100,ump:.120,p90:.172,nova:.054,sawedoff:.060,
+ xm:.175,galil:.069,famas:.1265,ak:.091,m4:.096,sg553:.089,aug:.144,m249:.151,negev:.089};
+const SIGHT_FIX_REAL={ak:.074,deagle:.068};
 function glbGun(k,M,sk,real){
  const tpl=glbTemplate(k,real);if(!tpl)return null;
  const info=(real?GLB_REAL_INFO[k]:GLB_INFO[k])||{},w=W[k],g=new THREE.Group();
@@ -3345,7 +3350,9 @@ function glbGun(k,M,sk,real){
  // ligne de visée : on vise par-dessus les organes de visée (sinon la hausse pleine du modèle masque le centre)
  if(!tpl.userData.top){const bb=new THREE.Box3().setFromObject(tpl);tpl.userData.top=bb.max.y;}
  // modèles réalistes : ligne de visée réglée à la préparation (centre du viseur holographique / de la lunette)
- const sightY=info.ads!==undefined?info.ads:real&&info.sight?info.sight:Math.max(info.sight||.06,tpl.userData.top+.004);
+ let sightY=info.ads!==undefined?info.ads:real&&info.sight?info.sight:Math.max(info.sight||.06,tpl.userData.top+.004);
+ // mires mesurées sur chaque modèle (hauteur du guidon) : en visée, le guidon tombe pile au centre de l'écran
+ {const f=(real?SIGHT_FIX_REAL:SIGHT_FIX)[k];if(f!==undefined)sightY=f;}
  return finishGun(g,{len:info.len||w.len,muzzle:info.muzzle||-.4,glb:true,
   right:V3(0,-.03,.012),left:pistol?V3(-.012,-.04,.02):V3(L[0],L[1]-.012,L[2]),
   sight:sightY,eject:V3(.025,sightY*.6,(info.muzzle||-.4)*.18),
@@ -3838,7 +3845,7 @@ function fx2Update(dt){
    VIEWMODEL : arme + mains en vue subjective, animations
    ===================================================================== */
 vmScene.add(vmCam);
-const VM={root:new THREE.Group(),gun:null,gk:null,skin:-1,look:'',kick:0,drawT:0,reloadMax:0,inspectT:0,throwT:0,swingT:0,flashT:0,boltT:0,pumpT:0,drops:[],relEmpty:false,relSnd:0,relDrop:false,relShells:3,
+const VM={root:new THREE.Group(),gun:null,gk:null,skin:-1,look:'',kick:0,drawT:0,reloadMax:0,inspectT:0,throwT:0,swingT:0,flashT:0,boltT:0,pumpT:0,ent:null,drops:[],relEmpty:false,relSnd:0,relDrop:false,relShells:3,
  sx:0,sy:0,sxv:0,syv:0,kv:0,lv:0,land:0,ly:0,lp:0,landT:0,bph:0,prevGround:true,swayR:0,airVy:0,strafe:0};
 vmCam.add(VM.root);
 {
@@ -3856,9 +3863,11 @@ vmCam.add(VM.root);
  };
  VM.setLook(look);
 }
+// skin affiché : celui du joueur pour sa propre arme, finition d'usine pour un joueur regardé en spectateur
+const vmSkinId=(e,k)=>!e||e===P?cfg.skins[k]||0:0;
 function vmSetGun(k){
  if(VM.gun)VM.root.remove(VM.gun);
- const sk=skinOf(k),g=gunParts(k,sk);VM.gun=g;VM.gk=k;VM.skin=cfg.skins[k]||0;VM.pap=!!(P&&P.wp&&curWi(P)&&curWi(P).pap);if(VM.pap)papCamo(g);decorateVM(g,k);
+ const e=VM.ent||P,sk=e===P?skinOf(k):SKINS[0],g=gunParts(k,sk);VM.gun=g;VM.gk=k;VM.skin=vmSkinId(e,k);VM.pap=!!(e&&e.wp&&curWi(e)&&curWi(e).pap);if(VM.pap)papCamo(g);decorateVM(g,k);
  const u=g.userData;
  // bornes de l'arme (repère local) : sert à garder la crosse devant la caméra en visée
  // la crosse (pièces entièrement derrière la poignée) est masquée en visée : vue de 15 cm, elle boucherait l'écran
@@ -3880,15 +3889,16 @@ function papCamo(g){
 function vmDraw(){VM.drawT=.45;VM.inspectT=0;}
 function vmFire(w){
  // recul sur ressort : impulsion, retour amorti (léger rebond)
- VM.kv+=(w.cat==='sniper'||w.cat==='shotgun'?22:w.cat==='pistol'?14:12)*(1-.45*(P?P.ads:0));VM.flashT=.05;
+ const e=VM.ent||P;
+ VM.kv+=(w.cat==='sniper'||w.cat==='shotgun'?22:w.cat==='pistol'?14:12)*(1-.45*(e?e.ads:0));VM.flashT=.05;
  if(w.cat==='sniper'&&!w.auto){VM.boltT=.8;setTimeout(()=>sfx('bolt',undefined,undefined,.6),380);}
  if(w.cat==='shotgun'&&!w.auto){VM.pumpT=.6;setTimeout(()=>sfx('pump',undefined,undefined,.6),300);}
 }
 function vmReload(w){
  VM.reloadMax=w.rel;VM.inspectT=0;
  // recharge « à vide » : on réarme à la fin ; sinon recharge tactique, sans armement
- const wi=P&&curWi(P);VM.relEmpty=!!wi&&wi.mag<=0;VM.relSnd=0;VM.relDrop=false;
- VM.relShells=wi?clamp(magMax(P,wi.k)-wi.mag,1,4):3;
+ const e=VM.ent||P,wi=e&&curWi(e);VM.relEmpty=!!wi&&wi.mag<=0;VM.relSnd=0;VM.relDrop=false;
+ VM.relShells=wi?clamp(magMax(e,wi.k)-wi.mag,1,4):3;
  const u=VM.gun&&VM.gun.userData;if(!u||(!u.mag&&!(w.cat==='shotgun')))sfx('reload',undefined,undefined,.8);
 }
 /* chargeur qui tombe : copie de la pièce, lâchée dans la scène de la vue subjective */
@@ -3911,16 +3921,19 @@ function vmThrow(){VM.throwT=.7;}
 function vmKnifeSwing(){VM.swingT=.38;}
 function vmInspect(){if(VM.inspectT<=0&&VM.drawT<=0)VM.inspectT=2.6;}
 const _vp=V3(),_vq=new THREE.Quaternion(),_vr=V3(),_vl=V3(),_ve=new THREE.Euler();
-function vmUpdate(dt,t){
+// ent : joueur regardé en spectateur (par défaut, le joueur lui-même)
+function vmUpdate(dt,t,ent){
+ const p=ent||P;
+ if(VM.ent!==p){VM.ent=p;VM.gk=null;VM.ly=p.yaw;VM.lp=p.pitch;VM.prevGround=p.onGround;VM.kick=VM.kv=0;VM.reloadMax=0;VM.drops.forEach(d=>VM.root.remove(d.o));VM.drops.length=0;}
  extrasVmUpdate(t);
- const p=P,w=curW(p),k=curWi(p).k;
+ const w=curW(p),k=curWi(p).k;
  const lk=entLook(p);VM.setLook(lk.kind==='ffa'?{kind:'ct',acc:lk.acc,tone:lk.tone,outfit:lk.outfit}:lk);
- if(VM.gk!==k||VM.skin!==(cfg.skins[k]||0)||VM.pap!==!!curWi(p).pap)vmSetGun(k);
+ if(VM.gk!==k||VM.skin!==vmSkinId(p,k)||VM.pap!==!!curWi(p).pap)vmSetGun(k);
  const g=VM.gun,u=g.userData;
  {const sd=Math.min(dt,.033);VM.kv+=(-VM.kick*300-VM.kv*26)*sd;VM.kick=clamp(VM.kick+VM.kv*sd,-.3,1.4);}
  VM.flashT=Math.max(0,VM.flashT-dt);VM.drawT=Math.max(0,VM.drawT-dt);VM.throwT=Math.max(0,VM.throwT-dt);VM.swingT=Math.max(0,VM.swingT-dt);VM.inspectT=Math.max(0,VM.inspectT-dt);
  vmDropsUpdate(dt);VM.boltT=Math.max(0,VM.boltT-dt);VM.pumpT=Math.max(0,VM.pumpT-dt);
- const ads=p.ads,spd=clamp(p.speed/5.2,0,1.3);
+ const ads=p.ads||0,spd=clamp((p.speed||0)/5.2,0,1.3);
  VM.bph+=dt*p.speed*1.7;
  // balancement selon la vue : l'arme traîne derrière le mouvement de la souris (ressort amorti, indépendant des fps)
  const dy=angDiff(VM.ly,p.yaw),dp=p.pitch-VM.lp;VM.ly=p.yaw;VM.lp=p.pitch;
@@ -4226,6 +4239,7 @@ function shoot(e){
   // douille
   const cy=Math.cos(e.yaw),sy=Math.sin(e.yaw);if(w.cat!=='shotgun'||w.auto)ejectShell(ox+cy*.1+d0[0]*.3,oy-.12,oz-sy*.1+d0[2]*.3,e.yaw,1);
  }else{
+  if(e===VM.ent&&!P.alive)vmFire(w);   // joueur regardé en spectateur : recul de l'arme en vue subjective
   const d0=dirOf(e.yaw,e.pitch),m=muzzlePos(e,d0);fxMuzzleSmoke(m[0],m[1],m[2],d0[0],d0[1],d0[2]);muzzleFlash3D(m[0],m[1],m[2],w.cat==='sniper'||w.cat==='shotgun'?.8:.5);
   if(Math.random()<.5)ejectShell(ox,oy-.2,oz,e.yaw,1);
  }
@@ -4253,7 +4267,7 @@ function startReload(e){
  const wi=curWi(e),w=W[wi.k];
  if(w.melee||e.reload>0||wi.mag>=magMax(e,wi.k)||wi.res<=0)return;
  const rm=(e.perks&&e.perks.speed?.5:1)*attMods(e,wi.k).rel;e.reload=w.rel*rm;e.reloadMax=w.rel*rm;e.reloadWi=wi;e.ads=0;
- if(e.isPlayer)vmReload(w);else sfx('reload',e.x,e.z,.8);
+ if(e.isPlayer)vmReload(w);else{sfx('reload',e.x,e.z,.8);if(e===VM.ent&&!P.alive)vmReload(w);}
 }
 function tickWeapon(e,dt){
  if(e.switchT>0)e.switchT-=dt;
@@ -5574,7 +5588,8 @@ function redDot(u){
 }
 function decorateVM(g,k){
  const u=g.userData,w=W[k];if(w.melee)return;
- attBuild(g,k,attSel(P,k));
+ const e=VM.ent||P;attBuild(g,k,attSel(e,k));
+ if(e!==P)return;   // spectateur : ni porte-clés ni compteur du joueur sur l'arme d'un autre
  if(cfg.charm&&cfg.charm!==''){const ch=charmMesh(cfg.charm);if(ch){ch.position.set(.032,-.07,.05);g.add(ch);g.userData.charm=ch;}}
  if(cfg.counter&&(w.cat!=='pistol'||true)){const c=counterMesh(k);c.position.set(.031,.045,-.12);g.add(c);g.userData.counter=c;counterDraw(c);}
 }
@@ -6775,7 +6790,7 @@ function buildWonder(k,M){
   const fin=rb(.006,.05,.09,red,0,.085,-.08,.003);g.add(fin);
   g.add(polyZY([[.0,-.02],[.04,-.02],[.06,-.13],[.02,-.14]],.03,metal(0x2b2b2b),0,.004));
   const tank=new THREE.Mesh(new THREE.CylinderGeometry(.018,.018,.07,12),glow(0x4dff6a));tank.rotation.x=Math.PI/2;tank.position.set(.045,.03,-.03);g.add(tank);
-  return finishGun(g,{len:.36,muzzle:-.36,right:V3(0,-.075,-.0),left:V3(0,-.05,-.12),twoHand:false,sight:.09,eject:V3(0,0,0)});
+  return finishGun(g,{len:.36,muzzle:-.36,right:V3(0,-.075,-.0),left:V3(0,-.05,-.12),twoHand:false,sight:.11,eject:V3(0,0,0)});
  }
  if(k==='thunder'){           // canon à air : tambour cuivré, turbine à l'avant
   const brass=metal(0xb08a4a),dark=metal(0x2e2a26),blue=glow(0x9fd8ff);
@@ -6786,7 +6801,7 @@ function buildWonder(k,M){
   const core=new THREE.Mesh(new THREE.SphereGeometry(.03,12,10),blue);core.position.set(0,0,-.37);g.add(core);
   g.add(rb(.05,.04,.22,dark,0,.08,-.12,.01),cz(.02,.02,.16,blue,.07,.02,-.16,10));
   g.add(polyZY([[.0,-.06],[.05,-.06],[.07,-.17],[.02,-.18]],.035,dark,0,.004),rb(.05,.09,.16,brass,0,-.02,.1,.01));
-  return finishGun(g,{len:.6,muzzle:-.46,right:V3(0,-.11,.01),left:V3(0,-.075,-.25),sight:.13,eject:V3(0,0,0)});
+  return finishGun(g,{len:.6,muzzle:-.46,right:V3(0,-.11,.01),left:V3(0,-.075,-.25),sight:.10,eject:V3(0,0,0)});
  }
  // souffle givré : canon de cristal bleu, pointes de glace
  const steel=metal(0x8fa3b8),ice=new THREE.MeshStandardMaterial({color:0xa8ecff,emissive:0x3fb8ff,emissiveIntensity:.7,roughness:.08,metalness:.1,transparent:true,opacity:.85});
@@ -6795,7 +6810,7 @@ function buildWonder(k,M){
  for(let i=0;i<6;i++){const c=new THREE.Mesh(new THREE.ConeGeometry(.012,.07,5),ice);const a=i*Math.PI/3;c.position.set(Math.cos(a)*.045,.01+Math.sin(a)*.045,-.3-i%2*.08);c.rotation.set(Math.PI/2,0,a);g.add(c);}
  g.add(cz(.03,.03,.08,steel,0,.01,-.22,14),rb(.03,.03,.16,steel,0,.065,-.1,.008));
  g.add(polyZY([[.0,-.035],[.04,-.035],[.055,-.15],[.015,-.16]],.032,metal(0x2b3138),0,.004),rb(.04,.08,.13,steel,0,-.01,.11,.01));
- return finishGun(g,{len:.55,muzzle:-.5,right:V3(0,-.085,.0),left:V3(0,-.03,-.24),sight:.085,eject:V3(0,0,0)});
+ return finishGun(g,{len:.55,muzzle:-.5,right:V3(0,-.085,.0),left:V3(0,-.03,-.24),sight:.081,eject:V3(0,0,0)});
 }
 BUILDERS.wonder=buildWonder;
 
@@ -8498,10 +8513,12 @@ function drawCrosshair(c,cx,cy,gap){
  if(x.out)draw(x.th+2,'rgba(0,0,0,.75)');draw(x.th,x.c);
  if(x.dot){if(x.out){c.fillStyle='rgba(0,0,0,.75)';c.fillRect(cx-x.th/2-1,cy-x.th/2-1,x.th+2,x.th+2);}c.fillStyle=x.c;c.fillRect(cx-x.th/2,cy-x.th/2,x.th,x.th);}
 }
+const XH_OFF=true;
 const xhC=$('xh').getContext('2d');
 function updateCrosshair(){
  const c=xhC;c.clearRect(0,0,220,220);
- if(!P.alive||P.scoped||P.emote||G.state==='cine')return;
+ // viseur de hanche désactivé (demande de Noa) : seuls les viseurs d'arme et les lunettes servent à viser
+ if(XH_OFF||!P.alive||P.scoped||P.emote||G.state==='cine')return;
  const w=curW(P),sp=spreadOf(P,w),gap=clamp(cfg.xh.gap+sp*(innerHeight/55)+Math.abs(P.punchP)*2.5,2,80);
  drawCrosshair(c,110,110,gap*(1-.5*P.ads));
 }
@@ -9208,7 +9225,7 @@ const NAV=[
  {id:'play',n:'Jouer',ic:'▶',sub:[['play','Partie solo'],['mp','Multijoueur']]},
  {id:'arsenal',n:'Arsenal',ic:'⌖',sub:[['arms','Armes'],['sights','Viseurs'],['locker','Casier'],['boxes','Caisses']]},
  {id:'career',n:'Profil',ic:'★',sub:[['prog','Progression'],['stats','Statistiques'],['style','Style']]},
- {id:'options',n:'Réglages',ic:'⚙',sub:[['opts','Général'],['custom','Réticule'],['keys','Touches'],['acc','Accessibilité']]}
+ {id:'options',n:'Réglages',ic:'⚙',sub:[['opts','Général'],['keys','Touches'],['acc','Accessibilité']]}
 ];
 const MODE_GROUPS=[['Compétitif',['bomb','rapid']],['Action',['tdm','ffa','gg','koth']],['Spécial',['zombies','br','train']]];
 const MODE_TAG={bomb:'Bombe · économie · manches',rapid:'Manches courtes, armes fournies',tdm:'Équipes, réapparition',ffa:'Chacun pour soi',gg:'Une arme par élimination',koth:'Tiens la zone',zombies:'Coop contre des vagues',br:'Un seul survivant',train:'Stand de tir chronométré'};
@@ -11666,15 +11683,18 @@ function placeCamera(dt,t){
  if(src.isPlayer)zoom=lerp(1,sightZoom(P,w),P.ads);
  const mw=src.isPlayer&&P.mv?P.mv.w:null,tf=cfg.fov/zoom*(mw?1+mw.spr*.06+mw.tac*.1+mw.sld*.07:1);camera.fov+=(tf-camera.fov)*Math.min(1,dt*18);camera.updateProjectionMatrix();
 }
+function vmSpecEnt(){const s=specTarget();return s&&s.alive&&!s.zombie&&!s.downed&&s.wp&&W[curWi(s).k]?s:null;}
 function render(dt,t){
  for(const f of worldAnim)f(t);
  if(RP.on&&RP.wait<=0&&G.running&&!G.paused){rpRender(dt,t);return;}
  placeCamera(dt,t);shadowFollow(camera.position.x,camera.position.z,G.running&&!!P);
  if(skyG)skyG.position.copy(camera.position);
- if(G.running||G.state==='over'){if(P){syncRigs(dt,t);if(P.alive)vmUpdate(dt,t);}}
+ // spectateur : arme et bras du joueur regardé, comme en vue subjective
+ const vmEnt=G.running&&P?(P.alive?P:vmSpecEnt()):null;
+ if(G.running||G.state==='over'){if(P){syncRigs(dt,t);if(vmEnt)vmUpdate(dt,t,vmEnt);}}
  updateFX(dt,t);
  postBegin();renderer.render(scene,camera);
- if(G.running&&P&&P.alive&&VM.root.visible&&G.state!=='cine'&&!P.emote){renderer.clearDepth();renderer.render(vmScene,vmCam);}
+ if(vmEnt&&VM.root.visible&&G.state!=='cine'&&!vmEnt.emote){renderer.clearDepth();renderer.render(vmScene,vmCam);}
  postEnd();
  if(G.running&&P){updateHUD(dt,t);radarT2-=dt;if(radarT2<=0){radarT2=.05;drawRadar();}}
 }

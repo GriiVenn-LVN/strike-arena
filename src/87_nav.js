@@ -6,7 +6,7 @@ const NAV=[
  {id:'play',n:'Jouer',ic:'▶',sub:[['play','Partie solo'],['mp','Multijoueur']]},
  {id:'arsenal',n:'Arsenal',ic:'⌖',sub:[['arms','Armes'],['sights','Viseurs'],['locker','Casier'],['boxes','Caisses']]},
  {id:'career',n:'Profil',ic:'★',sub:[['prog','Progression'],['stats','Statistiques'],['style','Style']]},
- {id:'options',n:'Réglages',ic:'⚙',sub:[['opts','Général'],['custom','Réticule'],['keys','Touches'],['acc','Accessibilité']]}
+ {id:'options',n:'Réglages',ic:'⚙',sub:[['opts','Général'],['keys','Touches'],['acc','Accessibilité']]}
 ];
 const MODE_GROUPS=[['Compétitif',['bomb','rapid']],['Action',['tdm','ffa','gg','koth']],['Spécial',['zombies','br','train']]];
 const MODE_TAG={bomb:'Bombe · économie · manches',rapid:'Manches courtes, armes fournies',tdm:'Équipes, réapparition',ffa:'Chacun pour soi',gg:'Une arme par élimination',koth:'Tiens la zone',zombies:'Coop contre des vagues',br:'Un seul survivant',train:'Stand de tir chronométré'};

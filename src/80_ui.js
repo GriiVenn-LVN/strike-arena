@@ -94,10 +94,12 @@ function drawCrosshair(c,cx,cy,gap){
  if(x.out)draw(x.th+2,'rgba(0,0,0,.75)');draw(x.th,x.c);
  if(x.dot){if(x.out){c.fillStyle='rgba(0,0,0,.75)';c.fillRect(cx-x.th/2-1,cy-x.th/2-1,x.th+2,x.th+2);}c.fillStyle=x.c;c.fillRect(cx-x.th/2,cy-x.th/2,x.th,x.th);}
 }
+const XH_OFF=true;
 const xhC=$('xh').getContext('2d');
 function updateCrosshair(){
  const c=xhC;c.clearRect(0,0,220,220);
- if(!P.alive||P.scoped||P.emote||G.state==='cine')return;
+ // viseur de hanche désactivé (demande de Noa) : seuls les viseurs d'arme et les lunettes servent à viser
+ if(XH_OFF||!P.alive||P.scoped||P.emote||G.state==='cine')return;
  const w=curW(P),sp=spreadOf(P,w),gap=clamp(cfg.xh.gap+sp*(innerHeight/55)+Math.abs(P.punchP)*2.5,2,80);
  drawCrosshair(c,110,110,gap*(1-.5*P.ads));
 }
