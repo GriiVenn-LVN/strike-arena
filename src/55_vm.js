@@ -2,7 +2,7 @@
    VIEWMODEL : arme + mains en vue subjective, animations
    ===================================================================== */
 vmScene.add(vmCam);
-const VM={root:new THREE.Group(),gun:null,gk:null,skin:-1,look:'',kick:0,drawT:0,reloadMax:0,inspectT:0,throwT:0,swingT:0,flashT:0,boltT:0,pumpT:0,
+const VM={root:new THREE.Group(),gun:null,gk:null,skin:-1,look:'',kick:0,drawT:0,reloadMax:0,inspectT:0,throwT:0,swingT:0,flashT:0,boltT:0,pumpT:0,drops:[],relEmpty:false,relSnd:0,relDrop:false,relShells:3,
  sx:0,sy:0,sxv:0,syv:0,kv:0,lv:0,land:0,ly:0,lp:0,landT:0,bph:0,prevGround:true,swayR:0,airVy:0,strafe:0};
 vmCam.add(VM.root);
 {
@@ -48,7 +48,29 @@ function vmFire(w){
  if(w.cat==='sniper'&&!w.auto){VM.boltT=.8;setTimeout(()=>sfx('bolt',undefined,undefined,.6),380);}
  if(w.cat==='shotgun'&&!w.auto){VM.pumpT=.6;setTimeout(()=>sfx('pump',undefined,undefined,.6),300);}
 }
-function vmReload(w){VM.reloadMax=w.rel;VM.inspectT=0;}
+function vmReload(w){
+ VM.reloadMax=w.rel;VM.inspectT=0;
+ // recharge « à vide » : on réarme à la fin ; sinon recharge tactique, sans armement
+ const wi=P&&curWi(P);VM.relEmpty=!!wi&&wi.mag<=0;VM.relSnd=0;VM.relDrop=false;
+ VM.relShells=wi?clamp(magMax(P,wi.k)-wi.mag,1,4):3;
+ const u=VM.gun&&VM.gun.userData;if(!u||(!u.mag&&!(w.cat==='shotgun')))sfx('reload',undefined,undefined,.8);
+}
+/* chargeur qui tombe : copie de la pièce, lâchée dans la scène de la vue subjective */
+function vmDropMag(u){
+ const m=u.mag;if(!m||!VM.gun)return;
+ VM.gun.updateMatrixWorld(true);VM.root.updateMatrixWorld(true);
+ const c=m.clone();c.matrixAutoUpdate=true;
+ const mw=new THREE.Matrix4().copy(VM.root.matrixWorld).invert().multiply(m.matrixWorld);
+ mw.decompose(c.position,c.quaternion,c.scale);VM.root.add(c);
+ const d=u.magDir||V3(0,-1,0),q=VM.gun.quaternion;
+ const v=V3(d.x,d.y,d.z).applyQuaternion(q).multiplyScalar(.9);v.x-=.15;
+ VM.drops.push({o:c,v,s:V3((Math.random()-.5)*6,(Math.random()-.5)*4,4+Math.random()*3),t:0});
+}
+function vmDropsUpdate(dt){
+ for(let i=VM.drops.length-1;i>=0;i--){const d=VM.drops[i];d.t+=dt;d.v.y-=7*dt;
+  d.o.position.addScaledVector(d.v,dt);d.o.rotation.x+=d.s.x*dt;d.o.rotation.y+=d.s.y*dt;d.o.rotation.z+=d.s.z*dt;
+  if(d.t>1.2||d.o.position.y<-1.2){VM.root.remove(d.o);VM.drops.splice(i,1);}}
+}
 function vmThrow(){VM.throwT=.7;}
 function vmKnifeSwing(){VM.swingT=.38;}
 function vmInspect(){if(VM.inspectT<=0&&VM.drawT<=0)VM.inspectT=2.6;}
@@ -61,7 +83,7 @@ function vmUpdate(dt,t){
  const g=VM.gun,u=g.userData;
  {const sd=Math.min(dt,.033);VM.kv+=(-VM.kick*300-VM.kv*26)*sd;VM.kick=clamp(VM.kick+VM.kv*sd,-.3,1.4);}
  VM.flashT=Math.max(0,VM.flashT-dt);VM.drawT=Math.max(0,VM.drawT-dt);VM.throwT=Math.max(0,VM.throwT-dt);VM.swingT=Math.max(0,VM.swingT-dt);VM.inspectT=Math.max(0,VM.inspectT-dt);
- VM.boltT=Math.max(0,VM.boltT-dt);VM.pumpT=Math.max(0,VM.pumpT-dt);
+ vmDropsUpdate(dt);VM.boltT=Math.max(0,VM.boltT-dt);VM.pumpT=Math.max(0,VM.pumpT-dt);
  const ads=p.ads,spd=clamp(p.speed/5.2,0,1.3);
  VM.bph+=dt*p.speed*1.7;
  // balancement selon la vue : l'arme traîne derrière le mouvement de la souris (ressort amorti, indépendant des fps)
@@ -111,22 +133,50 @@ function vmUpdate(dt,t){
  if(p.reload>0&&p.reloadMax>0){rl=1-p.reload/p.reloadMax;
   // rechargement en phases : bascule, chargeur dehors, chargeur dedans (claque), armement, retour
   const tilt=smooth01(clamp(rl/.16,0,1))*(1-smooth01(clamp((rl-.84)/.16,0,1)));
-  const bump=(c,w2)=>Math.exp(-Math.pow((rl-c)/w2,2)),slap=bump(.74,.035),rack=bump(.87,.04);
-  rx+=tilt*.12+slap*-.08+rack*.06;rz+=tilt*.48+slap*.06;ry-=tilt*.1;px-=tilt*.02;py-=tilt*.055-slap*.014;pz+=rack*.028-tilt*.02;
-  leftOff=u.mag?tilt:Math.sin(rl*Math.PI);}
+  const bump=(c,w2)=>Math.exp(-Math.pow((rl-c)/w2,2)),slap=bump(.74,.035),rack=VM.relEmpty?bump(.87,.04):0;
+  // l'arme pivote pour montrer le puits de chargeur au centre de l'écran (sans ça, le chargeur passe sous le HUD)
+  const mw=u.mag?tilt:0;
+  rx+=tilt*.12+mw*.1+slap*-.08+rack*.06;rz+=tilt*(u.mag?-.42:.48)+slap*.06;ry-=tilt*.1-mw*.22;px-=tilt*.02+mw*.07;py-=tilt*.055-mw*.05-slap*.014;pz+=rack*.028-tilt*.02;
+  leftOff=u.mag?tilt:0;
+  // sons calés sur l'animation : chargeur dehors, chargeur dedans, armement
+  const snd=(i,at,name)=>{if(VM.relSnd<i&&rl>=at){VM.relSnd=i;sfx(name,undefined,undefined,.8);}};
+  if(u.mag){snd(1,.28,'magout');snd(2,.71,'magin');if(VM.relEmpty&&(u.bolt||u.slide))snd(3,u.slide?.84:.85,'rack');}
+  else if(!u.mag&&w.cat==='shotgun'){
+   // pompe : cartouches glissées une à une sous l'arme
+   const n=VM.relShells,a=clamp((rl-.15)/.65,0,.999),ph=a*n%1,i=Math.floor(a*n);
+   if(rl>.15&&rl<.8){leftOff=Math.sin(ph*Math.PI)*.6;if(VM.relSnd<=i&&ph>.55){VM.relSnd=i+1;sfx('shellin',undefined,undefined,.7);}}
+   if(VM.relEmpty&&u.bolt)snd(99,.85,'pump');
+  }}
  for(const c of u.stock)c.visible=ads<.55;
  {const nr=u.glb?.01+.14*ads:.01;if(Math.abs(vmCam.near-nr)>.002){vmCam.near=nr;vmCam.updateProjectionMatrix();}}
  g.position.set(px,py,pz);_ve.set(rx,ry,rz);g.quaternion.setFromEuler(_ve);
  // pièces mobiles
  if(u.mag){
-  let out=0;
-  if(rl>=0){out=rl<.25?0:rl<.45?smooth01((rl-.25)/.2):rl<.7?1-smooth01((rl-.5)/.2)*.0:1;
-   if(rl>=.25&&rl<.5)out=smooth01((rl-.25)/.25);else if(rl>=.5&&rl<.75)out=1-smooth01((rl-.5)/.25);else out=0;}
-  u.mag.position.y=-out*.2;u.mag.position.x=out*.04;u.mag.position.z=0;
-  u.mag.visible=!(rl>=.3&&rl<.45);
+  // base de la pièce (le chargeur d'un modèle 3D n'est pas forcément à l'origine)
+  if(!u.magP0){u.magP0=u.mag.position.clone();u.magR0=u.mag.rotation.clone();u.magDir=VM.gk==='p90'?V3(0,.55,.85).normalize():V3(.18,-1,0).normalize();}
+  // phases : .26-.36 sort, (tombe), .36-.46 la main descend chercher l'autre, .46-.58 remonte, .58-.72 l'enfonce
+  let out=0,tw=0,vis=true;
+  if(rl>=0){
+   if(rl<.26)out=0;
+   else if(rl<.36)out=smooth01((rl-.26)/.1);
+   else if(rl<.46){out=1+smooth01((rl-.36)/.1)*1.4;vis=false;}
+   else if(rl<.58){out=2.4-smooth01((rl-.46)/.12)*1.25;tw=1-smooth01((rl-.5)/.08);}
+   else if(rl<.72)out=1.15*(1-smooth01((rl-.58)/.14));
+   if(rl>=.36&&!VM.relDrop){VM.relDrop=true;vmDropMag(u);}
+  }
+  const d=u.magDir;
+  u.mag.position.set(u.magP0.x+d.x*out*.2,u.magP0.y+d.y*out*.2,u.magP0.z+d.z*out*.2);
+  u.mag.rotation.set(u.magR0.x+tw*.5,u.magR0.y,u.magR0.z+tw*.35);
+  u.mag.visible=vis;
  }
- if(u.slide)u.slide.position.z=kk*.03;
- if(u.bolt){const bt=VM.boltT>0?Math.sin((1-VM.boltT/.8)*Math.PI):0;u.bolt.position.z=bt*.06;u.bolt.rotation.z=bt*.8;}
+ // armement en fin de recharge à vide (culasse / glissière tirée puis relâchée) ; glissière bloquée en arrière quand le pistolet est vide
+ let pull=0;
+ if(rl>=0&&VM.relEmpty)pull=rl<.82?0:rl<.87?smooth01((rl-.82)/.05):rl<.895?1-smooth01((rl-.87)/.025):0;
+ // pistolet : glissière bloquée en arrière à vide, relâchée (arrêtoir) quand le chargeur neuf est en place
+ const lockBack=u.slide&&!w.melee&&(rl<0?curWi(p).mag<=0:VM.relEmpty&&rl<.84);
+ if(u.slide){if(u.slideZ0===undefined)u.slideZ0=u.slide.position.z;u.slide.position.z=u.slideZ0+Math.max(kk*.03,lockBack?.028:0);}
+ if(u.bolt){if(u.boltZ0===undefined){u.boltZ0=u.bolt.position.z;u.boltRz0=u.bolt.rotation.z;}
+  const bt=Math.max(VM.boltT>0?Math.sin((1-VM.boltT/.8)*Math.PI):0,pull);u.bolt.position.z=u.boltZ0+bt*.06;u.bolt.rotation.z=u.boltRz0+(w.cat==='sniper'?bt*.8:0);}
  if(u.pump){const pt=VM.pumpT>0?Math.sin((1-VM.pumpT/.6)*Math.PI):0;u.pump.position.z=pt*.09;}
  VM.flashSprite.visible=VM.flashT>0&&!u.noFlash;VM.flashMesh.visible=VM.flashT>0&&!u.noFlash;
  if(VM.flashT>0){VM.flashSprite.material.rotation=Math.random()*6;VM.flashMesh.rotation.z=Math.random()*6;const s=.8+Math.random()*.5;VM.flashMesh.scale.set(s,s,s);}
@@ -136,10 +186,19 @@ function vmUpdate(dt,t){
  _vr.copy(u.right).applyMatrix4(gm);
  if(u.twoHand){_vl.copy(u.left);_vl.y-=leftOff*.12;
   if(rl>=0&&u.mag){if(!u.magC){const b=new THREE.Box3();u.mag.updateMatrix();b.setFromObject(u.mag);const inv=new THREE.Matrix4().copy(g.matrixWorld).invert();b.applyMatrix4(inv);u.magC=b.getCenter(new THREE.Vector3());u.magC.sub(u.mag.position);}
-   const k=rl<.15?rl/.15:rl>.8?(1-rl)/.2:1;_vp.copy(u.magC).add(u.mag.position);_vp.y-=.02;_vl.lerp(_vp,smooth01(clamp(k,0,1)));}
+   _vp.copy(u.magC).add(u.mag.position);_vp.y-=.02;
+   // armement (arme longue vide) : la main droite lâche la poignée et tire le levier d'armement
+   const rp=VM.relEmpty&&!u.slide?u.bolt:null;let k;
+   if(rp&&rl>=.76){
+    if(!u.rackC){const b=new THREE.Box3().setFromObject(rp);const inv=new THREE.Matrix4().copy(g.matrixWorld).invert();b.applyMatrix4(inv);u.rackC=b.getCenter(new THREE.Vector3());u.rackC.sub(rp.position);u.rackC.x=b.max.x-rp.position.x+.012;}
+    const kin=smooth01(clamp((rl-.76)/.06,0,1)),hp=V3().copy(u.rackC).add(rp.position);
+    k=rl>.8?(1-rl)/.2:1;hp.applyMatrix4(gm);VM.rackR=V3().copy(u.right).applyMatrix4(gm).lerp(hp,kin*(rl<.92?1:smooth01((1-rl)/.08)));
+   }else k=rl<.15?rl/.15:rl>.8?(1-rl)/.2:1;
+   _vl.lerp(_vp,smooth01(clamp(k,0,1)));}
   _vl.applyMatrix4(gm);}
  else _vl.set(-.18,-.3,-.05);
  // main droite
+ if(VM.rackR){_vr.copy(VM.rackR);VM.rackR=null;}
  VM.hR.position.copy(_vr);VM.hR.quaternion.copy(g.quaternion);
  VM.hL.visible=u.twoHand;VM.hL.position.copy(_vl);_vq.copy(g.quaternion);VM.hL.quaternion.copy(_vq);
  // avant-bras

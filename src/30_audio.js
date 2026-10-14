@@ -87,6 +87,10 @@ function sfx(type,x,z,vol,extra){
   case 'shield':tn(1200,.18,'sine',.25*vol,0,500);tn(1800,.12,'triangle',.12*vol,0,900);break;
   case 'shieldbreak':tn(900,.3,'sawtooth',.25*vol,0,100);nz(.25,3000,'bandpass',.3*vol,0);break;
   case 'reload':nz(.04,2200,'bandpass',.45*vol,pan,wet*.5,2);nz(.05,1800,'bandpass',.5*vol,pan,wet*.5,2,.42);nz(.03,4000,'highpass',.4*vol,pan,wet*.4,1,.85);break;
+  case 'magout':nz(.05,1500,'bandpass',.5*vol,pan,wet*.5,2);tn(380,.05,'square',.05*vol,pan,180,wet*.3);nz(.06,700,'lowpass',.3*vol,pan,wet*.4,1,.05);break;
+  case 'magin':nz(.035,2600,'bandpass',.6*vol,pan,wet*.5,2.5);nz(.05,800,'lowpass',.55*vol,pan,wet*.4);tn(240,.05,'square',.07*vol,pan,110,wet*.3);break;
+  case 'rack':nz(.05,2900,'bandpass',.55*vol,pan,wet*.5,3);nz(.045,2100,'bandpass',.6*vol,pan,wet*.5,3,.1);tn(1800,.03,'square',.04*vol,pan,900,wet*.3,.1);break;
+  case 'shellin':nz(.04,2000,'bandpass',.45*vol,pan,wet*.5,2.5);tn(520,.04,'triangle',.05*vol,pan,300,wet*.3,.02);break;
   case 'bolt':nz(.05,2800,'bandpass',.5*vol,pan,wet*.5,3);nz(.05,2000,'bandpass',.55*vol,pan,wet*.5,3,.14);break;
   case 'pump':nz(.06,1500,'bandpass',.6*vol,pan,wet*.6,2);nz(.07,1100,'bandpass',.65*vol,pan,wet*.6,2,.13);break;
   case 'draw':nz(.07,3000,'highpass',.25*vol,pan,wet*.3);tn(1500,.04,'sine',.05*vol,pan);break;

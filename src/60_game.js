@@ -194,7 +194,7 @@ function startReload(e){
  const wi=curWi(e),w=W[wi.k];
  if(w.melee||e.reload>0||wi.mag>=magMax(e,wi.k)||wi.res<=0)return;
  const rm=(e.perks&&e.perks.speed?.5:1)*attMods(e,wi.k).rel;e.reload=w.rel*rm;e.reloadMax=w.rel*rm;e.reloadWi=wi;e.ads=0;
- sfx('reload',e.x,e.z,.8);if(e.isPlayer)vmReload(w);
+ if(e.isPlayer)vmReload(w);else sfx('reload',e.x,e.z,.8);
 }
 function tickWeapon(e,dt){
  if(e.switchT>0)e.switchT-=dt;
