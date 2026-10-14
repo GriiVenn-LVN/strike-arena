@@ -57,7 +57,8 @@ function glbTemplate(k,real){
  return GLBT[id];
 }
 /* modèle réaliste texturé : seulement avec la finition d'usine (un skin repasse sur le modèle stylisé, qu'il peut peindre) */
-function useRealGun(k,sk){return cfg.realGuns!==0&&typeof GLB_REAL_DATA!=='undefined'&&!!GLB_REAL_DATA[k]&&(!sk||sk.def);}
+let GLB_ICON=0;
+function useRealGun(k,sk){return !GLB_ICON&&cfg.realGuns!==0&&typeof GLB_REAL_DATA!=='undefined'&&!!GLB_REAL_DATA[k]&&(!sk||sk.def);}
 /* couleur source -> rôle du matériau (pour appliquer le skin) */
 function glbRole(c){
  const r=c[0],g=c[1],b=c[2],lum=.3*r+.59*g+.11*b,mx=Math.max(r,g,b),mn=Math.min(r,g,b),sat=mx>0?(mx-mn)/mx:0;
@@ -84,12 +85,15 @@ function glbGun(k,M,sk,real){
  const L=info.left||[0,0,-.2];
  // ligne de visée : on vise par-dessus les organes de visée (sinon la hausse pleine du modèle masque le centre)
  if(!tpl.userData.top){const bb=new THREE.Box3().setFromObject(tpl);tpl.userData.top=bb.max.y;}
- const sightY=Math.max(info.sight||.06,tpl.userData.top+.004);
+ // modèles réalistes : ligne de visée réglée à la préparation (centre du viseur holographique / de la lunette)
+ const sightY=real&&info.sight?info.sight:Math.max(info.sight||.06,tpl.userData.top+.004);
  return finishGun(g,{len:info.len||w.len,muzzle:info.muzzle||-.4,glb:true,
   right:V3(0,-.03,.012),left:pistol?V3(-.012,-.04,.02):V3(L[0],L[1]-.012,L[2]),
   sight:sightY,eject:V3(.025,sightY*.6,(info.muzzle||-.4)*.18),
   mag:mag,slide:pistol?bolt:null,bolt:pistol?null:bolt,twoHand:true,real:!!real});
 }
+/* icônes (HUD, listes) : toujours le modèle stylisé — les textures du modèle réaliste se chargent en différé et l'icône, mise en cache, resterait noire */
+{const wi0=weaponIcon;weaponIcon=function(k,s){GLB_ICON=1;try{return wi0(k,s);}finally{GLB_ICON=0;}};}
 /* remplace la fabrique d'armes : modèle 3D si disponible, sinon procédural */
 function gunParts(k,sk){
  const w=W[k];let g=null;
