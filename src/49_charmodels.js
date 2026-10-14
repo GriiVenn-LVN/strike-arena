@@ -141,7 +141,7 @@ function zmUpdate(e,R,dt){
  else if(R.punchT>0){R.punchT-=dt;sp=R.cur==='Punch'?2:1.3;}
  else if(e.hurtFlag&&e.ztype!=='boss'&&Math.random()<.3){const h=Math.random()<.5?'HitReact':'HitHead';zmPlay(R,h,.08);R.punchT=.35;sp=1.3;}
  else if(e.ztype==='crawler'&&R.act.Crawl){zmPlay(R,'Crawl',.2);sp=clamp(s/1.6,.7,2.2);}
- else if(s>3.8){zmPlay(R,'Run',.2);sp=clamp(s/5.5,.8,1.3);}
+ else if(s>3.8||(e.ztype==='runner'&&s>1.5)){zmPlay(R,'Run',.2);sp=clamp(s/5,.7,1.3);}
  else if(s>.3){zmPlay(R,R.walk,.25);sp=clamp(s/1.6,.6,2.4)*R.gait;}
  else{R.yellT-=dt;if(R.yellT<=0&&R.act.Yell){zmPlay(R,'Yell',.2);R.punchT=1.6;R.yellT=6+Math.random()*8;}else if(R.cur!=='Yell'||!R.act.Yell.isRunning())zmPlay(R,'Idle',.3);}
  e.hurtFlag=false;
