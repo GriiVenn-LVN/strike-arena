@@ -88,6 +88,22 @@ Config.SKINS = {                                  -- rarity 1..4 ; rarity 1 = gr
 	{ name = "Nuages", rarity = 2, pattern = "clouds" },
 	{ name = "Filigrane royal", rarity = 4, pattern = "royal" },
 	{ name = "Arcade", rarity = 3, pattern = "pixel8" },
+	-- style CS:GO (dessins et noms originaux, voir src/44c_csskins.js)
+	{ name = "Orbite", rarity = 4, pattern = "cs_orbit" },
+	{ name = "Dégradé solaire", rarity = 4, pattern = "cs_fade" },
+	{ name = "Bête néon", rarity = 3, pattern = "cs_beast" },
+	{ name = "Ligne rouge", rarity = 2, pattern = "cs_redline" },
+	{ name = "Dragon d'or", rarity = 4, pattern = "cs_lore" },
+	{ name = "Loup hurleur", rarity = 4, pattern = "cs_howl" },
+	{ name = "Trempe", rarity = 3, pattern = "cs_hardened" },
+	{ name = "Doppler", rarity = 4, pattern = "cs_doppler" },
+	{ name = "Dent de tigre", rarity = 3, pattern = "cs_tooth" },
+	{ name = "Marbre flamme", rarity = 3, pattern = "cs_mfade" },
+	{ name = "Toile cramoisie", rarity = 3, pattern = "cs_web" },
+	{ name = "Abattoir", rarity = 3, pattern = "cs_slaughter" },
+	{ name = "Néo-noir", rarity = 2, pattern = "cs_noir" },
+	{ name = "Volcan bleu", rarity = 3, pattern = "cs_vulcan" },
+	{ name = "Imprimé nacré", rarity = 2, pattern = "cs_print" },
 }
 
 -- Tenues de soldat (rarity 1 = gratuit)

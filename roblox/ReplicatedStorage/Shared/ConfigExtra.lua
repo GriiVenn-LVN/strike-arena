@@ -58,7 +58,7 @@ X.RETICLES = {
 X.TRAILS = { "", "cyan", "red", "lime", "gold", "violet", "rainbow" }
 X.CHARMS = { "", "cube", "heart", "star", "bear", "orb", "skull", "bolt" }
 X.SPRAYS = { "smile", "heart", "skull", "bolt", "flame", "crown", "target", "ghost" }
-X.KNIVES = { "classic", "karambit", "bayonet", "tanto" }
+X.KNIVES = { "classic", "karambit", "bayonet", "tanto", "flip", "butterfly", "huntsman", "falchion", "bowie", "gut", "stiletto", "talon" }
 
 -- ---------- Passe de combat ----------
 X.SEASON = { id = "s1", name = "Saison 1 · Néon", tiers = 30, xpPerTier = 900, premiumRobux = 399, premiumCoins = 3500 }

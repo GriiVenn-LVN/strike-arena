@@ -208,8 +208,8 @@ function buildLMG(k,M){
  return finishGun(g,{len:L,muzzle:-L-.12,right:V3(0,-.085,.0),left:V3(0,-.015,-.5),mag,sight:.11,eject:V3(.04,.03,-.1)});
 }
 function buildKnife(k,M){
- const g=new THREE.Group();
- g.add(polyZY([[-.02,.012],[-.2,.014],[-.27,.0],[-.29,-.01],[-.2,-.012],[-.02,-.012]],.006,M.steel,0,.0012),rb(.004,.003,.19,M.dark,0,.0,-.14,.001));
+ const g=new THREE.Group(),BL=M.body&&M.body.userData&&M.body.userData.skinned?M.body:M.steel; // le skin couvre aussi la lame
+ g.add(polyZY([[-.02,.012],[-.2,.014],[-.27,.0],[-.29,-.01],[-.2,-.012],[-.02,-.012]],.006,BL,0,.0012),rb(.004,.003,.19,M.dark,0,.0,-.14,.001));
  g.add(polyZY([[0,.016],[-.025,.026],[-.025,-.026],[0,-.016]],.012,M.dark,0,.002),rb(.02,.032,.1,M.blk,0,0,.04,.006),rb(.024,.036,.016,M.dark,0,0,.095,.004));
  for(let i=0;i<4;i++)g.add(rb(.022,.034,.004,M.rubber,0,0,.0+i*.022,.001));
  return finishGun(g,{len:.3,muzzle:-.29,right:V3(0,0,.04),left:V3(0,0,.04),twoHand:false,eject:V3(0,0,0),sight:.0});
