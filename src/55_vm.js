@@ -158,7 +158,8 @@ function vmUpdate(dt,t,ent){
    if(VM.relEmpty&&u.bolt)snd(99,.85,'pump');
   }}
  for(const c of u.stock)c.visible=ads<.55;
- {const nr=u.glb?.01+.14*ads:.01;if(Math.abs(vmCam.near-nr)>.002){vmCam.near=nr;vmCam.updateProjectionMatrix();}}
+ // en visée, la caméra de l'arme resserre aussi un peu son champ : le viseur paraît plus grand (le centre ne bouge pas)
+ {const nr=u.glb?.01+.14*ads:.01,fv=60-9*ads;if(Math.abs(vmCam.near-nr)>.002||Math.abs(vmCam.fov-fv)>.05){vmCam.near=nr;vmCam.fov=fv;vmCam.updateProjectionMatrix();}}
  g.position.set(px,py,pz);_ve.set(rx,ry,rz);g.quaternion.setFromEuler(_ve);
  // pièces mobiles
  if(u.mag){

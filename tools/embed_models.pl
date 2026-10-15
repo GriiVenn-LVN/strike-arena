@@ -41,6 +41,15 @@ for my $k (@vk) { open(my $f, '<:raw', "$vd/$k.glb") or die; local $/; my $b = <
 print "};\nconst VEH_INFO={\n";
 for my $k (@vk) { open(my $f, '<:raw', "$vd/$k.json") or next; local $/; my $j = <$f>; close $f; $j =~ s/\s+$//; print " $k:$j,\n"; }
 print "};\n";
+# viseurs (modélisés par tools/blender/optics.py) : models/optics/*.glb + .json
+my $od = 'models/optics';
+my @ok = ();
+if (opendir(my $v, $od)) { @ok = sort map { /^(\w+)\.glb$/ ? $1 : () } readdir($v); closedir $v; }
+print "const OPT_DATA={\n";
+for my $k (@ok) { open(my $f, '<:raw', "$od/$k.glb") or die; local $/; my $b = <$f>; close $f; print " $k:'", encode_base64($b, ''), "',\n"; }
+print "};\nconst OPT_INFO={\n";
+for my $k (@ok) { open(my $f, '<:raw', "$od/$k.json") or next; local $/; my $j = <$f>; close $f; $j =~ s/\s+$//; print " $k:$j,\n"; }
+print "};\n";
 sub readcred { my ($p) = @_; open(my $f, '<:raw', $p) or return ''; local $/; my $c = <$f>; close $f; $c =~ s/^\s*\[//; $c =~ s/\]\s*$//; $c =~ s/^\s+|\s+$//g; return $c; }
 my @cr = grep { length } (readcred("$rd/credits_real.json"), readcred("$dir/credits.json"), readcred("models/characters/credits_zombies.json"));
 print "const GLB_CREDITS=[", join(',', @cr), "];\n";
