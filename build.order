@@ -12,6 +12,7 @@ src/42_haunt.js
 src/44_skins.js
 src/44c_csskins.js
 src/44b_animcamo.js
+src/44d_skinhq.js
 src/45_models.js
 build/models_data.js
 src/46_glb.js
