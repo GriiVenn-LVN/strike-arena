@@ -4081,11 +4081,27 @@ function glbGun(k,M,sk,real){
  let sightY=info.ads!==undefined?info.ads:real&&info.sight?info.sight:Math.max(info.sight||.06,tpl.userData.top+.004);
  // mires mesurées sur chaque modèle (hauteur du guidon) : en visée, le guidon tombe pile au centre de l'écran
  {const f=(real?SIGHT_FIX_REAL:SIGHT_FIX)[k];if(f!==undefined)sightY=f;}
- return finishGun(g,{len:info.len||w.len,muzzle:info.muzzle||-.4,glb:true,
+ // viseur holographique intégré : la ligne de visée passait sous la fenêtre (cadre du bas au centre de l'écran).
+ // On mesure la fenêtre par des rayons tirés de l'arrière vers l'avant et on vise en son milieu.
+ if(builtin){g.updateMatrixWorld(true);const rc=new THREE.Raycaster(),sd=builtin.material.side,z0=info.optic[1]+.04,z1=info.optic[0]-.04;let lo=null,hi=null,run=null;
+  builtin.material.side=THREE.DoubleSide;
+  for(let y=info.optic[2];y<info.optic[2]+.09;y+=.001){const o=g.localToWorld(V3(0,y,z0)),d=g.localToWorld(V3(0,y,z1)).sub(o),L=d.length();rc.set(o,d.normalize());rc.far=L;
+   const free=!rc.intersectObject(builtin,false).length;
+   if(free&&run===null)run=y;if(!free&&run!==null){if(lo===null){lo=run;hi=y;}run=null;}}   // première ouverture, fermée par le cadre du haut
+  builtin.material.side=sd;
+  if(lo!==null&&hi-lo>.006)builtin.userData.winY=sightY=(lo+hi)/2;}
+ const gun=finishGun(g,{len:info.len||w.len,muzzle:info.muzzle||-.4,glb:true,
   right:V3(0,-.03,.012),left:pistol?V3(-.012,-.04,.02):V3(L[0],L[1]-.012,L[2]),
   sight:sightY,eject:V3(.025,sightY*.6,(info.muzzle||-.4)*.18),
   mag:mag,slide:pistol?bolt:null,bolt:pistol?null:bolt,twoHand:true,real:!!real,builtinOptic:builtin,
   optSlot:builtin?{z:(info.optic[0]+info.optic[1])/2,y:info.optic[2]-.002}:null});
+ // viseur holographique intégré (M4…) : il n'avait pas de réticule. On pose celui du holo (forme et couleur
+ // réglables dans Arsenal › Viseurs) sur la ligne de visée, au milieu de la fenêtre ; masqué avec le viseur
+ if(builtin&&typeof retMesh==='function'){
+  g.updateMatrixWorld(true);const r=retMesh('holo',.015),pos=V3(0,sightY,(info.optic[0]+info.optic[1])/2+.01);
+  builtin.updateMatrixWorld(true);builtin.worldToLocal(g.localToWorld(pos));r.position.copy(pos);r.renderOrder=5;r.userData.builtinRet=1;builtin.add(r);
+ }
+ return gun;
 }
 /* icônes (HUD, listes) : toujours le modèle stylisé — les textures du modèle réaliste se chargent en différé et l'icône, mise en cache, resterait noire */
 {const wi0=weaponIcon;weaponIcon=function(k,s){GLB_ICON=1;try{return wi0(k,s);}finally{GLB_ICON=0;}};}
