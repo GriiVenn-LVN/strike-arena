@@ -4886,7 +4886,7 @@ function vmUpdate(dt,t,ent){
  // main droite
  if(VM.rackR){_vr.copy(VM.rackR);VM.rackR=null;}
  VM.hR.position.copy(_vr);VM.hR.quaternion.copy(g.quaternion);
- VM.hL.visible=u.twoHand;VM.hL.position.copy(_vl);_vq.copy(g.quaternion);VM.hL.quaternion.copy(_vq);
+ VM.hL.visible=u.twoHand;VM.hL.position.copy(_vl);_vq.copy(g.quaternion);VM.hL.quaternion.copy(_vq);if(typeof leftHold==='function')leftHold(u.leftV&&!(ins&&ins.lh>.3));
  // avant-bras
  // bras en deux segments (épaule -> coude -> main) au lieu d'un seul tube étiré
  const seg=(m,a,b,len)=>{_vl.subVectors(b,a);const L=_vl.length();_vl.divideScalar(L||1);m.position.copy(a);m.quaternion.setFromUnitVectors(_dn,_vl);m.scale.set(1.15,L/len,1.15);};
@@ -6807,7 +6807,7 @@ function attBuild(g,k,sel,opt){
     o.position.set(0,bore,u.muzzle-L/2+.005);add(o,a);u.muzzle-=L-.005;break;}
    case 'grip':{const z=u.left?u.left.z:-.25,b=pr.under(z),o=new THREE.Group();
     o.add(boxA(.022,.012,.04,AM.dark,0,b-.004,z),cylZ(.012,.012,.075,AM.rub,0,b-.045,z,12));o.children[1].rotation.x=0;
-    add(o,a);u.left=V3(u.left?u.left.x:0,b-.05,z);break;}
+    add(o,a);u.left=V3(u.left?u.left.x:0,b-.012,z);u.leftV=true;break;}   // main gauche autour de la poignée verticale
    case 'angled':{const z=u.left?u.left.z:-.25,b=pr.under(z),o=new THREE.Group();
     const p=boxA(.02,.03,.07,AM.dark,0,b-.016,z+.005);p.rotation.x=-.5;o.add(p);o.add(boxA(.022,.008,.075,AM.blk,0,b-.002,z));
     add(o,a);u.left=V3(u.left?u.left.x:0,b-.03,z+.01);break;}
@@ -13003,8 +13003,13 @@ function makeRealHand(glove){
 // la main gauche tient le garde-main : poignée couchée le long du canon, paume dessous
 {const _sl=VM.setLook;
  VM.setLook=function(lk){const key=lk.kind+lk.acc+lk.tone+(lk.outfit||0),fresh=VM.look!==key;_sl(lk);
-  if(fresh&&VM.hL&&VM.hL.userData.inner){const i=VM.hL.userData.inner;i.quaternion.setFromEuler(new THREE.Euler(Math.PI/2,0,HAND_ROLL,'ZXY'));i.position.set(0,-.006,0);i.updateMatrix();VM.hL.userData.wrist=VM.hL.userData.wristL.clone().applyMatrix4(i.matrix);}};
+  if(fresh&&VM.hL&&VM.hL.userData.inner){const i=VM.hL.userData.inner;i.quaternion.setFromEuler(new THREE.Euler(Math.PI/2,0,HAND_ROLL,'ZXY'));i.position.set(0,-.006,0);i.updateMatrix();VM.hL.userData.wrist=VM.hL.userData.wristL.clone().applyMatrix4(i.matrix);VM.hL.userData.vert=false;}};
  VM.look='';}
+let LEFT_VYAW=.7;
+// poignée verticale (accessoire) : la main gauche l'empoigne comme la droite tient la poignée, au lieu de se poser à plat sous le garde-main
+function leftHold(vert){const h=VM.hL;if(!h||!h.userData.inner)return;vert=!!vert;if(h.userData.vert===vert)return;h.userData.vert=vert;
+ const i=h.userData.inner;if(vert){i.quaternion.setFromEuler(new THREE.Euler(0,LEFT_VYAW,0));i.position.set(0,0,0);}else{i.quaternion.setFromEuler(new THREE.Euler(Math.PI/2,0,HAND_ROLL,'ZXY'));i.position.set(0,-.006,0);}
+ i.updateMatrix();h.userData.wrist=h.userData.wristL.clone().applyMatrix4(i.matrix);}
 /* =====================================================================
    INSPECTION D'ARME (touche V)
    Armes à chargeur : on montre un flanc, on retourne l'arme, puis la

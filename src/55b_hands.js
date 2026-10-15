@@ -67,5 +67,10 @@ function makeRealHand(glove){
 // la main gauche tient le garde-main : poignée couchée le long du canon, paume dessous
 {const _sl=VM.setLook;
  VM.setLook=function(lk){const key=lk.kind+lk.acc+lk.tone+(lk.outfit||0),fresh=VM.look!==key;_sl(lk);
-  if(fresh&&VM.hL&&VM.hL.userData.inner){const i=VM.hL.userData.inner;i.quaternion.setFromEuler(new THREE.Euler(Math.PI/2,0,HAND_ROLL,'ZXY'));i.position.set(0,-.006,0);i.updateMatrix();VM.hL.userData.wrist=VM.hL.userData.wristL.clone().applyMatrix4(i.matrix);}};
+  if(fresh&&VM.hL&&VM.hL.userData.inner){const i=VM.hL.userData.inner;i.quaternion.setFromEuler(new THREE.Euler(Math.PI/2,0,HAND_ROLL,'ZXY'));i.position.set(0,-.006,0);i.updateMatrix();VM.hL.userData.wrist=VM.hL.userData.wristL.clone().applyMatrix4(i.matrix);VM.hL.userData.vert=false;}};
  VM.look='';}
+let LEFT_VYAW=.7;
+// poignée verticale (accessoire) : la main gauche l'empoigne comme la droite tient la poignée, au lieu de se poser à plat sous le garde-main
+function leftHold(vert){const h=VM.hL;if(!h||!h.userData.inner)return;vert=!!vert;if(h.userData.vert===vert)return;h.userData.vert=vert;
+ const i=h.userData.inner;if(vert){i.quaternion.setFromEuler(new THREE.Euler(0,LEFT_VYAW,0));i.position.set(0,0,0);}else{i.quaternion.setFromEuler(new THREE.Euler(Math.PI/2,0,HAND_ROLL,'ZXY'));i.position.set(0,-.006,0);}
+ i.updateMatrix();h.userData.wrist=h.userData.wristL.clone().applyMatrix4(i.matrix);}
