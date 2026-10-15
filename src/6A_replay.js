@@ -12,7 +12,7 @@ function rpRecord(dt){
  RP.acc+=dt;if(RP.acc<RP.step)return;RP.acc=0;
  const fr={t:G.t,s:[]};
  for(const e of ents){if(!e.rig||e.dummy)continue;
-  fr.s.push({e,x:e.x,y:e.y,z:e.z,yaw:e.yaw,pitch:e.pitch,alive:e.alive,crouch:e.crouch,speed:e.speed,vx:e.vx,vz:e.vz,fire:e.fireAnim,onGround:e.onGround,reload:e.reload,reloadMax:e.reloadMax,dieDir:e.dieDir,wk:(curWi(e)||{k:'knife'}).k});}
+  fr.s.push({e,x:e.x,y:e.y,z:e.z,yaw:e.yaw,pitch:e.pitch,alive:e.alive,crouch:e.crouch,speed:e.speed,vx:e.vx,vz:e.vz,fire:e.fireAnim,onGround:e.onGround,reload:e.reload,reloadMax:e.reloadMax,dieDir:e.dieDir,wk:(curWi(e)||{k:'knife'}).k,mag:(curWi(e)||{mag:1}).mag});}
  RP.buf.push(fr);
  while(RP.buf.length&&G.t-RP.buf[0].t>RP.keep)RP.buf.shift();
  while(RP.tracers.length&&G.t-RP.tracers[0].t>RP.keep)RP.tracers.shift();
@@ -72,7 +72,8 @@ function rpRender(dt,t){
  const ka=a.s.find(s=>s.e===kill.att),va=a.s.find(s=>s.e===kill.v);
  if(!ka||!va){rpEnd();return;}
  if(!RP.blood&&RP.rt>=kill.t){RP.blood=true;const d=dirOf(ka._yaw,0);fxBlood(va._x,va._y+(kill.hs?1.6:1.2),va._z,[-d[0],0,-d[2]],kill.hs?14:8,kill.hs);if(kill.hs)sfx('hs');}
- // caméra
+ // caméra (kill-cam en première personne : yeux du tueur, voir 8R_killcam.js)
+ if(RP.fp)rpFPCam(ka,dt*sp);else{
  const d=dirOf(ka._yaw,ka._pitch),rx=Math.cos(ka._yaw),rz=-Math.sin(ka._yaw);
  const eye=ka._y+(ka.crouch?1.15:1.6);
  let cx,cy,cz,lx,ly,lz;
@@ -94,9 +95,11 @@ function rpRender(dt,t){
  const sm=Math.min(1,dt*6);RP.cam.lerp(_rpv.set(cx,cy,cz),sm);RP.look.lerp(_rpv.set(lx,ly,lz),sm);
  camera.position.copy(RP.cam);camera.lookAt(RP.look);camera.fov+=((RP.rt>kill.t-.5&&RP.rt<kill.t+.6?48:62)-camera.fov)*Math.min(1,dt*3);camera.updateProjectionMatrix();
  lis.x=RP.cam.x;lis.z=RP.cam.z;lis.yaw=Math.atan2(-(RP.look.x-RP.cam.x),-(RP.look.z-RP.cam.z));
+ }
  if(skyG)skyG.position.copy(camera.position);
  updateFX(dt*sp,t);
  renderer.clear();renderer.render(scene,camera);
+ if(RP.fp)rpFPView(dt*sp,t);
  rpOverlay(true,(RP.rt-RP.t0)/(RP.t1-RP.t0));
  if(RP.rt>=RP.t1){RP.hold=(RP.hold||0)+dt;if(RP.hold>1){RP.hold=0;rpEnd();}}
 }
