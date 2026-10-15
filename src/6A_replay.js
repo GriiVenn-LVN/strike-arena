@@ -5,7 +5,8 @@
    épaule du tueur -> ralenti au moment du tir -> orbite autour de la
    victime. ESPACE pour passer.
    ===================================================================== */
-const RP={buf:[],acc:0,step:1/30,keep:8,tracers:[],kill:null,on:false,wait:0,rt:0,t0:0,t1:0,prev:0,el:null,cam:null,look:null,orbit:0,saved:null};
+// fp : rediffusions en première personne, par les yeux du tueur (voir 8R_killcam.js)
+const RP={fp:true,buf:[],acc:0,step:1/30,keep:8,tracers:[],kill:null,on:false,wait:0,rt:0,t0:0,t1:0,prev:0,el:null,cam:null,look:null,orbit:0,saved:null};
 function rpRecord(dt){
  if(G.state!=='live'&&G.state!=='end')return;
  if(RP.on&&RP.wait<=0)return;

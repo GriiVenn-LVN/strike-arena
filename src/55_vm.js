@@ -20,11 +20,12 @@ vmCam.add(VM.root);
  };
  VM.setLook(look);
 }
-// skin affiché : celui du joueur pour sa propre arme, finition d'usine pour un joueur regardé en spectateur
-const vmSkinId=(e,k)=>!e||e===P?cfg.skins[k]||0:0;
+// skin affiché : celui du joueur pour sa propre arme (rediffusions comprises), finition d'usine pour un joueur regardé en spectateur
+const vmMine=e=>!e||e===P||(!!P&&e._src===P);
+const vmSkinId=(e,k)=>vmMine(e)?cfg.skins[k]||0:0;
 function vmSetGun(k){
  if(VM.gun)VM.root.remove(VM.gun);
- const e=VM.ent||P,sk=e===P?skinOf(k):SKINS[0],g=gunParts(k,sk);VM.gun=g;VM.gk=k;VM.skin=vmSkinId(e,k);VM.pap=!!(e&&e.wp&&curWi(e)&&curWi(e).pap);if(VM.pap)papCamo(g);decorateVM(g,k);
+ const e=VM.ent||P,sk=vmMine(e)?skinOf(k):SKINS[0],g=gunParts(k,sk);VM.gun=g;VM.gk=k;VM.skin=vmSkinId(e,k);VM.pap=!!(e&&e.wp&&curWi(e)&&curWi(e).pap);if(VM.pap)papCamo(g);decorateVM(g,k);
  const u=g.userData;
  // bornes de l'arme (repère local) : sert à garder la crosse devant la caméra en visée
  // la crosse (pièces entièrement derrière la poignée) est masquée en visée : vue de 15 cm, elle boucherait l'écran

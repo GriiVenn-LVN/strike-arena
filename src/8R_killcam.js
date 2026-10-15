@@ -16,12 +16,12 @@ function kcStart(){
  if(!k||k.v!==P||!k.att||k.att===P||!k.att.rig||!RP.buf.length)return;
  RP.t0=Math.max(RP.buf[0].t,k.t-2.2);RP.t1=k.t+.6;
  if(k.t-RP.t0<.6)return;
- KCAM.on=true;RP.on=true;RP.fp=true;KCAM.px=null;KCAM.rl=0;RP.wait=.5;RP.rt=RP.t0;RP.prev=RP.t0;RP.cam=null;RP.orbit=0;RP.blood=false;RP.hold=.6;
+ KCAM.on=true;RP.on=true;KCAM.px=null;KCAM.rl=0;RP.wait=.5;RP.rt=RP.t0;RP.prev=RP.t0;RP.cam=null;RP.orbit=0;RP.blood=false;RP.hold=.6;
  // la réapparition attend la fin de la kill-cam
  KCAM.respT=P.respT;if(isFinite(P.respT))P.respT=99;
 }
 function kcFinish(){
- KCAM.on=false;RP.fp=false;KCAM.px=null;
+ KCAM.on=false;KCAM.px=null;
  if(P&&!P.alive&&isFinite(KCAM.respT)&&P.respT>KCAM.respT)P.respT=Math.min(KCAM.respT,.4);
  const tag=RP.el&&RP.el.querySelector('.tag');if(tag)tag.innerHTML='<i></i>REDIFFUSION · DERNIÈRE ÉLIMINATION';
 }
@@ -46,11 +46,15 @@ rpOverlay=function(on,prog){
 };
 // fin de partie ou retour au menu : on coupe proprement
 const _matchOverKc=matchOver;
-matchOver=function(){if(KCAM.on){RP.on=false;rpOverlay(false);kcFinish();}return _matchOverKc();};
+matchOver=function(){if(KCAM.on){RP.on=false;rpOverlay(false);kcFinish();}KCAM.px=null;KCAM.rl=0;return _matchOverKc();};
 const _endDMKc=endDM;
 endDM=function(){if(KCAM.on){RP.on=false;rpOverlay(false);kcFinish();}return _endDMKc();};
 addEventListener('mousedown',()=>{if(KCAM.on&&RP.on&&RP.wait<=0)rpEnd();});
-/* ---------- vue subjective du tueur ---------- */
+/* ---------- vue subjective du tueur ----------
+   Sert à toutes les rediffusions : kill-cam, dernière élimination de manche (Compétitif)
+   et meilleure action de fin de match. */
+const _rpStartKc=rpStart;
+rpStart=function(){KCAM.px=null;KCAM.rl=0;return _rpStartKc();};
 // double du tueur : hérite de son équipement (tenue, accessoires) mais prend l'état enregistré
 function kcProxy(s){
  const k=RP.kill;let p=KCAM.px;
@@ -58,7 +62,7 @@ function kcProxy(s){
  if(!p.wp||p.wp[0].k!==s.wk)p.wp=[{k:s.wk,mag:s.mag,res:99,pap:false}];
  p.wp[0].mag=s.mag;
  p.x=s._x;p.y=s._y;p.z=s._z;p.yaw=s._yaw;p.pitch=s._pitch;p.speed=s.speed||0;p.vx=s.vx||0;p.vz=s.vz||0;
- p.onGround=s.onGround!==false;p.crouch=!!s.crouch;p.reload=s.reload||0;p.reloadMax=s.reloadMax||0;
+ p.onGround=s.onGround!==false;p.crouch=!!s.crouch;p.eyeH=p.crouch?1.12:1.6;p.reload=s.reload||0;p.reloadMax=s.reloadMax||0;
  return p;
 }
 function rpFPCam(ka,dt){
