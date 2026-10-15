@@ -117,10 +117,10 @@ function commitMatch(win){
  const coinsGain=Math.round(xp*.15);
  s.matches++;if(win)s.wins++;s.kills+=P.kills;s.deaths+=P.deaths;s.hs+=P.hsKills;s.dmg+=P.dmg;s.shots+=MS.shots;s.hits+=MS.hits;s.secs+=secs;
  s.bestStreak=Math.max(s.bestStreak,P.bestStreak||0);s.plants+=MS.plants;s.defuses+=MS.defuses;
- const m=(s.byMode[G.mode]||(s.byMode[G.mode]={m:0,w:0,k:0,d:0}));m.m++;if(win)m.w++;m.k+=P.kills;m.d+=P.deaths;
+ const m=(s.byMode[G.variant||G.mode]||(s.byMode[G.variant||G.mode]={m:0,w:0,k:0,d:0}));m.m++;if(win)m.w++;m.k+=P.kills;m.d+=P.deaths;
  const mp=(s.byMap[cfg.map]||(s.byMap[cfg.map]={m:0,w:0}));mp.m++;if(win)mp.w++;
  for(const k in MS.wkills)s.byWeapon[k]=(s.byWeapon[k]||0)+MS.wkills[k];
- PROF.history.unshift({t:Date.now(),mode:G.mode,map:cfg.map,diff:cfg.diff,win:!!win,k:P.kills,d:P.deaths,hs:P.hsKills,dmg:P.dmg,xp});
+ PROF.history.unshift({t:Date.now(),mode:G.variant||G.mode,map:cfg.map,diff:cfg.diff,win:!!win,k:P.kills,d:P.deaths,hs:P.hsKills,dmg:P.dmg,xp});
  PROF.history.length=Math.min(PROF.history.length,25);
  PROF.coins+=coinsGain;
  metaEvent('matches');if(win)metaEvent('win');metaEvent('dmg',P.dmg);
