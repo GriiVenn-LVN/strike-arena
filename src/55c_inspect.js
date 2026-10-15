@@ -45,7 +45,7 @@ const _im={m:new THREE.Matrix4(),m2:new THREE.Matrix4(),p:new THREE.Vector3(),q:
 // matrice de l'objet dans le repère de VM.root (g = arme, enfant direct de VM.root)
 function vmRel(o,g,out){out.identity();const chain=[];for(let x=o;x&&x!==VM.root;x=x.parent)chain.push(x);for(let i=chain.length-1;i>=0;i--){chain[i].updateMatrix();out.multiply(chain[i].matrix);}return out;}
 function inspectPrep(u,g){
- if(u.insPrep)return;u.insPrep=true;
+ if(u.insPrep)return;u.insPrep=true;insSolid(g);
  const mag=u.mag;
  // orientation du chargeur dans le repère de l'arme (arme non tournée), boîte englobante dans son propre repère
  const gq=g.quaternion.clone(),gp=g.position.clone(),gs=g.scale.clone();g.position.set(0,0,0);g.quaternion.identity();g.scale.set(1,1,1);
@@ -60,6 +60,15 @@ function inspectPrep(u,g){
  const iq=u.insQmg.clone().invert(),up=new THREE.Vector3(0,1,0).applyQuaternion(iq),fw=new THREE.Vector3(0,0,-1).applyQuaternion(iq);
  const hs=box.getSize(new THREE.Vector3()).multiplyScalar(.5),ext=Math.abs(up.x)*hs.x+Math.abs(up.y)*hs.y+Math.abs(up.z)*hs.z;
  const top=u.insC.clone().addScaledVector(up,ext*.96),side=new THREE.Vector3().crossVectors(up,fw).normalize();
+ // petites pièces métalliques du modèle (cartouche, planchette) : remplacées par nos cartouches, sinon elles brillent comme du verre
+ {const parts=[];let vmax=0;mag.traverse(o=>{if(o.isMesh&&!o.userData.liner){o.geometry.computeBoundingBox();const z=o.geometry.boundingBox.getSize(new THREE.Vector3());const v=z.x*z.y*z.z;parts.push([o,v]);vmax=Math.max(vmax,v);}});
+  u.insHide=parts.filter(([o,v])=>v<vmax*.25).map(([o])=>o);}
+ // haut réel du chargeur au centre (chargeurs courbes : la boîte englobante dépasse) ; on y pose les cartouches
+ {g.position.set(0,0,0);g.quaternion.identity();g.scale.set(1,1,1);g.updateMatrixWorld(true);
+  const keep=new Set(u.insHide),hits=[],rc=new THREE.Raycaster(),wo=u.insC.clone().addScaledVector(up,ext*2).applyMatrix4(mag.matrixWorld),wd=up.clone().transformDirection(mag.matrixWorld).negate();
+  rc.set(wo,wd);mag.traverse(o=>{if(o.isMesh&&!o.userData.liner&&!keep.has(o)){const sd=o.material.side;o.material.side=THREE.DoubleSide;o.raycast(rc,hits);o.material.side=sd;}});
+  g.position.copy(gp);g.quaternion.copy(gq);g.scale.copy(gs);g.updateMatrixWorld(true);
+  if(hits.length){hits.sort((a,b)=>a.distance-b.distance);const h=hits[0].point.applyMatrix4(mi),th=h.sub(u.insC).dot(up);if(th>ext*.75&&th<ext*.96)top.copy(u.insC).addScaledVector(up,th);}}
  // cartouches : deux rangées en quinconce, laiton + ogive cuivre (taille réelle quelle que soit l'échelle du modèle)
  const sc=1/Math.max(1e-4,(_im.s.x+_im.s.y+_im.s.z)/3),pistol=W[VM.gk]&&W[VM.gk].cat==='pistol';
  const R=(pistol?.0036:.0037)*sc,L=(pistol?.013:.021)*sc,TL=(pistol?.006:.009)*sc;
@@ -72,9 +81,17 @@ function inspectPrep(u,g){
  grp.visible=false;mag.add(grp);u.rounds=grp;
 }
 const _iA=new THREE.Vector3(),_iB=new THREE.Vector3(),_iBasis1=new THREE.Matrix4(),_iBasis2=new THREE.Matrix4();
+// modèles allégés : chargeur et puits de chargeur en faces simples, vus de près ou par le haut on voyait au travers.
+// Chaque pièce opaque reçoit une doublure sombre qui ne dessine que l'intérieur (faces arrière) : l'extérieur garde son skin.
+const INS_LINER=new THREE.MeshStandardMaterial({color:C('#141518'),roughness:.85,metalness:0,side:THREE.BackSide});
+function insSolid(g){const list=[];g.traverse(o=>{if(o.isMesh&&o.geometry&&!o.userData.insLiner&&!o.userData.liner){const m=Array.isArray(o.material)?o.material[0]:o.material;
+  if(m&&!m.transparent&&m.opacity>=1&&m.side!==THREE.DoubleSide&&!m.isMeshBasicMaterial)list.push(o);}});
+ list.forEach(o=>{o.userData.insLiner=1;const l=new THREE.Mesh(o.geometry,INS_LINER);l.userData.liner=1;l.castShadow=l.receiveShadow=false;o.add(l);});}
+function insParts(u,show){if(u.insHide)u.insHide.forEach(o=>o.visible=!show);}
 function inspectMag(u,g,ins,p){
  if(!u.mag)return;inspectPrep(u,g);
  const mag=u.mag,show=ins.out>0||ins.hold>0;
+ insParts(u,show);
  if(u.rounds){u.rounds.visible=show;const n=p&&p.wp?curWi(p).mag:5;u.insRounds.forEach((r,i)=>r.visible=i<n);}
  if(!show){u.insMagC=null;return;}
  // pose « sortie » : glissée dans le prolongement du puits

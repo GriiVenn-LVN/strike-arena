@@ -177,7 +177,7 @@ function vmUpdate(dt,t,ent){
   u.mag.position.set(u.magP0.x+d.x*out*.2,u.magP0.y+d.y*out*.2,u.magP0.z+d.z*out*.2);
   u.mag.rotation.set(u.magR0.x+tw*.5,u.magR0.y,u.magR0.z+tw*.35);
   u.mag.visible=vis;
-  if(ins)inspectMag(u,g,ins,p);else if(u.rounds)u.rounds.visible=false;
+  if(ins)inspectMag(u,g,ins,p);else if(u.rounds){u.rounds.visible=false;insParts(u,false);}
  }
  // armement en fin de recharge à vide (culasse / glissière tirée puis relâchée) ; glissière bloquée en arrière quand le pistolet est vide
  let pull=0;
