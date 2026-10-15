@@ -115,7 +115,7 @@ function vmUpdate(dt,t,ent){
  // position de hanche : canon légèrement tourné vers le centre, arme un peu inclinée
  let rx=.02*(1-ads),ry=.06*(1-ads),rz=-.05*(1-ads);
  const sw=1-ads*.75;
- px+=bx+brX+VM.sx*sw;py+=by+brY+VM.sy*sw+(p.crouch?.015:0);
+ px+=bx+brX+VM.sx*sw;py+=by+brY+VM.sy*sw+(p.crouch?.015*(1-ads):0);   // accroupi : arme un peu relevée à la hanche, jamais en visée (sinon la mire passe au-dessus du centre)
  ry+=VM.sx*1.6*sw;rx+=VM.sy*1.2*sw;rz+=br-VM.sx*1.2*sw-VM.strafe*.06*(1-ads*.7);
  if(!p.onGround){const a=clamp(-p.vy*.005,-.035,.03);py+=a*(1-ads*.6);rx-=a*1.5;}
  py+=VM.land*.1;rx+=VM.land*.35;
