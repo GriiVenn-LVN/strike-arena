@@ -71,7 +71,7 @@ function rpFPCam(ka,dt){
  if(k.att.rig)k.att.rig.root.visible=false;   // sinon on verrait l'intérieur de sa tête
  camera.position.set(p.x,p.y+eyeOf(p),p.z);camera.rotation.set(p.pitch,p.yaw,0);
  // la cible : zoom selon la distance quand le tueur la vise (sinon, à 25 m, elle ne fait que quelques pixels),
- // silhouette rouge visible à travers les murs et repère au-dessus de sa tête
+ // silhouette rouge seulement derrière les murs et repère au-dessus de sa tête
  camera.updateMatrixWorld();const vr=k.v.rig&&k.v.rig.root,tz=kcTargetZoom(vr);
  p.ads=0;p.scoped=false;   // arme à la hanche : en visée, le viseur cacherait la cible
  KCAM.zoom+=(tz-KCAM.zoom)*Math.min(1,dt*5);
@@ -107,9 +107,10 @@ function kcMarker(vr,v){
  m.style.display='block';m.style.left=x+'px';m.style.top=y+'px';
  if(m._v!==v){m._v=v;m.firstChild.textContent=v.name;}
 }
-// silhouette « rayons X » de la cible : copie de ses pièces, rouge translucide, dessinée par-dessus le décor
+// silhouette « rayons X » de la cible : copie de ses pièces, rouge translucide, dessinée seulement là où un mur la cache
+// (à découvert, on voit son vrai modèle jouer : déplacements, tirs, recharges, chute rejoués depuis l'enregistrement)
 const KC_GM={};
-function kcGhostMat(skin){return KC_GM[skin?1:0]||(KC_GM[skin?1:0]=new THREE.MeshBasicMaterial({color:0xff3040,transparent:true,opacity:.38,depthTest:false,depthWrite:false,skinning:skin,toneMapped:false,fog:false}));}
+function kcGhostMat(skin){return KC_GM[skin?1:0]||(KC_GM[skin?1:0]=new THREE.MeshBasicMaterial({color:0xff3040,transparent:true,opacity:.45,depthTest:true,depthFunc:THREE.GreaterDepth,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-8,skinning:skin,toneMapped:false,fog:false}));}
 function kcGhost(v){
  if(KCAM.gv===v&&KCAM.gr===(v&&v.rig))return;
  kcGhostClear();if(!v||!v.rig)return;
