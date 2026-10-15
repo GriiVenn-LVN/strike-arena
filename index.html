@@ -13021,8 +13021,9 @@ function inspectPrep(u,g){
  const grp=new THREE.Group(),qd=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),fw);
  u.insRounds=[];
  // rangée du haut : cartouches côte à côte, bien parallèles, pointes au ras de l'avant ; rangées suivantes en quinconce dessous
- const R0=tH-R*.35,fitK=n=>oW>0?Math.min(1,oW*.95/(n*R*2.08)):1,across=pistol?(fitK(2)>=.7?2:1):(fitK(3)>=.75?3:2),rk=fitK(across);
- const fP=oFr?oFr-(L/2+TL)+TL*.55:oF-TL/2;
+ const fitK=n=>oW>0?Math.min(1,oW*.74/(n*R*2.08)):1,across=pistol?(fitK(2)>=.6?2:1):(fitK(3)>=.62?3:2),rk=fitK(across);
+ // dans le chargeur, entre les parois : le haut des balles au ras des lèvres, seules les pointes dépassent à l'avant
+ const R0=tH-R*rk*1.05,fP=oFr?oFr-(L/2+TL)*rk+TL*rk*.15:oF-TL/2;
  for(let i=0;i<6;i++){const c=new THREE.Group(),m1=new THREE.Mesh(caseG,brass),m2=new THREE.Mesh(tipG,cu);m2.position.y=L/2;c.add(m1,m2);
   const row=Math.floor(i/across),col=i%across,sx=(col-(across-1)/2+(row&1?.5:0))*R*2.08*rk;c.scale.setScalar(rk);
   c.quaternion.copy(qd);c.position.copy(u.insC).addScaledVector(up,R0-row*R*1.75*rk).addScaledVector(side,oS+sx).addScaledVector(fw,fP);grp.add(c);u.insRounds.push(c);}
