@@ -37,14 +37,15 @@ function vmSetGun(k){
   VM.flashMesh=new THREE.Group();const m1=new THREE.Mesh(new THREE.PlaneGeometry(.34,.34),new THREE.MeshBasicMaterial({map:FLASHTEX,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,toneMapped:false}));VM.flashMesh.add(m1);const m2=m1.clone();m2.rotation.y=1.57;VM.flashMesh.add(m2);}
  g.add(VM.flashSprite);g.add(VM.flashMesh);
  VM.flashSprite.position.set(0,.02,u.muzzle-.03);VM.flashMesh.position.set(0,.02,u.muzzle-.05);VM.flashSprite.visible=false;VM.flashMesh.visible=false;
- VM.drawT=.45;
+ VM.drawMax=VM.drawT=drawDur(k,sk);
 }
 function papCamo(g){
  // arme améliorée : reflets violets animés
  g.traverse(o=>{if(o.isMesh&&o.material&&!o.material.isMeshBasicMaterial){const m=o.material.clone();m.color.lerp(new THREE.Color(0x6a2cff),.45);m.emissive=new THREE.Color(0x7a2cff);m.emissiveIntensity=.35;m.metalness=Math.max(m.metalness||0,.6);o.material=m;}});
 }
-function vmDraw(){VM.drawT=.45;VM.inspectT=0;}
+function vmDraw(){VM.drawMax=VM.drawT=drawDur(VM.gk,null);VM.inspectT=0;}
 function vmFire(w){
+ VM.inspectT=0;if(VM.drawFl)VM.drawT=0;
  // recul sur ressort : impulsion, retour amorti (léger rebond)
  const e=VM.ent||P;
  VM.kv+=(w.cat==='sniper'||w.cat==='shotgun'?22:w.cat==='pistol'?14:12)*(1-.45*(e?e.ads:0));VM.flashT=.05;
@@ -76,7 +77,7 @@ function vmDropsUpdate(dt){
 }
 function vmThrow(){VM.throwT=.7;}
 function vmKnifeSwing(){VM.swingT=.38;}
-function vmInspect(){if(VM.inspectT<=0&&VM.drawT<=0)VM.inspectT=2.6;}
+function vmInspect(){if(VM.inspectT<=0&&VM.drawT<=0){VM.inspDur=inspectDur(VM.ent||P);VM.inspectT=VM.inspDur;VM.inspSnd=0;}}
 const _vp=V3(),_vq=new THREE.Quaternion(),_vr=V3(),_vl=V3(),_ve=new THREE.Euler();
 // ent : joueur regardé en spectateur (par défaut, le joueur lui-même)
 function vmUpdate(dt,t,ent){
@@ -121,14 +122,16 @@ function vmUpdate(dt,t,ent){
  // recul
  const kk=VM.kick;pz+=kk*.055;rx+=kk*.09;rz+=Math.sin(G.t*47)*Math.max(0,kk)*.012;py+=kk*.01;
  // sortie de l'arme
- if(VM.drawT>0){const a=VM.drawT/.45,e=a*a;py-=e*.28;rx-=e*.9;px+=e*.05;}
+ if(VM.drawT>0){const d=drawPose(u,w);px+=d.px;py+=d.py;pz+=d.pz;rx+=d.rx;ry+=d.ry;rz+=d.rz;}
  // lancer de grenade
  if(VM.throwT>0){const a=Math.sin((1-VM.throwT/.7)*Math.PI);py-=a*.32;rx-=a*.4;}
  // couteau
  let leftOff=0,leftX=0;
  if(VM.swingT>0){const a=1-VM.swingT/.38,s=Math.sin(a*Math.PI);rz+=s*1.1;ry+=s*.7;px-=s*.18;rx-=s*.5;pz-=s*.06;}
  // inspection
- if(VM.inspectT>0){const a=1-VM.inspectT/2.6,s=smooth01(a<.15?a/.15:a>.85?(1-a)/.15:1);ry+=s*(1.15+Math.sin(a*8)*.15);rz+=s*(.4+Math.sin(a*6)*.2);rx+=s*.25;px-=s*.04;py+=s*.03;pz-=s*.05;}
+ // inspection (55c_inspect.js) : chorégraphie par type d'arme, chargeur sorti et montré
+ let ins=null;
+ if(VM.inspectT>0){if(ads>.3||p.reload>0)VM.inspectT=0;else{ins=inspectPose(u,w);px+=ins.px;py+=ins.py;pz+=ins.pz;rx+=ins.rx;ry+=ins.ry;rz+=ins.rz;}}
  // sprint (arme en travers), sprint tactique (arme levée), glissade (inclinée), escalade (arme baissée)
  {const mw=p.mv?p.mv.w:null;if(mw){const s=mw.spr*(1-ads),T=mw.tac*(1-ads),L=mw.sld,Mn=mw.mnt,sb=Math.sin(VM.bph*.9);
   px+=-s*.045+s*sb*.014;py+=-s*.05+s*Math.abs(sb)*.012;rx-=s*.3;ry+=s*.62;rz+=s*.38;
@@ -174,6 +177,7 @@ function vmUpdate(dt,t,ent){
   u.mag.position.set(u.magP0.x+d.x*out*.2,u.magP0.y+d.y*out*.2,u.magP0.z+d.z*out*.2);
   u.mag.rotation.set(u.magR0.x+tw*.5,u.magR0.y,u.magR0.z+tw*.35);
   u.mag.visible=vis;
+  if(ins)inspectMag(u,g,ins,p);else if(u.rounds)u.rounds.visible=false;
  }
  // armement en fin de recharge à vide (culasse / glissière tirée puis relâchée) ; glissière bloquée en arrière quand le pistolet est vide
  let pull=0;
@@ -201,7 +205,8 @@ function vmUpdate(dt,t,ent){
     k=rl>.8?(1-rl)/.2:1;hp.applyMatrix4(gm);VM.rackR=V3().copy(u.right).applyMatrix4(gm).lerp(hp,kin*(rl<.92?1:smooth01((1-rl)/.08)));
    }else k=rl<.15?rl/.15:rl>.8?(1-rl)/.2:1;
    _vl.lerp(_vp,smooth01(clamp(k,0,1)));}
-  _vl.applyMatrix4(gm);}
+  _vl.applyMatrix4(gm);
+  if(ins&&ins.lh>0&&u.insMagC)_vl.lerp(u.insMagC,ins.lh);}
  else _vl.set(-.18,-.3,-.05);
  // main droite
  if(VM.rackR){_vr.copy(VM.rackR);VM.rackR=null;}
@@ -221,8 +226,10 @@ function vmUpdate(dt,t,ent){
   // poignet : bande de manche qui sépare le bras du gant
   const c=sx>0?VM.cR:VM.cL;c.position.lerpVectors(el,hand,.9);c.quaternion.copy(f.quaternion);c.scale.set(1.45,.9,1.45);c.visible=true;
  };
- const hrp=VM.hR.position.clone();place(VM.fR,VM.uR,hrp,1);
- if(u.twoHand){const hlp=VM.hL.position.clone();place(VM.fL,VM.uL,hlp,-1);VM.fL.visible=VM.uL.visible=true;}else VM.fL.visible=VM.uL.visible=false;
+ // le bras s'arrête au poignet (mains modelées : point « wrist » dans le repère de la main), pas au centre de la poignée
+ const wrist=h=>{const w=h.userData.wrist;if(!w)return h.position.clone();h.updateMatrix();return w.clone().applyMatrix4(h.matrix);};
+ const hrp=wrist(VM.hR);place(VM.fR,VM.uR,hrp,1);
+ if(u.twoHand){const hlp=wrist(VM.hL);place(VM.fL,VM.uL,hlp,-1);VM.fL.visible=VM.uL.visible=true;}else VM.fL.visible=VM.uL.visible=false;
  if(!u.twoHand)VM.cL.visible=false;
  // en lunette : l'arme reste affichée autour de la lentille (floutée par #scopeBlur) ; un disque invisible
  // posé contre la caméra occupe la profondeur dans la lentille, pour que l'arme n'y soit pas dessinée
