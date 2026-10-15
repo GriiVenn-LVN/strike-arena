@@ -122,9 +122,17 @@ function rdApply(R){
  R.gunMount.visible=false;   // l'arme tombe des mains
 }
 
+// os que le ragdoll déplace : leur pose de repos est remise quand le soldat se relève
+function rdBones(R){const b=[R.hips,R.spine,R.head,R.neckG,R.legL.th,R.legL.sh,R.legL.foot,R.legR.th,R.legR.sh,R.legR.foot];
+ for(const k of ['L','R']){const A=R.arm[k];b.push(A.ua,A.fa,A.elbow,A.hand,A.band,A.pad);}
+ return b.filter(Boolean);}
 const _anRd=animateSoldier;
 animateSoldier=function(R,st,dt,t){
- if(st.alive||st.dance||!rdOk(R)){if(R.rd)R.rd=null;_anRd(R,st,dt,t);return;}
+ if(st.alive||st.dance||!rdOk(R)){
+  if(!R.rdRest&&rdOk(R))R.rdRest=rdBones(R).map(o=>[o,o.position.clone(),o.quaternion.clone()]);
+  // relevé (nouvelle manche, réapparition) : les os gardaient l'orientation du ragdoll et le soldat marchait couché
+  if(R.rd){R.rd=null;if(R.rdRest)for(const [o,ps,q] of R.rdRest){o.position.copy(ps);o.quaternion.copy(q);}R.gunMount.visible=true;}
+  _anRd(R,st,dt,t);return;}
  if(!R.rd||R.dieT<0)rdInit(R,R.ent);
  _anRd(R,st,dt,t);   // pose de mort d'origine (sert de base), remplacée ci-dessous
  const rd=R.rd;

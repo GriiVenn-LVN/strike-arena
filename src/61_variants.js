@@ -36,7 +36,7 @@ function startMatch(){
   if(v!=='train')for(let i=0;i<cfg.ffa-1;i++)ents.push(newEnt(names.pop(),i+1,false,idx++));
   G.limit=G.mode==='ffa'?limitOf('ffa'):GG_LADDER.length;
  }
- ents.forEach((e,i)=>{e.id=i;e.money=cfg.eco&&G.mode==='bomb'&&v!=='rapid'?800:16000;e.ggLevel=0;giveWeapon(e,e.team===0?'glock':'usp');});
+ ents.forEach((e,i)=>{e.id=i;e.money=cfg.eco&&G.mode==='bomb'&&v!=='rapid'?ECO.start:16000;e.ggLevel=0;giveWeapon(e,e.team===0?'glock':'usp');});
  for(const e of ents)attachRig(e);
  agentCleanup();clearSprays();rpReset();assignAgents();spawnPumpkins();
  G.running=true;

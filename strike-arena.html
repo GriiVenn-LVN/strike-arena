@@ -5158,7 +5158,7 @@ function killEnt(v,att,w,hs){
  if(att.isPlayer&&att!==v){uiKillMsg(v,hs,att.streak);sfx(hs?'killhs':'kill');}
  if(v.isPlayer){G.spec=null;uiDeath(att);}
  if(G.mode==='bomb'){
-  if(att!==v&&att.team!==v.team)att.money=Math.min(16000,att.money+(w.kill||300));
+  if(att!==v&&att.team!==v.team)att.money=Math.min(ecoCap(),att.money+(ecoOn()?ECO.kill:(w.kill||300)));
   extrasKill(att,w);if(cfg.gore&&!v.zombie)stain(v.x,groundH(v.x,v.z)+.03,v.z,6);
   if(G.state==='live')checkEnd();
  }else{
@@ -5442,7 +5442,7 @@ function bombVisual(){
 function plantBomb(e){
  BM.state='planted';BM.x=e.x;BM.z=e.z;BM.y=groundH(e.x,e.z);BM.timer=BOMB_T;BM.site=inSite(e.x,e.z);BM.carrier=-1;BM.beep=0;
  const m=bombVisual();m.position.set(e.x,BM.y,e.z);m.visible=true;
- e.money=Math.min(16000,e.money+300);if(e.isPlayer){MS.plants++;metaEvent('plant');}
+ ecoPlant(e);if(e.isPlayer){MS.plants++;metaEvent('plant');}
  sfx('plant',e.x,e.z,1.2);uiBanner('BOMBE POSÉE','Site '+MAP.sites[Math.max(0,BM.site)].n,2400,'#ffb938');
  const spots=[];
  for(let cz=0;cz<N;cz++)for(let cx=0;cx<N;cx++){if(!walkableCell(cz*N+cx))continue;const d=Math.hypot(cc(cx)-BM.x,cc(cz)-BM.z);if(d>5&&d<10&&Math.abs(NODEH[cz*N+cx]-BM.y)<.6)spots.push([cc(cx),cc(cz)]);}
@@ -5451,7 +5451,7 @@ function plantBomb(e){
 }
 function inSite(x,z){for(let i=0;i<MAP.sites.length;i++){const s=MAP.sites[i];if(Math.hypot(x-s.x,z-s.z)<s.rw&&Math.abs(groundH(x,z)-groundH(s.x,s.z))<3.5)return i;}return -1;}
 function defuseBomb(e){
- BM.state='defused';if(BM.mesh)BM.mesh.visible=false;e.money=Math.min(16000,e.money+300);if(e.isPlayer){MS.defuses++;metaEvent('plant');}
+ BM.state='defused';if(BM.mesh)BM.mesh.visible=false;e.money=Math.min(ecoCap(),e.money+(ecoOn()?ECO.defuse:300));if(e.isPlayer){MS.defuses++;metaEvent('plant');}
  sfx('defused');endRound(1,'Bombe désamorcée');
 }
 function explode(){
@@ -5478,7 +5478,7 @@ function handleUse(e,dt,holding){
 const TSPAWN_CACHE=[],CTSPAWN_CACHE=[];
 function resetRound(){
  rpReset();netEvent({t:'rr'});for(const e of ents)e.tp=(e.tp||0)+1;
- G.round++;G.pistolRound=G.round===1;G.state='freeze';G.timer=G.freezeT;G.defuserId=-1;G.fetchId=-1;G.spec=null;G.countdownN=0;
+ G.round++;G.pistolRound=G.round===1||!!G.halfPistol;G.halfPistol=false;G.state='freeze';G.timer=G.freezeT;G.defuserId=-1;G.fetchId=-1;G.spec=null;G.countdownN=0;
  clearNades();resetFX();uiRoundStart();
  BM.state='carried';BM.carrier=-1;if(BM.mesh)BM.mesh.visible=false;
  const ts=shuffle(MAP.spawnT.slice()),cts=shuffle(MAP.spawnCT.slice());
@@ -5526,8 +5526,8 @@ function endRound(win,reason){
  // MVP
  let mvp=null;for(const e of ents)if(e.team===win&&(!mvp||e.kills>mvp.kills))mvp=e;G.mvpName=mvp?mvp.name:'';
  for(const e of ents){
-  const bonus=e.team===win?3250:1400+500*Math.min(4,G.loss[e.team]);
-  if(cfg.eco)e.money=Math.min(16000,e.money+bonus);
+  const bonus=e.team===win?ECO.win:ECO.loss[Math.min(ECO.loss.length-1,G.loss[e.team])];
+  if(cfg.eco)e.money=Math.min(ecoCap(),e.money+bonus);
   e.keep=e.alive;
  }
  G.loss[win]=0;G.loss[1-win]++;celebrate(win);
@@ -5840,7 +5840,7 @@ function startMatch(){
   if(v!=='train')for(let i=0;i<cfg.ffa-1;i++)ents.push(newEnt(names.pop(),i+1,false,idx++));
   G.limit=G.mode==='ffa'?limitOf('ffa'):GG_LADDER.length;
  }
- ents.forEach((e,i)=>{e.id=i;e.money=cfg.eco&&G.mode==='bomb'&&v!=='rapid'?800:16000;e.ggLevel=0;giveWeapon(e,e.team===0?'glock':'usp');});
+ ents.forEach((e,i)=>{e.id=i;e.money=cfg.eco&&G.mode==='bomb'&&v!=='rapid'?ECO.start:16000;e.ggLevel=0;giveWeapon(e,e.team===0?'glock':'usp');});
  for(const e of ents)attachRig(e);
  agentCleanup();clearSprays();rpReset();assignAgents();spawnPumpkins();
  G.running=true;
@@ -11596,11 +11596,11 @@ const _afterEndRT=afterEnd;
 afterEnd=function(){
  if(!halfTimeDue())return _afterEndRT();
  G.halfDone=true;
- for(const e of ents){e.team=1-e.team;e.keep=false;if(cfg.eco&&G.variant!=='rapid')e.money=800;}
+ for(const e of ents){e.team=1-e.team;e.keep=false;if(ecoOn())e.money=ECO.start;}
  G.score=[G.score[1],G.score[0]];G.loss=[0,0];
  for(const e of ents)attachRig(e);
+ G.halfPistol=true;   // comme Valorant : la 2e mi-temps repart sur une manche au pistolet
  _afterEndRT();
- if(cfg.eco&&G.variant!=='rapid')G.pistolRound=true;
  const side=P.team===0?'ATTAQUANTS':'DÉFENSEURS';
  uiBanner('MI-TEMPS','Changement de camp — vous êtes maintenant '+side+(G.pistolRound?' · manche au pistolet':''),3600,'#ffd75e');
  sfx('round');
@@ -16403,9 +16403,17 @@ function rdApply(R){
  R.gunMount.visible=false;   // l'arme tombe des mains
 }
 
+// os que le ragdoll déplace : leur pose de repos est remise quand le soldat se relève
+function rdBones(R){const b=[R.hips,R.spine,R.head,R.neckG,R.legL.th,R.legL.sh,R.legL.foot,R.legR.th,R.legR.sh,R.legR.foot];
+ for(const k of ['L','R']){const A=R.arm[k];b.push(A.ua,A.fa,A.elbow,A.hand,A.band,A.pad);}
+ return b.filter(Boolean);}
 const _anRd=animateSoldier;
 animateSoldier=function(R,st,dt,t){
- if(st.alive||st.dance||!rdOk(R)){if(R.rd)R.rd=null;_anRd(R,st,dt,t);return;}
+ if(st.alive||st.dance||!rdOk(R)){
+  if(!R.rdRest&&rdOk(R))R.rdRest=rdBones(R).map(o=>[o,o.position.clone(),o.quaternion.clone()]);
+  // relevé (nouvelle manche, réapparition) : les os gardaient l'orientation du ragdoll et le soldat marchait couché
+  if(R.rd){R.rd=null;if(R.rdRest)for(const [o,ps,q] of R.rdRest){o.position.copy(ps);o.quaternion.copy(q);}R.gunMount.visible=true;}
+  _anRd(R,st,dt,t);return;}
  if(!R.rd||R.dieT<0)rdInit(R,R.ent);
  _anRd(R,st,dt,t);   // pose de mort d'origine (sert de base), remplacée ci-dessous
  const rd=R.rd;
@@ -16432,6 +16440,24 @@ buildOpts=function(){
  }
  chipsRow('cRagdoll',[['Activés',1],['Désactivés',0]],()=>cfg.ragdoll!==0?1:0,v=>cfg.ragdoll=v,buildOpts);
 };
+/* =====================================================================
+   ÉCONOMIE FAÇON VALORANT (Recherche et destruction, économie réaliste)
+   800 au départ et à la mi-temps (manche au pistolet), 3000 par manche
+   gagnée, 1900 / 2400 / 2900 par défaites d'affilée, 200 par élimination,
+   300 à chaque attaquant quand la bombe est posée, plafond 9000.
+   ===================================================================== */
+const ECO={start:800,win:3000,loss:[1900,2400,2900],kill:200,plant:300,defuse:0,max:9000};
+// Désamorçage rapide garde son argent illimité
+function ecoOn(){return !!cfg.eco&&G.variant!=='rapid';}
+function ecoCap(){return ecoOn()?ECO.max:16000;}
+// pose de la bombe : toute l'équipe attaquante touche la prime (en mode armes libres, seul le poseur, comme avant)
+function ecoPlant(e){
+ if(!ecoOn()){e.money=Math.min(16000,e.money+300);return;}
+ for(const o of ents)if(o.team===e.team)o.money=Math.min(ECO.max,o.money+ECO.plant);
+ if(e.isPlayer||P&&P.team===e.team)uiMoney&&uiMoney(ECO.plant);
+}
+// une fois : on repasse en économie réaliste (demande de Noa), l'option « Armes libres » reste dans le menu
+if(!cfg.ecoV){cfg.eco=1;cfg.ecoV=1;}
 /* =====================================================================
    BOUCLE PRINCIPALE
    ===================================================================== */

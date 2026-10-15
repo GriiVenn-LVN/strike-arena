@@ -243,7 +243,7 @@ function killEnt(v,att,w,hs){
  if(att.isPlayer&&att!==v){uiKillMsg(v,hs,att.streak);sfx(hs?'killhs':'kill');}
  if(v.isPlayer){G.spec=null;uiDeath(att);}
  if(G.mode==='bomb'){
-  if(att!==v&&att.team!==v.team)att.money=Math.min(16000,att.money+(w.kill||300));
+  if(att!==v&&att.team!==v.team)att.money=Math.min(ecoCap(),att.money+(ecoOn()?ECO.kill:(w.kill||300)));
   extrasKill(att,w);if(cfg.gore&&!v.zombie)stain(v.x,groundH(v.x,v.z)+.03,v.z,6);
   if(G.state==='live')checkEnd();
  }else{
@@ -527,7 +527,7 @@ function bombVisual(){
 function plantBomb(e){
  BM.state='planted';BM.x=e.x;BM.z=e.z;BM.y=groundH(e.x,e.z);BM.timer=BOMB_T;BM.site=inSite(e.x,e.z);BM.carrier=-1;BM.beep=0;
  const m=bombVisual();m.position.set(e.x,BM.y,e.z);m.visible=true;
- e.money=Math.min(16000,e.money+300);if(e.isPlayer){MS.plants++;metaEvent('plant');}
+ ecoPlant(e);if(e.isPlayer){MS.plants++;metaEvent('plant');}
  sfx('plant',e.x,e.z,1.2);uiBanner('BOMBE POSÉE','Site '+MAP.sites[Math.max(0,BM.site)].n,2400,'#ffb938');
  const spots=[];
  for(let cz=0;cz<N;cz++)for(let cx=0;cx<N;cx++){if(!walkableCell(cz*N+cx))continue;const d=Math.hypot(cc(cx)-BM.x,cc(cz)-BM.z);if(d>5&&d<10&&Math.abs(NODEH[cz*N+cx]-BM.y)<.6)spots.push([cc(cx),cc(cz)]);}
@@ -536,7 +536,7 @@ function plantBomb(e){
 }
 function inSite(x,z){for(let i=0;i<MAP.sites.length;i++){const s=MAP.sites[i];if(Math.hypot(x-s.x,z-s.z)<s.rw&&Math.abs(groundH(x,z)-groundH(s.x,s.z))<3.5)return i;}return -1;}
 function defuseBomb(e){
- BM.state='defused';if(BM.mesh)BM.mesh.visible=false;e.money=Math.min(16000,e.money+300);if(e.isPlayer){MS.defuses++;metaEvent('plant');}
+ BM.state='defused';if(BM.mesh)BM.mesh.visible=false;e.money=Math.min(ecoCap(),e.money+(ecoOn()?ECO.defuse:300));if(e.isPlayer){MS.defuses++;metaEvent('plant');}
  sfx('defused');endRound(1,'Bombe désamorcée');
 }
 function explode(){
@@ -563,7 +563,7 @@ function handleUse(e,dt,holding){
 const TSPAWN_CACHE=[],CTSPAWN_CACHE=[];
 function resetRound(){
  rpReset();netEvent({t:'rr'});for(const e of ents)e.tp=(e.tp||0)+1;
- G.round++;G.pistolRound=G.round===1;G.state='freeze';G.timer=G.freezeT;G.defuserId=-1;G.fetchId=-1;G.spec=null;G.countdownN=0;
+ G.round++;G.pistolRound=G.round===1||!!G.halfPistol;G.halfPistol=false;G.state='freeze';G.timer=G.freezeT;G.defuserId=-1;G.fetchId=-1;G.spec=null;G.countdownN=0;
  clearNades();resetFX();uiRoundStart();
  BM.state='carried';BM.carrier=-1;if(BM.mesh)BM.mesh.visible=false;
  const ts=shuffle(MAP.spawnT.slice()),cts=shuffle(MAP.spawnCT.slice());
@@ -611,8 +611,8 @@ function endRound(win,reason){
  // MVP
  let mvp=null;for(const e of ents)if(e.team===win&&(!mvp||e.kills>mvp.kills))mvp=e;G.mvpName=mvp?mvp.name:'';
  for(const e of ents){
-  const bonus=e.team===win?3250:1400+500*Math.min(4,G.loss[e.team]);
-  if(cfg.eco)e.money=Math.min(16000,e.money+bonus);
+  const bonus=e.team===win?ECO.win:ECO.loss[Math.min(ECO.loss.length-1,G.loss[e.team])];
+  if(cfg.eco)e.money=Math.min(ecoCap(),e.money+bonus);
   e.keep=e.alive;
  }
  G.loss[win]=0;G.loss[1-win]++;celebrate(win);
