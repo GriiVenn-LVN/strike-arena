@@ -103,6 +103,13 @@ placeCamera=function(dt,t){
  camera.position.set(PH.x,PH.y,PH.z);camera.rotation.order='YXZ';camera.rotation.set(PH.pit,PH.yaw,PH.roll);
  camera.fov=PH.fov;camera.updateProjectionMatrix();
 };
+// ton soldat est visible sur les photos (en jeu, il est caché en vue subjective)
+const _syncRigsPh=syncRigs;
+syncRigs=function(dt,t){
+ if(!(PH.on&&P&&P.rig&&P.alive))return _syncRigsPh(dt,t);
+ // le temps d'une mise à jour, le joueur est animé comme les autres soldats
+ P.isPlayer=false;try{_syncRigsPh(dt,t);}finally{P.isPlayer=true;}
+};
 // pas d'arme en vue subjective pendant les photos
 const _vmUpdatePh=vmUpdate;
 vmUpdate=function(dt,t,ent){if(PH.on){VM.root.visible=false;return;}return _vmUpdatePh(dt,t,ent);};

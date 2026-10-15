@@ -115,7 +115,7 @@ botGoal=function(b){
  return _botGoalKc(b);
 };
 (function(){const s=document.createElement('style');s.textContent=`
-#kcHud{position:absolute;top:58px;left:50%;transform:translateX(-50%);display:flex;gap:14px;pointer-events:none;font:800 .74rem Bahnschrift,Arial;letter-spacing:1.5px;text-shadow:0 1px 4px #000}
+#kcHud{position:absolute;top:86px;left:50%;transform:translateX(-50%);display:flex;gap:14px;pointer-events:none;font:800 .74rem Bahnschrift,Arial;letter-spacing:1.5px;text-shadow:0 1px 4px #000}
 #kcHud .c{color:#ffd23a}#kcHud .d{color:#7dd8ff}
 #kcPop{position:absolute;top:34%;left:50%;transform:translateX(-50%);font:900 1.35rem Bahnschrift,Arial;letter-spacing:3px;text-shadow:0 2px 10px #000,0 0 22px currentColor;opacity:0;pointer-events:none;white-space:nowrap}
 #kcPop.go{animation:kcPop 1.4s ease-out}

@@ -117,12 +117,12 @@ updSummary=function(){
 };
 (function(){const s=document.createElement('style');s.textContent=`
 #mutSec h4 em{font-style:normal;color:#ffd23a;margin-left:6px;letter-spacing:1px}
-.mutgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.mutc{display:grid;grid-template-columns:28px 1fr;align-items:center;column-gap:6px;padding:7px 8px;border:2px solid #ffffff12;border-radius:8px;background:#0f1726;cursor:pointer;transition:.15s}
+.mutgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.mutc{display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 4px;border:2px solid #ffffff12;border-radius:8px;background:#0f1726;cursor:pointer;transition:.15s;text-align:center}
 .mutc:hover{background:#152036;transform:translateY(-1px)}
-.mutc i{font-style:normal;font-size:1.25rem;grid-row:span 2;text-align:center;filter:grayscale(.7);opacity:.7;transition:.15s}
-.mutc b{font-size:.68rem;letter-spacing:1px;text-transform:uppercase;color:#cfd8e6}
-.mutc span{font-size:.6rem;color:#7f90aa;line-height:1.2}
+.mutc i{font-style:normal;font-size:1.2rem;filter:grayscale(.7);opacity:.7;transition:.15s}
+.mutc b{font-size:.58rem;letter-spacing:.5px;line-height:1.15;text-transform:uppercase;color:#cfd8e6}
+.mutc span{display:none}
 .mutc.on{border-color:#ffd23a;background:color-mix(in srgb,#ffd23a 14%,#0f1726);box-shadow:0 0 18px -8px #ffd23a}
 .mutc.on i{filter:none;opacity:1;transform:scale(1.12)}
 .mutc.on b{color:#fff}

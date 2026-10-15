@@ -97,7 +97,7 @@ updateHUD=function(dt,t){
  else $('hpm').firstElementChild.style.background='';
 };
 (function(){const s=document.createElement('style');s.textContent=`
-#jugHud{position:absolute;top:58px;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none;text-shadow:0 1px 4px #000}
+#jugHud{position:absolute;top:86px;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none;text-shadow:0 1px 4px #000}
 #jugHud .jw{font:900 .9rem Bahnschrift,Arial;letter-spacing:2px;color:#ff7a5a}
 #jugHud .jt{margin-top:4px;display:flex;gap:10px;justify-content:center;font:700 .72rem Bahnschrift,Arial;letter-spacing:1px;color:#dfe6f2}
 #jugHud .jt .me{color:#ffd23a}#jugHud .jt .lim{color:#8da0bd}
