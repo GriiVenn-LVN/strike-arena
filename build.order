@@ -7,6 +7,7 @@ src/20_maps.js
 src/21_maps_extra.js
 src/30_audio.js
 src/40_gfx.js
+src/40c_ground.js
 src/41_gfx_themes.js
 src/42_haunt.js
 src/44_skins.js
