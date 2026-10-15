@@ -20,7 +20,7 @@ function startMatch(){
  for(const e of ents)if(e.rig)scene.remove(e.rig.root);
  for(const p of pickups)scene.remove(p.mesh);pickups=[];variantCleanup();
  clearNades();ents=[];G.score=[0,0];G.loss=[0,0];G.round=0;G.t=0;G.over=false;G.final=false;G.winner=null;G.state='freeze';
- G.timeLeft=({koth:600,zombies:1e9,br:1e9,train:60}[G.variant])||DM_TIME;
+ G.timeLeft=({koth:600,zombies:1e9,br:1e9,train:1e9}[G.variant])||DM_TIME;
  buildWorld(cfg.map);barrelClear();applyAtmosphere();
  const names=shuffle(NAMES.slice());let idx=0;
  const m=MODE(),v=G.variant;
@@ -54,7 +54,7 @@ function startMatch(){
 }
 function variantSub(){
  const v=G.variant;
- return v==='gg'?'Termine avec le couteau':v==='koth'?'Contrôle la zone — premier à '+G.limit:v==='zombies'?'Survis à '+(G.limit>=99?'l\'infini':G.limit+' manches'):v==='br'?'Ramasse une arme, reste dans la zone':v==='train'?'Touche un maximum de cibles en 60 s':G.mode==='gg'?'Termine avec le couteau':'Premier à '+G.limit;
+ return v==='gg'?'Termine avec le couteau':v==='koth'?'Contrôle la zone — premier à '+G.limit:v==='zombies'?'Survis à '+(G.limit>=99?'l\'infini':G.limit+' manches'):v==='br'?'Ramasse une arme, reste dans la zone':v==='train'?'Entraînement libre : quitte quand tu veux':G.mode==='gg'?'Termine avec le couteau':'Premier à '+G.limit;
 }
 /* ---------- initialisation / nettoyage ---------- */
 function variantCleanup(){
@@ -273,7 +273,7 @@ function trUpdate(dt){
 function trEnd(){
  if(G.state==='over')return;G.state='end';G.endT=1.2;G.final=true;
  const acc=MS.shots?Math.round(MS.hits/MS.shots*100):0;
- uiBanner('TEMPS ÉCOULÉ','Score '+TR.score+' • précision '+acc+' % • série max '+TR.best,4500,'#ffd75e');
+ uiBanner('ENTRAÎNEMENT TERMINÉ','Score '+TR.score+' • précision '+acc+' % • série max '+TR.best,4500,'#ffd75e');
 }
 /* ---------- affichage ---------- */
 function variantHud(){
@@ -282,7 +282,7 @@ function variantHud(){
   return {L:KO.pts[mine],R:KO.pts[1-mine],tm:G.timeLeft,tl:'POINTS — PREMIER À '+G.limit,aL:'Prochaine zone '+Math.max(0,Math.ceil(KO.moveT))+' s',aR:'',ph:KO.contested?'ZONE DISPUTÉE':own===-1?'ZONE LIBRE — allez dessus !':own===mine?'VOTRE ÉQUIPE TIENT LA ZONE':'L\'ENNEMI TIENT LA ZONE'};}
  if(v==='zombies'){const zl=ents.filter(e=>e.zombie&&e.alive).length+Z.queue;return {L:'Vague '+Z.wave+'/'+G.limit,R:zl,tm:Z.state==='break'||Z.state==='wait'?Math.max(0,Z.breakT):G.t,tl:Z.state==='break'||Z.state==='wait'?'PROCHAINE VAGUE':'ZOMBIES RESTANTS',aL:ents.filter(e=>e.team===0&&e.alive).length+' survivants',aR:'zombies',ph:''};}
  if(v==='br'){const z=BRZ;return {L:ents.filter(e=>e.alive).length,R:P.kills,tm:z.state==='wait'?z.wait:z.state==='shrink'?z.t:0,tl:z.state==='wait'?'ZONE STABLE':z.state==='shrink'?'LA ZONE SE RÉDUIT':'ZONE FINALE',aL:'en vie',aR:'éliminations',ph:Math.hypot(P.x-z.cx,P.z-z.cz)>z.r?'⚠ VOUS ÊTES HORS DE LA ZONE':''};}
- if(v==='train'){const acc=MS.shots?Math.round(MS.hits/MS.shots*100):0;return {L:TR.score,R:acc+' %',tm:G.timeLeft,tl:'SCORE',aL:'série '+TR.streak,aR:'précision',ph:G.state==='freeze'?'Prêt ? Le chrono démarre…':''};}
+ if(v==='train'){const acc=MS.shots?Math.round(MS.hits/MS.shots*100):0;return {L:TR.score,R:acc+' %',tm:TR.t,tl:'SCORE',aL:'série '+TR.streak,aR:'précision',ph:G.state==='freeze'?'Prêt ?':''};}
  return null;
 }
 function variantRadar(c,pt){

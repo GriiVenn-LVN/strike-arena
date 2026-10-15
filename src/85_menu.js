@@ -62,7 +62,7 @@ function updSummary(){
  const e=$('sumbar');if(!e)return;
  const ld=cfg.loadout,m=MODES[cfg.mode];
  const size=m.team?cfg.size+' v '+cfg.size:cfg.ffa+' joueurs';
- const lim=cfg.mode==='train'?'60 s':cfg.mode==='br'?'dernier survivant':(MODES[cfg.mode].limits||[]).length&&!({bomb:1,tdm:1,ffa:1})[cfg.mode]?limitOf(cfg.mode)+' '+MODES[cfg.mode].limitLabel.split(' ')[0].toLowerCase():cfg.mode==='bomb'?cfg.rounds+' manches':cfg.mode==='tdm'?cfg.tdmKills+' éliminations':cfg.mode==='ffa'?cfg.ffaKills+' éliminations':GG_LADDER.length+' niveaux';
+ const lim=cfg.mode==='train'?'sans limite':cfg.mode==='br'?'dernier survivant':(MODES[cfg.mode].limits||[]).length&&!({bomb:1,tdm:1,ffa:1})[cfg.mode]?limitOf(cfg.mode)+' '+MODES[cfg.mode].limitLabel.split(' ')[0].toLowerCase():cfg.mode==='bomb'?cfg.rounds+' manches':cfg.mode==='tdm'?cfg.tdmKills+' éliminations':cfg.mode==='ffa'?cfg.ffaKills+' éliminations':GG_LADDER.length+' niveaux';
  e.innerHTML='<b>'+m.n+'</b> · '+MAPS[cfg.map].n+' · '+size+' · bots <b>'+DIFFS[cfg.diff].n+'</b> · '+lim+(cfg.mode==='bomb'?' · '+(cfg.eco?'économie réaliste':'armes libres'):'')+'<br>Loadout de départ : <b>'+(ld.p?W[ld.p].n:'—')+'</b> + <b>'+(ld.s?W[ld.s].n:'—')+'</b>';
 }
 /* ---------- onglets ---------- */

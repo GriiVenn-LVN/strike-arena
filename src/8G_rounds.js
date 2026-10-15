@@ -16,8 +16,7 @@ const RTIME={
  ffa:{l:'Durée de la partie',o:[5,8,10,15],d:8,u:'min'},
  gg:{l:'Durée de la partie',o:[5,8,10,15],d:10,u:'min'},
  koth:{l:'Durée de la partie',o:[5,10,15],d:10,u:'min'},
- br:{l:'Durée maximale',o:[3,5,8],d:5,u:'min'},
- train:{l:'Durée',o:[30,60,120],d:60,u:'s'}
+ br:{l:'Durée maximale',o:[3,5,8],d:5,u:'min'}
 };
 function rtVal(mode){const r=RTIME[mode];if(!r)return 0;const v=cfg.rt&&cfg.rt[mode];return r.o.includes(v)?v:r.d;}
 function rtSec(mode){const r=RTIME[mode];return r?rtVal(mode)*(r.u==='min'?60:1):0;}
@@ -42,7 +41,7 @@ variantInit=function(){
 const _variantSubRT=variantSub;
 variantSub=function(){
  const v=G.variant;
- if(v==='train')return 'Touche un maximum de cibles en '+rtLabel('train');
+ if(v==='train')return 'Entraînement libre : quitte quand tu veux (Échap)';
  const s=_variantSubRT();
  return RTIME[v]&&G.mode!=='bomb'?s+' — '+rtLabel(v):s;
 };
