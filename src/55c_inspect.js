@@ -102,6 +102,39 @@ const INS_LIGHT=new THREE.PointLight(0xfff1d6,0,.9,2);VM.root.add(INS_LIGHT);
 function inspectGlint(a,u){
  const k=Math.sin(clamp((a-.04)/.3,0,1)*Math.PI);
  INS_LIGHT.intensity=k*2.4;INS_LIGHT.position.set(lerp(-.25,.45,clamp((a-.04)/.3,0,1)),.05,-.25);
- if(VM.inspectT<=.05)INS_LIGHT.intensity=0;
 }
-{const _vu=vmUpdate;vmUpdate=function(dt,t,ent){if(VM.inspectT<=0)INS_LIGHT.intensity=0;return _vu(dt,t,ent);};}
+// le tour du pistolet se fait autour de la main (doigt dans le pontet) : la main et le bras ne tournent pas
+const _spQ=new THREE.Quaternion(),_spP=new THREE.Vector3(),_spX=new THREE.Vector3(1,0,0);
+{const _vu=vmUpdate;vmUpdate=function(dt,t,ent){INS_LIGHT.intensity=0;VM.drawSpin=0;const r=_vu(dt,t,ent);
+ const g=VM.gun;if(VM.drawSpin&&g){const u=g.userData,piv=_spP.copy(u.right).add(new THREE.Vector3(0,-.012,-.02)).multiply(g.scale).applyQuaternion(g.quaternion).add(g.position);
+  _spQ.setFromAxisAngle(_spX,VM.drawSpin);g.quaternion.multiply(_spQ);
+  g.position.copy(piv).sub(new THREE.Vector3().copy(u.right).add(new THREE.Vector3(0,-.012,-.02)).multiply(g.scale).applyQuaternion(g.quaternion));}
+ return r;};}
+/* =====================================================================
+   SORTIE D'ARME
+   Toutes les armes : montée amortie avec léger dépassement.
+   Skins Épique et plus : petite figure à la sortie (pistolet qui fait
+   un tour, fusil basculé puis armé, couteau qui tournoie), et reflet
+   qui balaie l'arme pour les Légendaires et Exclusifs.
+   ===================================================================== */
+function drawDur(k,sk){
+ const w=W[k];sk=sk||skinOf(k);const e=VM.ent||P,mine=!e||e===P,q=mine&&sk&&!sk.def?sk.q||0:0;
+ VM.drawQ=q;VM.drawFl=q>=2;VM.drawK=w?w.melee?'knife':w.cat==='pistol'?'pistol':'long':'long';
+ return VM.drawFl?(VM.drawK==='long'?.95:.8):.5;
+}
+function drawPose(u,w){
+ const a=1-VM.drawT/(VM.drawMax||.5),r={px:0,py:0,pz:0,rx:0,ry:0,rz:0};
+ // montée : arrive du bas, dépasse un peu, se pose
+ const up=clamp(a/(VM.drawFl?.45:.75),0,1),e=1-up,ov=Math.sin(up*Math.PI)*(1-up)*.6;
+ r.py=-e*e*.3+ov*.02;r.rx=-e*e*.95+ov*.12;r.px=e*e*.06;r.rz=e*.25;
+ if(VM.drawFl){
+  const f=clamp((a-.3)/.55,0,1),s=smooth01(f);
+  if(VM.drawK==='pistol'){VM.drawSpin=s*TAU;r.py+=Math.sin(f*Math.PI)*.05;r.pz-=Math.sin(f*Math.PI)*.03;}           // tour complet autour du pontet
+  else if(VM.drawK==='knife'){r.rz+=s*TAU*2;r.py+=Math.sin(f*Math.PI)*.04;}                                      // moulinet
+  else{const b=Math.sin(f*Math.PI);r.rz+=b*.9;r.ry+=b*.35;r.py+=b*.03;r.px-=b*.03;                              // arme basculée pour montrer le skin
+   if(u.bolt&&!u.slide&&a>.78&&!VM.drawRack){VM.drawRack=1;VM.boltT=.8;sfx('rack',undefined,undefined,.5);}}
+  if(VM.drawQ>=3)inspectGlint(clamp((a-.2)*.75,0,1),u);
+ }
+ if(a<.05)VM.drawRack=0;
+ return r;
+}

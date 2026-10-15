@@ -37,15 +37,15 @@ function vmSetGun(k){
   VM.flashMesh=new THREE.Group();const m1=new THREE.Mesh(new THREE.PlaneGeometry(.34,.34),new THREE.MeshBasicMaterial({map:FLASHTEX,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,toneMapped:false}));VM.flashMesh.add(m1);const m2=m1.clone();m2.rotation.y=1.57;VM.flashMesh.add(m2);}
  g.add(VM.flashSprite);g.add(VM.flashMesh);
  VM.flashSprite.position.set(0,.02,u.muzzle-.03);VM.flashMesh.position.set(0,.02,u.muzzle-.05);VM.flashSprite.visible=false;VM.flashMesh.visible=false;
- VM.drawT=.45;
+ VM.drawMax=VM.drawT=drawDur(k,sk);
 }
 function papCamo(g){
  // arme améliorée : reflets violets animés
  g.traverse(o=>{if(o.isMesh&&o.material&&!o.material.isMeshBasicMaterial){const m=o.material.clone();m.color.lerp(new THREE.Color(0x6a2cff),.45);m.emissive=new THREE.Color(0x7a2cff);m.emissiveIntensity=.35;m.metalness=Math.max(m.metalness||0,.6);o.material=m;}});
 }
-function vmDraw(){VM.drawT=.45;VM.inspectT=0;}
+function vmDraw(){VM.drawMax=VM.drawT=drawDur(VM.gk,null);VM.inspectT=0;}
 function vmFire(w){
- VM.inspectT=0;
+ VM.inspectT=0;if(VM.drawFl)VM.drawT=0;
  // recul sur ressort : impulsion, retour amorti (léger rebond)
  const e=VM.ent||P;
  VM.kv+=(w.cat==='sniper'||w.cat==='shotgun'?22:w.cat==='pistol'?14:12)*(1-.45*(e?e.ads:0));VM.flashT=.05;
@@ -122,7 +122,7 @@ function vmUpdate(dt,t,ent){
  // recul
  const kk=VM.kick;pz+=kk*.055;rx+=kk*.09;rz+=Math.sin(G.t*47)*Math.max(0,kk)*.012;py+=kk*.01;
  // sortie de l'arme
- if(VM.drawT>0){const a=VM.drawT/.45,e=a*a;py-=e*.28;rx-=e*.9;px+=e*.05;}
+ if(VM.drawT>0){const d=drawPose(u,w);px+=d.px;py+=d.py;pz+=d.pz;rx+=d.rx;ry+=d.ry;rz+=d.rz;}
  // lancer de grenade
  if(VM.throwT>0){const a=Math.sin((1-VM.throwT/.7)*Math.PI);py-=a*.32;rx-=a*.4;}
  // couteau
