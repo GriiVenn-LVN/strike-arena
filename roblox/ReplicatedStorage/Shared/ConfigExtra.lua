@@ -1,17 +1,7 @@
 --!strict
--- Config partagée (extensions) : agents, modes, passe de combat, classement, succès, événement, accessoires...
+-- Config partagée (extensions) : modes, passe de combat, classement, succès, événement, accessoires...
 -- Valeurs identiques au prototype web (src/63_agents.js, 64_extras.js, 66_progress.js, 67_immersion.js).
 local X = {}
-
--- ---------- Agents : 2 capacités, recharge en secondes ----------
-X.AGENTS = {
-	none = { name = "Recrue", abilities = {} },
-	nova = { name = "Nova", abilities = { { id = "smoke", name = "Fumigène", cd = 26 }, { id = "flash", name = "Flash", cd = 20 } } },
-	pulse = { name = "Pulse", abilities = { { id = "scan", name = "Scan", cd = 30, radius = 34, duration = 3.2 }, { id = "sprint", name = "Sprint", cd = 24, duration = 4, mult = 1.35 } } },
-	aegis = { name = "Aegis", abilities = { { id = "shield", name = "Bouclier", cd = 40, amount = 50 }, { id = "dome", name = "Dôme", cd = 36, duration = 4, reduction = 0.5 } } },
-	mender = { name = "Mender", abilities = { { id = "heal", name = "Soin", cd = 32, hps = 15, duration = 3.2, radius = 9 }, { id = "resupply", name = "Ravitaillement", cd = 40 } } },
-	phantom = { name = "Phantom", abilities = { { id = "dash", name = "Dash", cd = 14, speed = 46, duration = 0.2 }, { id = "mine", name = "Mine", cd = 28, radius = 5, damage = 95, max = 2, armTime = 1 } } },
-}
 
 -- ---------- Modes ----------
 X.MODES = {
