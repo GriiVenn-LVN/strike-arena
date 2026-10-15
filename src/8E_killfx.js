@@ -99,13 +99,14 @@ buildLocker=function(){
  if(!mine)return;
  seg.querySelectorAll('.chip').forEach(c=>{if(c!==chip)c.classList.remove('on');});
  const lv=levelInfo().level,cur=killFxCur().id;kfxSel=kfxSel||cur;
- el.innerHTML=KILLFX.filter(f=>!f.ev||killFxOwned(f)).map(f=>{const own=killFxOwned(f);return '<div class="dcard'+(kfxSel===f.id?' on':'')+(own?'':' lock')+'" data-id="'+f.id+'" style="--c:'+f.c+'"><b>'+f.n+'</b><span>'+(f.ev?'ÉVÉNEMENT':'NIVEAU '+f.lv)+'</span>'+(cur===f.id?'<em>ÉQUIPÉ</em>':own?'':'<em style="color:#ff6b6b">🔒 niv. '+f.lv+'</em>')+'</div>';}).join('')+
+ const req=f=>f.ev?(f.pk||0)+' 🎃':'niv. '+f.lv;
+ el.innerHTML=KILLFX.filter(f=>!f.ev||(typeof eventActive==='function'&&eventActive())).map(f=>{const own=killFxOwned(f);return '<div class="dcard'+(kfxSel===f.id?' on':'')+(own?'':' lock')+'" data-id="'+f.id+'" style="--c:'+f.c+'"><b>'+f.n+'</b><span>'+(f.ev?'ÉVÉNEMENT':'NIVEAU '+f.lv)+'</span>'+(cur===f.id?'<em>ÉQUIPÉ</em>':own?'':'<em style="color:#ff6b6b">🔒 '+req(f)+'</em>')+'</div>';}).join('')+
   '<div style="grid-column:1/-1;font-size:.78rem;color:#b8c5da;margin-top:6px" id="kfxDesc"></div>';
- const f=KILLFX.find(x=>x.id===kfxSel)||KILLFX[0];$('kfxDesc').textContent=f.d+(killFxOwned(f)?'':' Se débloque au niveau '+f.lv+' (tu es niveau '+lv+').');
+ const f=KILLFX.find(x=>x.id===kfxSel)||KILLFX[0];$('kfxDesc').textContent=f.d+(killFxOwned(f)?'':f.ev?' Se débloque en ramassant '+f.pk+' citrouilles pendant l\'événement (tu en as '+(PROF.ev&&PROF.ev.id===EVENT.id?PROF.ev.pk:0)+').':' Se débloque au niveau '+f.lv+' (tu es niveau '+lv+').');
  el.querySelectorAll('.dcard').forEach(c=>c.onclick=()=>{kfxSel=c.dataset.id;sfxUI();buildLocker();});
  if(eq){
   const own=killFxOwned(f);
-  eq.textContent=cur===f.id?'✔ Effet équipé':own?'Équiper cet effet':'🔒 Niveau '+f.lv+' requis';eq.classList.toggle('on',cur===f.id);
+  eq.textContent=cur===f.id?'✔ Effet équipé':own?'Équiper cet effet':'🔒 '+(f.ev?f.pk+' citrouilles requises':'Niveau '+f.lv+' requis');eq.classList.toggle('on',cur===f.id);
   eq.onclick=()=>{if(!killFxOwned(f)){sfx('deny');return;}PROF.killfx=f.id;saveProf();sfxUI();buildLocker();};
  }
 };
