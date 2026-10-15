@@ -907,7 +907,7 @@ function postEnd(){
  POST.mBlur.uniforms.d.value.set(2/POST.bA.width,0);postPass(POST.mBlur,POST.bA.texture,POST.bB);
  POST.mBlur.uniforms.d.value.set(0,2/POST.bA.height);postPass(POST.mBlur,POST.bB.texture,POST.bA);
  POST.mComp.uniforms.b.value=POST.bA.texture;
- const night=MAP&&(MAP.theme==='night'||MAP.theme==='haunt');POST.mComp.uniforms.bs.value=night?.75:.32;POST.mComp.uniforms.vig.value=night?.38:.26;
+ const night=MAP&&(MAP.theme==='night'||MAP.base==='haunt');POST.mComp.uniforms.bs.value=night?.75:.32;POST.mComp.uniforms.vig.value=night?.38:.26;
  postPass(POST.mComp,POST.rt.texture,null);
  renderer.autoClear=ae;
 }
