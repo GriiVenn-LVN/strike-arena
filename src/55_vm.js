@@ -45,6 +45,7 @@ function papCamo(g){
 }
 function vmDraw(){VM.drawT=.45;VM.inspectT=0;}
 function vmFire(w){
+ VM.inspectT=0;
  // recul sur ressort : impulsion, retour amorti (léger rebond)
  const e=VM.ent||P;
  VM.kv+=(w.cat==='sniper'||w.cat==='shotgun'?22:w.cat==='pistol'?14:12)*(1-.45*(e?e.ads:0));VM.flashT=.05;
@@ -76,7 +77,7 @@ function vmDropsUpdate(dt){
 }
 function vmThrow(){VM.throwT=.7;}
 function vmKnifeSwing(){VM.swingT=.38;}
-function vmInspect(){if(VM.inspectT<=0&&VM.drawT<=0)VM.inspectT=2.6;}
+function vmInspect(){if(VM.inspectT<=0&&VM.drawT<=0){VM.inspDur=inspectDur(VM.ent||P);VM.inspectT=VM.inspDur;VM.inspSnd=0;}}
 const _vp=V3(),_vq=new THREE.Quaternion(),_vr=V3(),_vl=V3(),_ve=new THREE.Euler();
 // ent : joueur regardé en spectateur (par défaut, le joueur lui-même)
 function vmUpdate(dt,t,ent){
@@ -128,7 +129,9 @@ function vmUpdate(dt,t,ent){
  let leftOff=0,leftX=0;
  if(VM.swingT>0){const a=1-VM.swingT/.38,s=Math.sin(a*Math.PI);rz+=s*1.1;ry+=s*.7;px-=s*.18;rx-=s*.5;pz-=s*.06;}
  // inspection
- if(VM.inspectT>0){const a=1-VM.inspectT/2.6,s=smooth01(a<.15?a/.15:a>.85?(1-a)/.15:1);ry+=s*(1.15+Math.sin(a*8)*.15);rz+=s*(.4+Math.sin(a*6)*.2);rx+=s*.25;px-=s*.04;py+=s*.03;pz-=s*.05;}
+ // inspection (55c_inspect.js) : chorégraphie par type d'arme, chargeur sorti et montré
+ let ins=null;
+ if(VM.inspectT>0){if(ads>.3||p.reload>0)VM.inspectT=0;else{ins=inspectPose(u,w);px+=ins.px;py+=ins.py;pz+=ins.pz;rx+=ins.rx;ry+=ins.ry;rz+=ins.rz;}}
  // sprint (arme en travers), sprint tactique (arme levée), glissade (inclinée), escalade (arme baissée)
  {const mw=p.mv?p.mv.w:null;if(mw){const s=mw.spr*(1-ads),T=mw.tac*(1-ads),L=mw.sld,Mn=mw.mnt,sb=Math.sin(VM.bph*.9);
   px+=-s*.045+s*sb*.014;py+=-s*.05+s*Math.abs(sb)*.012;rx-=s*.3;ry+=s*.62;rz+=s*.38;
@@ -174,6 +177,7 @@ function vmUpdate(dt,t,ent){
   u.mag.position.set(u.magP0.x+d.x*out*.2,u.magP0.y+d.y*out*.2,u.magP0.z+d.z*out*.2);
   u.mag.rotation.set(u.magR0.x+tw*.5,u.magR0.y,u.magR0.z+tw*.35);
   u.mag.visible=vis;
+  if(ins)inspectMag(u,g,ins,p);else if(u.rounds)u.rounds.visible=false;
  }
  // armement en fin de recharge à vide (culasse / glissière tirée puis relâchée) ; glissière bloquée en arrière quand le pistolet est vide
  let pull=0;
@@ -201,7 +205,8 @@ function vmUpdate(dt,t,ent){
     k=rl>.8?(1-rl)/.2:1;hp.applyMatrix4(gm);VM.rackR=V3().copy(u.right).applyMatrix4(gm).lerp(hp,kin*(rl<.92?1:smooth01((1-rl)/.08)));
    }else k=rl<.15?rl/.15:rl>.8?(1-rl)/.2:1;
    _vl.lerp(_vp,smooth01(clamp(k,0,1)));}
-  _vl.applyMatrix4(gm);}
+  _vl.applyMatrix4(gm);
+  if(ins&&ins.lh>0&&u.insMagC)_vl.lerp(u.insMagC,ins.lh);}
  else _vl.set(-.18,-.3,-.05);
  // main droite
  if(VM.rackR){_vr.copy(VM.rackR);VM.rackR=null;}
