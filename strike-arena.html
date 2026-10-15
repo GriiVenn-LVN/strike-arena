@@ -12903,6 +12903,523 @@ bxLoop=function(){
 // bords du rendu fondus : les rayons ne s'arrêtent plus net au bord du cadre
 {const st=document.createElement('style');st.textContent='#boxCv{-webkit-mask-image:radial-gradient(ellipse 50% 50% at 50% 50%,#000 62%,transparent 100%);mask-image:radial-gradient(ellipse 50% 50% at 50% 50%,#000 62%,transparent 100%)}';document.head.appendChild(st);}
 /* =====================================================================
+   MODE ÉLIMINATION CONFIRMÉE (façon Call of Duty « Kill Confirmed »)
+   - Chaque joueur éliminé lâche une plaque à sa couleur.
+   - Ramasser la plaque d'un ADVERSAIRE confirme l'élimination : +1 point
+     pour ton équipe. Ramasser celle d'un ALLIÉ la refuse : l'adversaire
+     ne marque pas.
+   - Les éliminations seules ne rapportent rien : il faut aller chercher
+     les plaques. Une plaque disparaît au bout de 30 s.
+   Variante du mode « tdm » : réutilise ses réapparitions et sa fin.
+   ===================================================================== */
+MODES.kc={n:'Élimination confirmée',ic:'🏷',c:'#ffcf4a',team:true,respawn:3,desc:'Chaque adversaire éliminé lâche une plaque : ramasse-la pour marquer. Ramasse celles de tes alliés pour priver l\'adversaire du point.',limitLabel:'Plaques pour gagner',limits:[30,50,75]};
+VARIANT_BASE.kc='tdm';NOKILLSCORE.kc=1;
+MODE_GROUPS[1][1].push('kc');MODE_TAG.kc='Ramasse les plaques pour marquer';
+if(typeof RTIME!=='undefined')RTIME.kc={l:'Durée de la partie',o:[5,8,10,15],d:10,u:'min'};
+if(typeof QUICK_MODES!=='undefined')QUICK_MODES.push('kc');
+MPOOL.push({id:'kcTag',n:'Ramasse {t} plaques en Élimination confirmée',t:10,coins:150,xp:70});
+const KCF={tags:[],conf:0,deny:0};
+const KC_LIFE=30,KC_R=1.35,KC_COL=[0xff7a4a,0x4aa3ff];
+
+// plaque militaire : deux plaques métal sur une chaîne + halo à la couleur de l'équipe
+let kcTex=null;
+function kcTexture(){
+ if(kcTex)return kcTex;
+ const c=document.createElement('canvas');c.width=128;c.height=192;const g=c.getContext('2d');
+ const grd=g.createLinearGradient(0,0,128,192);grd.addColorStop(0,'#f4f6f8');grd.addColorStop(.5,'#a9b0b8');grd.addColorStop(1,'#e2e6ea');
+ g.fillStyle=grd;g.beginPath();g.roundRect(8,8,112,176,36);g.fill();
+ g.strokeStyle='#5d646c';g.lineWidth=5;g.stroke();
+ g.fillStyle='#3b4148';g.beginPath();g.arc(64,30,9,0,TAU);g.fill();
+ g.font='bold 15px monospace';g.textAlign='center';
+ ['STRIKE','ARENA','0451-7','O POS'].forEach((t,i)=>g.fillText(t,64,72+i*26));
+ kcTex=new THREE.CanvasTexture(c);return kcTex;
+}
+function kcMesh(team){
+ const g=new THREE.Group(),mat=new THREE.MeshStandardMaterial({map:kcTexture(),metalness:.75,roughness:.32});
+ const geo=new THREE.BoxGeometry(.24,.36,.02);
+ const a=new THREE.Mesh(geo,mat);a.position.set(-.05,0,0);a.rotation.z=.12;g.add(a);
+ const b=new THREE.Mesh(geo,mat);b.position.set(.06,-.04,-.03);b.rotation.z=-.18;g.add(b);
+ const ch=new THREE.Mesh(new THREE.TorusGeometry(.17,.008,6,24),new THREE.MeshStandardMaterial({color:0xbfc5cc,metalness:.9,roughness:.3}));ch.position.y=.2;ch.scale.y=.6;g.add(ch);
+ if(typeof zGlow==='function'){const gl=zGlow(KC_COL[team],1.5);gl.material.opacity=.85;g.add(gl);g.userData.glow=gl;}
+ const ring=new THREE.Mesh(new THREE.RingGeometry(.42,.5,32),new THREE.MeshBasicMaterial({color:KC_COL[team],transparent:true,opacity:.75,side:THREE.DoubleSide,depthWrite:false,toneMapped:false}));
+ ring.rotation.x=-Math.PI/2;g.userData.ring=ring;
+ return g;
+}
+function kcDrop(v){
+ const y=groundH(v.x,v.z),m=kcMesh(v.team);m.position.set(v.x,y+.85,v.z);scene.add(m);
+ const r=m.userData.ring;r.position.set(v.x,y+.06,v.z);scene.add(r);
+ KCF.tags.push({team:v.team,x:v.x,z:v.z,y,mesh:m,ring:r,life:KC_LIFE,victim:v});
+ if(KCF.tags.length>40)kcRemove(0);
+}
+function kcRemove(i){const t=KCF.tags[i];scene.remove(t.mesh);scene.remove(t.ring);KCF.tags.splice(i,1);}
+function kcCleanup(){while(KCF.tags.length)kcRemove(0);const h=$('kcHud');if(h)h.style.display='none';}
+function kcPop(txt,col){
+ let el=$('kcPop');if(!el){el=document.createElement('div');el.id='kcPop';$('hud').appendChild(el);}
+ el.textContent=txt;el.style.color=col;el.classList.remove('go');void el.offsetWidth;el.classList.add('go');
+}
+function kcUpdate(dt,t){
+ for(let i=KCF.tags.length-1;i>=0;i--){
+  const k=KCF.tags[i];k.life-=dt;
+  k.mesh.rotation.y=t*2.2+k.x;k.mesh.position.y=k.y+.85+Math.sin(t*3+k.z)*.08;
+  const fade=k.life<5?(Math.sin(t*14)>0?1:.25):1;k.mesh.visible=fade>.5||k.life>5;
+  k.ring.scale.setScalar(1+Math.sin(t*4+k.x)*.08);
+  if(k.life<=0){kcRemove(i);continue;}
+  if(G.state!=='live')continue;
+  for(const e of ents){
+   if(!e.alive||e.downed||e.dummy||Math.hypot(e.x-k.x,e.z-k.z)>KC_R||Math.abs(e.y-k.y)>1.6)continue;
+   const conf=e.team!==k.team;
+   if(conf){G.score[e.team]++;e.kcConf=(e.kcConf||0)+1;}else e.kcDeny=(e.kcDeny||0)+1;
+   if(e.isPlayer){
+    if(conf){KCF.conf++;kcPop('ÉLIMINATION CONFIRMÉE  +1','#ffd23a');sfx('powerup');}
+    else{KCF.deny++;kcPop('ÉLIMINATION REFUSÉE','#7dd8ff');sfx('pickup');}
+    if(typeof metaEvent==='function')metaEvent('kcTag');
+   }else if(e.team===P.team)sfx('pickup',k.x,k.z,.6);
+   kcRemove(i);checkDMEnd();break;
+  }
+ }
+ kcHud();
+}
+function kcHud(){
+ let el=$('kcHud');if(!el){el=document.createElement('div');el.id='kcHud';$('hud').appendChild(el);}
+ el.style.display='';
+ const mine=KCF.tags.filter(k=>k.team!==P.team).length,ours=KCF.tags.filter(k=>k.team===P.team).length;
+ el.innerHTML='<span class="c">🏷 '+mine+' à confirmer</span><span class="d">🏷 '+ours+' à refuser</span>';
+}
+// branchements sur le moteur de variantes
+const _variantInitKc=variantInit;
+variantInit=function(){
+ kcCleanup();KCF.conf=0;KCF.deny=0;
+ _variantInitKc();
+ if(G.variant==='kc')G.limit=limitOf('kc');
+};
+const _variantKillKc=variantKill;
+variantKill=function(att,v,w,hs){
+ _variantKillKc(att,v,w,hs);
+ if(G.variant==='kc'&&!v.dummy)kcDrop(v);
+};
+const _variantUpdateKc=variantUpdate;
+variantUpdate=function(dt,t){_variantUpdateKc(dt,t);if(G.variant==='kc'&&(G.state==='live'||G.state==='freeze'||G.state==='end'))kcUpdate(dt,t);};
+const _variantSubKc=variantSub;
+variantSub=function(){return G.variant==='kc'?'Ramasse les plaques — premier à '+G.limit:_variantSubKc();};
+const _variantCleanupKc=variantCleanup;
+variantCleanup=function(){_variantCleanupKc();kcCleanup();};
+const _variantRadarKc=variantRadar;
+variantRadar=function(c,pt){
+ _variantRadarKc(c,pt);
+ if(G.variant!=='kc')return;
+ for(const k of KCF.tags){const p=pt(k.x,k.z);c.fillStyle=k.team===P.team?'#7dd8ff':'#ffd23a';c.fillRect(p[0]-3,p[1]-4,6,8);c.strokeStyle='#000';c.lineWidth=1;c.strokeRect(p[0]-3,p[1]-4,6,8);}
+};
+// bots : vont chercher les plaques proches (les leurs pour refuser, celles des autres pour marquer)
+const _botGoalKc=botGoal;
+botGoal=function(b){
+ if(G.variant!=='kc'||!KCF.tags.length)return _botGoalKc(b);
+ let best=null,bd=b.hp<45?12:26;
+ for(const k of KCF.tags){const d=Math.hypot(k.x-b.x,k.z-b.z)*(k.team===b.team?1.25:1);if(d<bd){bd=d;best=k;}}
+ if(best)return {x:best.x,z:best.z,pick:true};
+ return _botGoalKc(b);
+};
+(function(){const s=document.createElement('style');s.textContent=`
+#kcHud{position:absolute;top:58px;left:50%;transform:translateX(-50%);display:flex;gap:14px;pointer-events:none;font:800 .74rem Bahnschrift,Arial;letter-spacing:1.5px;text-shadow:0 1px 4px #000}
+#kcHud .c{color:#ffd23a}#kcHud .d{color:#7dd8ff}
+#kcPop{position:absolute;top:34%;left:50%;transform:translateX(-50%);font:900 1.35rem Bahnschrift,Arial;letter-spacing:3px;text-shadow:0 2px 10px #000,0 0 22px currentColor;opacity:0;pointer-events:none;white-space:nowrap}
+#kcPop.go{animation:kcPop 1.4s ease-out}
+@keyframes kcPop{0%{opacity:0;transform:translate(-50%,10px) scale(.7)}12%{opacity:1;transform:translate(-50%,0) scale(1.12)}25%{transform:translate(-50%,0) scale(1)}75%{opacity:1}100%{opacity:0;transform:translate(-50%,-18px)}}
+`;document.head.appendChild(s);})();
+/* =====================================================================
+   MODE MASTODONTE (façon Call of Duty « Juggernaut » / Roblox)
+   - Chacun pour soi. Le premier qui élimine quelqu'un devient le
+     Mastodonte : 400 PV, gilet, mitrailleuse M249 (lourde), halo rouge.
+   - Tout le monde chasse le Mastodonte. Celui qui l'élimine prend sa place.
+   - Points : seul le Mastodonte marque. +1 par élimination et +1 toutes
+     les 5 secondes passées en Mastodonte. Premier à la limite gagne.
+   Variante du mode « ffa » : réutilise ses réapparitions.
+   ===================================================================== */
+MODES.jug={n:'Mastodonte',ic:'🛡',c:'#ff5a3c',team:false,respawn:2,desc:'Le premier à éliminer devient le Mastodonte : 400 PV et une mitrailleuse. Lui seul marque des points. Élimine-le pour prendre sa place.',limitLabel:'Points pour gagner',limits:[25,40,60]};
+VARIANT_BASE.jug='ffa';NOKILLSCORE.jug=1;
+MODE_GROUPS[2][1].splice(2,0,'jug');MODE_TAG.jug='Deviens le Mastodonte et tiens';
+if(typeof RTIME!=='undefined')RTIME.jug={l:'Durée de la partie',o:[5,8,10],d:8,u:'min'};
+const JUG={who:null,tick:0,hp:400,wpn:'m249'};
+const isJug=()=>G.variant==='jug';
+
+function jugLook(e,on){
+ if(!e.rig)return;const r=e.rig.root;
+ if(on&&!r.userData.jugGlow&&typeof zGlow==='function'){const g=zGlow(0xff3a2a,2.4);g.position.y=1.1;g.material.opacity=.7;r.add(g);r.userData.jugGlow=g;}
+ if(!on&&r.userData.jugGlow){r.remove(r.userData.jugGlow);r.userData.jugGlow=null;}
+ r.scale.setScalar(on?1.12:1);
+}
+function jugMake(e){
+ const prev=JUG.who;if(prev&&prev!==e){prev.jug=false;jugLook(prev,false);}
+ JUG.who=e;JUG.tick=0;e.jug=true;
+ e.hp=JUG.hp;e.jugMax=JUG.hp;e.armor=100;e.shield=0;
+ e.wp.p=null;giveWeapon(e,JUG.wpn);if(e.wp.p){e.wp.p.res=999;}e.cur='p';e.switchT=.5;
+ if(e.isPlayer&&typeof vmDraw==='function')vmDraw();
+ jugLook(e,true);
+ if(e.isPlayer){uiBanner('TU ES LE MASTODONTE','Tiens le plus longtemps possible',2400,'#ff5a3c');sfx('pap');G.shake=Math.max(G.shake,.4);}
+ else uiBanner(e.name.toUpperCase()+' EST LE MASTODONTE','Élimine-le pour prendre sa place',2000,'#ff5a3c');
+ sfx('alarm');
+}
+function jugPoint(e,n){e.jpts=(e.jpts||0)+n;if(e.jpts>=G.limit&&G.state==='live'){G.winner=e;endDM();}}
+function jugUpdate(dt){
+ const j=JUG.who;
+ if(j&&(!j.alive||!ents.includes(j))){j.jug=false;jugLook(j,false);JUG.who=null;}
+ if(G.state==='live'&&JUG.who){JUG.tick+=dt;if(JUG.tick>=5){JUG.tick-=5;jugPoint(JUG.who,1);}}
+ jugHud();
+}
+function jugHud(){
+ let el=$('jugHud');if(!el){el=document.createElement('div');el.id='jugHud';$('hud').appendChild(el);}
+ el.style.display='';const j=JUG.who;
+ const top=ents.slice().sort((a,b)=>(b.jpts||0)-(a.jpts||0)).slice(0,3);
+ el.innerHTML='<div class="jw">'+(j?(j===P?'🛡 TU ES LE MASTODONTE':'🛡 MASTODONTE : '+jugEsc(j.name)+' — '+Math.max(0,Math.ceil(j.hp))+' PV'):'Première élimination = Mastodonte')+'</div>'+
+  '<div class="jt">'+top.map(e=>'<span'+(e===P?' class="me"':'')+'>'+jugEsc(e.name)+' '+(e.jpts||0)+'</span>').join('')+'<span class="lim">/ '+G.limit+'</span></div>';
+}
+function jugEsc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);}
+
+const _variantInitJug=variantInit;
+variantInit=function(){
+ if(JUG.who)jugLook(JUG.who,false);JUG.who=null;JUG.tick=0;
+ _variantInitJug();
+ const h=$('jugHud');if(h)h.style.display=isJug()?'':'none';
+ if(isJug()){G.limit=limitOf('jug');for(const e of ents){e.jpts=0;e.jug=false;}}
+};
+const _variantKillJug=variantKill;
+variantKill=function(att,v,w,hs){
+ _variantKillJug(att,v,w,hs);
+ if(!isJug())return;
+ const wasJ=v.jug;
+ if(wasJ){v.jug=false;jugLook(v,false);JUG.who=null;}
+ if(!att||att===v||!att.alive||G.state!=='live')return;
+ if(wasJ||!JUG.who)jugMake(att);
+ else if(att.jug)jugPoint(att,1);
+};
+const _variantUpdateJug=variantUpdate;
+variantUpdate=function(dt,t){_variantUpdateJug(dt,t);if(isJug()&&(G.state==='live'||G.state==='freeze'))jugUpdate(dt);};
+const _variantTimeUpJug=variantTimeUp;
+variantTimeUp=function(){
+ if(!isJug())return _variantTimeUpJug();
+ let b=null;for(const e of ents)if(!b||(e.jpts||0)>(b.jpts||0))b=e;G.winner=b;endDM();return true;
+};
+const _variantSubJug=variantSub;
+variantSub=function(){return isJug()?'Élimine pour devenir le Mastodonte — premier à '+G.limit:_variantSubJug();};
+const _variantCleanupJug=variantCleanup;
+variantCleanup=function(){_variantCleanupJug();if(JUG.who)jugLook(JUG.who,false);JUG.who=null;const h=$('jugHud');if(h)h.style.display='none';};
+const _variantRadarJug=variantRadar;
+variantRadar=function(c,pt){
+ _variantRadarJug(c,pt);
+ const j=JUG.who;if(!isJug()||!j||j===P)return;
+ const p=pt(j.x,j.z);c.strokeStyle='#ff3a2a';c.lineWidth=2.5;c.beginPath();c.arc(p[0],p[1],7+Math.sin(G.t*6)*1.5,0,TAU);c.stroke();
+};
+// les bots chassent le Mastodonte ; le Mastodonte, lui, erre
+const _botGoalJug=botGoal;
+botGoal=function(b){
+ const j=JUG.who;
+ if(isJug()&&j&&j!==b&&j.alive)return {x:j.x+rand(-2,2),z:j.z+rand(-2,2)};
+ return _botGoalJug(b);
+};
+// barre de vie : 400 PV tiennent dans la barre
+const _updateHUDJug=updateHUD;
+updateHUD=function(dt,t){
+ _updateHUDJug(dt,t);
+ const src=!P.alive&&G.spec?G.spec:P;
+ if(src&&src.jug){$('hpm').firstElementChild.style.width=Math.max(0,src.hp)/(src.jugMax||400)*100+'%';$('hpm').firstElementChild.style.background='linear-gradient(90deg,#ff3a2a,#ffb02a)';}
+ else $('hpm').firstElementChild.style.background='';
+};
+(function(){const s=document.createElement('style');s.textContent=`
+#jugHud{position:absolute;top:58px;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none;text-shadow:0 1px 4px #000}
+#jugHud .jw{font:900 .9rem Bahnschrift,Arial;letter-spacing:2px;color:#ff7a5a}
+#jugHud .jt{margin-top:4px;display:flex;gap:10px;justify-content:center;font:700 .72rem Bahnschrift,Arial;letter-spacing:1px;color:#dfe6f2}
+#jugHud .jt .me{color:#ffd23a}#jugHud .jt .lim{color:#8da0bd}
+`;document.head.appendChild(s);})();
+/* =====================================================================
+   MODIFICATEURS DE PARTIE (façon Krunker / parties perso Roblox)
+   À cocher dans Jouer › Réglages › Modificateurs, cumulables, pour une
+   partie solo contre les bots (désactivés en multijoueur) :
+   - Gravité lunaire : on saute haut et on retombe lentement.
+   - Turbo : tout le monde court 30 % plus vite.
+   - Têtes seulement : seuls les tirs à la tête blessent (couteau et
+     grenades restent normaux).
+   - Une balle : chaque touche élimine.
+   - Vampire : chaque élimination rend 50 PV.
+   - Grenades à volonté : une grenade revient toutes les 5 s.
+   Les parties avec modificateurs ne comptent pas pour le classé.
+   ===================================================================== */
+const MUTS=[
+ {k:'lune',ic:'🌙',n:'Gravité lunaire',d:'Sauts géants, chute lente'},
+ {k:'turbo',ic:'⚡',n:'Turbo',d:'Tout le monde court 30 % plus vite'},
+ {k:'tetes',ic:'🎯',n:'Têtes seulement',d:'Seuls les tirs à la tête blessent'},
+ {k:'balle',ic:'💥',n:'Une balle',d:'Chaque touche élimine'},
+ {k:'vamp',ic:'🩸',n:'Vampire',d:'Chaque élimination rend 50 PV'},
+ {k:'nades',ic:'💣',n:'Grenades à volonté',d:'Une grenade revient toutes les 5 s'}
+];
+cfg.mut=cfg.mut&&typeof cfg.mut==='object'?cfg.mut:{};
+const MUT={on:{},nadeT:0};
+const mutOn=k=>!!MUT.on[k];
+function mutList(){return MUTS.filter(m=>cfg.mut[m.k]);}
+function mutActive(){return Object.keys(MUT.on).length>0;}
+
+// au lancement de la partie : on fige les modificateurs (solo uniquement)
+const _variantInitMut=variantInit;
+variantInit=function(){
+ MUT.on={};MUT.nadeT=0;
+ if(!(typeof NET!=='undefined'&&NET.role))for(const m of mutList())MUT.on[m.k]=1;
+ _variantInitMut();
+ mutBadge();
+};
+const _variantSubMut=variantSub;
+variantSub=function(){const s=_variantSubMut();const l=MUTS.filter(m=>MUT.on[m.k]);return l.length?s+'  ·  '+l.map(m=>m.ic+' '+m.n).join('  '):s;};
+const _variantCleanupMut=variantCleanup;
+variantCleanup=function(){_variantCleanupMut();MUT.on={};mutBadge();};
+
+// gravité lunaire : on rend une partie de la gravité avant chaque pas de physique
+const MUT_GRAV=.5;
+const _physicsMut=physics;
+physics=function(e,dt){
+ if(MUT.on.lune&&G.running&&!e.onGround&&!e.zombie)e.vy+=GRAV*(1-MUT_GRAV)*dt;
+ _physicsMut(e,dt);
+};
+// turbo
+const _moveEntMut=moveEnt;
+moveEnt=function(e,vx,vz,dt){
+ if(MUT.on.turbo&&G.running&&!e.zombie){vx*=1.3;vz*=1.3;}
+ _moveEntMut(e,vx,vz,dt);
+};
+// têtes seulement / une balle
+const _hurtMut=hurt;
+hurt=function(v,att,w,zone,dist,raw){
+ if(G.running&&att&&att!==v&&!att.zombie&&w&&!w.melee&&w!==NADEW&&!(NET.role==='client'&&G.netClient)){
+  if(MUT.on.tetes&&zone!=='h'){
+   if(att.isPlayer){uiHit(zone,false,true);sfx('shield');}
+   return;
+  }
+  if(MUT.on.balle)raw=9999;
+ }
+ _hurtMut(v,att,w,zone,dist,raw);
+};
+// vampire
+const _variantKillMut=variantKill;
+variantKill=function(att,v,w,hs){
+ _variantKillMut(att,v,w,hs);
+ if(MUT.on.vamp&&att&&att!==v&&att.alive&&att.team!==v.team){
+  const cap=Math.max(100,att.jugMax||0);att.hp=Math.min(cap,att.hp+50);
+  if(att.isPlayer){uiToast('🩸 +50 PV');sfx('heal');}
+ }
+};
+// grenades à volonté
+const _variantUpdateMut=variantUpdate;
+variantUpdate=function(dt,t){
+ _variantUpdateMut(dt,t);
+ if(MUT.on.nades&&G.state==='live'){MUT.nadeT+=dt;if(MUT.nadeT>=5){MUT.nadeT=0;for(const e of ents)if(e.alive&&!e.zombie&&e.nade&&!e.nade.f){e.nade.f=1;if(e.isPlayer)uiToast('💣 Grenade rechargée');}}}
+};
+// pas de classé avec des modificateurs
+const _rankedEligibleMut=rankedEligible;
+rankedEligible=function(){return _rankedEligibleMut()&&!mutList().length;};
+
+/* ---------- interface ---------- */
+function mutBadge(){
+ let el=$('mutBadge');
+ if(!el){el=document.createElement('div');el.id='mutBadge';$('hud').appendChild(el);}
+ const l=MUTS.filter(m=>MUT.on[m.k]);
+ el.style.display=l.length?'':'none';
+ el.innerHTML=l.map(m=>'<span title="'+m.n+'">'+m.ic+'</span>').join('');
+}
+function mutSection(){
+ const host=document.querySelector('#tab-play .cfgscroll');if(!host)return;
+ let sec=$('mutSec');
+ if(!sec){
+  sec=document.createElement('div');sec.id='mutSec';sec.className='csec';
+  const adv=host.querySelector('details.adv');if(adv)host.insertBefore(sec,adv);else host.appendChild(sec);
+ }
+ const n=mutList().length;
+ sec.innerHTML='<h4>MODIFICATEURS'+(n?' <em>'+n+' actif'+(n>1?'s':'')+'</em>':'')+'</h4><div class="mutgrid">'+
+  MUTS.map(m=>'<div class="mutc'+(cfg.mut[m.k]?' on':'')+'" data-k="'+m.k+'" title="'+m.d+'"><i>'+m.ic+'</i><b>'+m.n+'</b><span>'+m.d+'</span></div>').join('')+
+  '</div><div class="mutnote">Solo uniquement · ne compte pas pour le classé</div>';
+ sec.querySelectorAll('.mutc').forEach(c=>c.onclick=()=>{
+  const k=c.dataset.k;if(cfg.mut[k])delete cfg.mut[k];else cfg.mut[k]=1;
+  if(typeof initAudio==='function')initAudio();if(typeof sfxUI==='function')sfxUI();
+  saveCfg();mutSection();if(typeof updSummary==='function')updSummary();
+ });
+}
+const _drawMenuMut=drawMenu;
+drawMenu=function(){_drawMenuMut.apply(this,arguments);try{mutSection();}catch(e){console.error(e);}};
+const _updSummaryMut=updSummary;
+updSummary=function(){
+ _updSummaryMut.apply(this,arguments);
+ const e=$('sumbar'),l=mutList();if(!e||!l.length)return;
+ e.insertAdjacentHTML('beforeend','<div class="mutsum">'+l.map(m=>m.ic+' '+m.n).join(' · ')+'</div>');
+};
+(function(){const s=document.createElement('style');s.textContent=`
+#mutSec h4 em{font-style:normal;color:#ffd23a;margin-left:6px;letter-spacing:1px}
+.mutgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.mutc{display:grid;grid-template-columns:28px 1fr;align-items:center;column-gap:6px;padding:7px 8px;border:2px solid #ffffff12;border-radius:8px;background:#0f1726;cursor:pointer;transition:.15s}
+.mutc:hover{background:#152036;transform:translateY(-1px)}
+.mutc i{font-style:normal;font-size:1.25rem;grid-row:span 2;text-align:center;filter:grayscale(.7);opacity:.7;transition:.15s}
+.mutc b{font-size:.68rem;letter-spacing:1px;text-transform:uppercase;color:#cfd8e6}
+.mutc span{font-size:.6rem;color:#7f90aa;line-height:1.2}
+.mutc.on{border-color:#ffd23a;background:color-mix(in srgb,#ffd23a 14%,#0f1726);box-shadow:0 0 18px -8px #ffd23a}
+.mutc.on i{filter:none;opacity:1;transform:scale(1.12)}
+.mutc.on b{color:#fff}
+.mutnote{font-size:.6rem;color:#6d7e98;margin-top:6px;letter-spacing:1px}
+.mutsum{font-size:.72rem;color:#ffd23a;margin-top:3px}
+#mutBadge{position:absolute;top:12px;left:12px;display:flex;gap:4px;pointer-events:none}
+#mutBadge span{width:26px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:6px;background:#000a;border:1px solid #ffd23a88;font-size:.9rem}
+`;document.head.appendChild(s);})();
+/* =====================================================================
+   MODE PHOTO (façon Fortnite / Call of Duty Théâtre)
+   Depuis le menu pause : bouton « MODE PHOTO ».
+   - La partie reste figée (en solo), l'interface disparaît.
+   - Caméra libre : ZQSD / WASD ou flèches pour bouger, glisser la souris
+     pour regarder, Espace / C pour monter / descendre, Maj = plus vite,
+     molette = zoom, curseurs zoom et inclinaison.
+   - Filtres : Aucun, Noir et blanc, Sépia, Cinéma, Éclatant, Nocturne,
+     Rétro. Ton soldat est visible pour les photos.
+   - « CAPTURER » (ou Entrée) enregistre l'image en PNG.
+   - Échap ou « RETOUR » revient au menu pause.
+   ===================================================================== */
+const PH={on:false,x:0,y:0,z:0,yaw:0,pit:0,roll:0,fov:60,filter:0,keys:{},drag:null,last:0,raf:0,pVis:false};
+const PH_FILTERS=[
+ {n:'Aucun',f:''},
+ {n:'Noir et blanc',f:'grayscale(1) contrast(1.25) brightness(1.05)'},
+ {n:'Sépia',f:'sepia(.85) contrast(1.1) brightness(1.05)'},
+ {n:'Cinéma',f:'contrast(1.18) saturate(.82) brightness(.95)',bars:true},
+ {n:'Éclatant',f:'saturate(1.7) contrast(1.12)'},
+ {n:'Nocturne',f:'hue-rotate(175deg) saturate(.55) brightness(.75) contrast(1.3)'},
+ {n:'Rétro',f:'sepia(.35) saturate(1.4) hue-rotate(-12deg) contrast(.92) brightness(1.08)',vig:true}
+];
+function phBuild(){
+ if($('photoUI'))return;
+ const d=document.createElement('div');d.id='photoUI';
+ d.innerHTML='<div class="phbars"><i></i><i></i></div><div class="phvig"></div><div class="phflash"></div>'+
+  '<div class="phtop">📷 MODE PHOTO</div>'+
+  '<div class="phhelp">ZQSD / flèches : bouger · Glisser : regarder · Espace / C : monter / descendre · Maj : vite · Molette : zoom · Entrée : capturer · Échap : retour</div>'+
+  '<div class="phbar"><div class="phf"></div><label>ZOOM <input type="range" id="phFov" min="15" max="100" step="1"></label>'+
+  '<label>INCLINAISON <input type="range" id="phRoll" min="-30" max="30" step="1"></label>'+
+  '<button class="btn alt cut" id="phHide">MASQUER</button><button class="btn cut" id="phShot">📸 CAPTURER</button><button class="btn alt cut" id="phBack">RETOUR</button></div>';
+ document.body.appendChild(d);
+ const f=d.querySelector('.phf');
+ PH_FILTERS.forEach((x,i)=>{const b=document.createElement('button');b.textContent=x.n;b.onclick=()=>{PH.filter=i;phApply();};f.appendChild(b);});
+ $('phFov').oninput=e=>{PH.fov=+e.target.value;};
+ $('phRoll').oninput=e=>{PH.roll=+e.target.value*RAD;};
+ $('phShot').onclick=phShot;$('phBack').onclick=phExit;
+ $('phHide').onclick=()=>{d.classList.toggle('bare');};
+ d.addEventListener('mousedown',e=>{if(e.target.closest('.phbar'))return;PH.drag={x:e.clientX,y:e.clientY};d.classList.add('grab');});
+ d.addEventListener('wheel',e=>{PH.fov=clamp(PH.fov+(e.deltaY>0?3:-3),15,100);$('phFov').value=PH.fov;e.preventDefault();},{passive:false});
+}
+addEventListener('mousemove',e=>{if(!PH.on||!PH.drag)return;const s=.0042*(PH.fov/60);PH.yaw-=(e.clientX-PH.drag.x)*s;PH.pit=clamp(PH.pit-(e.clientY-PH.drag.y)*s,-1.5,1.5);PH.drag={x:e.clientX,y:e.clientY};});
+addEventListener('mouseup',()=>{if(!PH.on)return;PH.drag=null;const d=$('photoUI');if(d)d.classList.remove('grab');});
+// en mode photo, les clics et les touches ne vont pas au jeu (sinon la souris serait recapturée et la partie reprendrait)
+addEventListener('mousedown',e=>{if(PH.on)e.stopPropagation();},true);
+addEventListener('keydown',e=>{
+ if(!PH.on)return;e.stopPropagation();
+ if(e.target&&e.target.tagName==='INPUT'&&e.code!=='Escape'&&e.code!=='Enter')return;
+ e.preventDefault();
+ if(e.code==='Escape'){phExit();return;}
+ if(e.code==='Enter'||e.code==='NumpadEnter'){phShot();return;}
+ if(e.code==='KeyH'){$('photoUI').classList.toggle('bare');return;}
+ PH.keys[e.code]=true;
+},true);
+addEventListener('keyup',e=>{if(!PH.on)return;e.stopPropagation();PH.keys[e.code]=false;},true);
+
+function phEnter(){
+ if(!G.running||PH.on)return;
+ phBuild();
+ PH.on=true;PH.keys={};PH.drag=null;PH.roll=0;
+ PH.x=camera.position.x;PH.y=camera.position.y;PH.z=camera.position.z;
+ const r=new THREE.Euler().setFromQuaternion(camera.quaternion,'YXZ');PH.yaw=r.y;PH.pit=r.x;PH.fov=Math.round(camera.fov);
+ $('phFov').value=PH.fov;$('phRoll').value=0;
+ $('pause').classList.remove('show');$('hud').style.visibility='hidden';
+ const d=$('photoUI');d.classList.remove('bare');d.classList.add('show');
+ if(P&&P.rig){PH.pVis=P.rig.root.visible;if(P.alive)P.rig.root.visible=true;}
+ if(typeof VM!=='undefined'&&VM.root)VM.root.visible=false;
+ phApply();PH.last=performance.now();cancelAnimationFrame(PH.raf);PH.raf=requestAnimationFrame(phTick);
+ if(typeof sfxUI==='function')sfxUI();
+}
+function phExit(){
+ if(!PH.on)return;
+ PH.on=false;cancelAnimationFrame(PH.raf);
+ $('photoUI').classList.remove('show');$('hud').style.visibility='';
+ renderer.domElement.style.filter='';
+ if(P&&P.rig)P.rig.root.visible=P.alive?PH.pVis:P.rig.root.visible;
+ if(G.running&&G.paused)$('pause').classList.add('show');
+}
+function phApply(){
+ const F=PH_FILTERS[PH.filter],d=$('photoUI');
+ renderer.domElement.style.filter=F.f;
+ d.classList.toggle('cine',!!F.bars);d.classList.toggle('vig',!!F.vig);
+ d.querySelectorAll('.phf button').forEach((b,i)=>b.classList.toggle('on',i===PH.filter));
+}
+function phTick(){
+ if(!PH.on)return;PH.raf=requestAnimationFrame(phTick);
+ const now=performance.now(),dt=Math.min(.05,(now-PH.last)/1000);PH.last=now;
+ const k=PH.keys,sp=(k.ShiftLeft||k.ShiftRight?14:4.5)*dt;
+ let f=0,s=0,u=0;
+ if(k.KeyW||k.KeyZ||k.ArrowUp)f++;if(k.KeyS||k.ArrowDown)f--;
+ if(k.KeyD||k.ArrowRight)s++;if(k.KeyA||k.KeyQ||k.ArrowLeft)s--;
+ if(k.Space)u++;if(k.KeyC||k.ControlLeft)u--;
+ const cy=Math.cos(PH.yaw),sy=Math.sin(PH.yaw),cp=Math.cos(PH.pit);
+ PH.x+=(-sy*cp*f+cy*s)*sp;PH.z+=(-cy*cp*f-sy*s)*sp;PH.y+=(Math.sin(PH.pit)*f+u)*sp;
+ PH.y=Math.max(groundH(PH.x,PH.z)+.25,PH.y);
+ // on reste dans la carte
+ const lim=N*S;PH.x=clamp(PH.x,-10,lim+10);PH.z=clamp(PH.z,-10,lim+10);
+}
+// la caméra suit le mode photo
+const _placeCameraPh=placeCamera;
+placeCamera=function(dt,t){
+ if(!PH.on)return _placeCameraPh(dt,t);
+ camera.position.set(PH.x,PH.y,PH.z);camera.rotation.order='YXZ';camera.rotation.set(PH.pit,PH.yaw,PH.roll);
+ camera.fov=PH.fov;camera.updateProjectionMatrix();
+};
+// pas d'arme en vue subjective pendant les photos
+const _vmUpdatePh=vmUpdate;
+vmUpdate=function(dt,t,ent){if(PH.on){VM.root.visible=false;return;}return _vmUpdatePh(dt,t,ent);};
+function phShot(){
+ const F=PH_FILTERS[PH.filter],src=renderer.domElement;
+ render(0,performance.now()/1000); // image fraîche : on la copie avant que le navigateur n'efface le tampon
+ const W0=src.width,H0=src.height,c=document.createElement('canvas');c.width=W0;c.height=H0;const g=c.getContext('2d');
+ g.filter=F.f||'none';g.drawImage(src,0,0);g.filter='none';
+ if(F.vig){const r=g.createRadialGradient(W0/2,H0/2,Math.min(W0,H0)*.35,W0/2,H0/2,Math.max(W0,H0)*.75);r.addColorStop(0,'rgba(0,0,0,0)');r.addColorStop(1,'rgba(20,8,0,.6)');g.fillStyle=r;g.fillRect(0,0,W0,H0);}
+ if(F.bars){const h=Math.round(H0*.11);g.fillStyle='#000';g.fillRect(0,0,W0,h);g.fillRect(0,H0-h,W0,h);}
+ // petite signature en bas à droite
+ g.font='800 '+Math.round(H0*.022)+'px Bahnschrift,Arial';g.textAlign='right';g.fillStyle='rgba(255,255,255,.75)';g.shadowColor='#000';g.shadowBlur=6;
+ g.fillText('STRIKE ARENA · '+(MAP&&MAP.n?MAP.n.toUpperCase():''),W0-H0*.03,H0-H0*.03-(F.bars?Math.round(H0*.11):0));
+ const a=document.createElement('a');const d=new Date(),p=n=>String(n).padStart(2,'0');
+ a.download='strike-arena-'+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds())+'.png';
+ a.href=c.toDataURL('image/png');a.click();
+ const fl=document.querySelector('#photoUI .phflash');fl.classList.remove('go');void fl.offsetWidth;fl.classList.add('go');
+ if(typeof sfx==='function')sfx('click');
+ PH.lastShot=c;
+}
+// bouton dans le menu pause
+(function(){
+ const row=document.querySelector('#pause .row');if(!row)return;
+ const b=document.createElement('button');b.className='btn alt cut';b.id='photoBtn';b.textContent='📷 MODE PHOTO';b.onclick=phEnter;
+ row.insertBefore(b,row.children[1]||null);
+})();
+// on quitte proprement si la partie s'arrête
+const _toMenuPh=toMenu;
+toMenu=function(){if(PH.on)phExit();return _toMenuPh.apply(this,arguments);};
+(function(){const s=document.createElement('style');s.textContent=`
+#photoUI{position:fixed;inset:0;z-index:60;display:none;cursor:grab;user-select:none}
+#photoUI.show{display:block}
+#photoUI.grab{cursor:grabbing}
+#photoUI .phtop{position:absolute;top:16px;left:50%;transform:translateX(-50%);font:900 1rem Bahnschrift,Arial;letter-spacing:4px;color:#fff;text-shadow:0 2px 8px #000;padding:6px 16px;border-radius:999px;background:#0007;border:1px solid #ffffff22}
+#photoUI .phhelp{position:absolute;top:56px;left:50%;transform:translateX(-50%);font-size:.7rem;color:#c8d3e6;text-shadow:0 1px 4px #000;white-space:nowrap}
+#photoUI .phbar{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:center;max-width:94vw;padding:12px 16px;border-radius:14px;background:#0a1020cc;border:1px solid #ffffff1a;backdrop-filter:blur(8px);cursor:default}
+#photoUI .phf{display:flex;gap:6px;flex-wrap:wrap}
+#photoUI .phf button{background:#16203a;color:#cfd8e6;border:2px solid #ffffff14;border-radius:8px;padding:7px 10px;font:800 .66rem Bahnschrift,Arial;letter-spacing:1px;cursor:pointer;text-transform:uppercase}
+#photoUI .phf button.on{border-color:#ffd23a;color:#fff;background:#2a2a18}
+#photoUI label{font:800 .62rem Bahnschrift,Arial;letter-spacing:2px;color:#8da0bd;display:flex;align-items:center;gap:6px}
+#photoUI input[type=range]{width:90px;accent-color:#ffd23a}
+#photoUI .btn{padding:9px 14px;font-size:.8rem}
+#photoUI.bare .phbar,#photoUI.bare .phhelp,#photoUI.bare .phtop{display:none}
+#photoUI .phbars i{position:absolute;left:0;right:0;height:11%;background:#000;display:none}
+#photoUI .phbars i:first-child{top:0}#photoUI .phbars i:last-child{bottom:0}
+#photoUI.cine .phbars i{display:block}
+#photoUI .phvig{position:absolute;inset:0;pointer-events:none;display:none;background:radial-gradient(ellipse at center,transparent 45%,rgba(20,8,0,.6) 100%)}
+#photoUI.vig .phvig{display:block}
+#photoUI .phflash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
+#photoUI .phflash.go{animation:phFlash .45s ease-out}
+@keyframes phFlash{0%{opacity:.85}100%{opacity:0}}
+`;document.head.appendChild(s);})();
+/* =====================================================================
    BOUCLE PRINCIPALE
    ===================================================================== */
 function update(dt){
