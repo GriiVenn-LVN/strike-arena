@@ -7,8 +7,10 @@
    Réutilise CINE (65_cine.js) : CINE.heli porte le véhicule, CINE.seats
    les coéquipiers, endCine() remet tout en place.
    ===================================================================== */
-const CAR_INDOOR={metro:1,labo:1,asile:1};
-function carWanted(){return !!(MAP&&(CAR_INDOOR[MAP.id]||ceilAt(P.x,P.z)<90));}
+// carte -> véhicule (modèles Blender de tools/blender/vehicles.py) ; les autres cartes gardent l'hélicoptère
+const CAR_MAPS={metro:'blinde',labo:'blinde',asile:'blinde',harbor:'blinde',village:'camion_sable',station:'camion_vert'};
+function carKind(){return MAP&&CAR_MAPS[MAP.id]||'blinde';}
+function carWanted(){return !!(MAP&&(CAR_MAPS[MAP.id]||ceilAt(P.x,P.z)<90));}
 function carPaintTex(){return cached('carPaint',()=>canvasTex(128,128,(c,w,h)=>{
  c.fillStyle='#2a2f2a';c.fillRect(0,0,w,h);
  for(let i=0;i<1400;i++){c.fillStyle='rgba('+(Math.random()<.5?'255,255,255':'0,0,0')+','+rand(.02,.06)+')';c.fillRect(rand(0,w),rand(0,h),rand(.5,1.5),rand(.5,1.5));}
@@ -99,6 +101,111 @@ function makeCar(){
  g.traverse(o=>{if(o.isMesh&&o.material!==glass)o.castShadow=true;});
  return carModel=g;
 }
+
+/* ---------- véhicules modélisés dans Blender (GLB intégré : VEH_DATA / VEH_INFO) ----------
+   Les pièces fixes sont fusionnées par matériau (peu d'appels de dessin) ; roues, portes, hayon
+   et gyrophares restent des objets séparés pour être animés. Les matériaux sont reconnus par leur
+   nom (paint, tarp, inner…) et reçoivent les textures du jeu ; UV en projection cubique. */
+function vehPaintTex(base,rivets){return cached('vpaint'+base+rivets,()=>canvasTex(128,128,(c,w,h)=>{
+ c.fillStyle=base;c.fillRect(0,0,w,h);
+ for(let i=0;i<1600;i++){c.fillStyle='rgba('+(Math.random()<.5?'255,255,255':'0,0,0')+','+rand(.02,.06)+')';c.fillRect(rand(0,w),rand(0,h),rand(.5,1.5),rand(.5,1.5));}
+ blotches(c,w,h,10,'90,80,60',.14,6,22);                                            // poussière
+ for(let i=0;i<26;i++){c.strokeStyle='rgba(255,255,255,'+rand(.05,.14)+')';c.lineWidth=rand(.4,.9);const x=rand(0,w),y=rand(0,h);c.beginPath();c.moveTo(x,y);c.lineTo(x+rand(-9,9),y+rand(-3,3));c.stroke();}   // rayures
+ c.fillStyle='rgba(0,0,0,.35)';c.fillRect(0,63,w,1.2);c.fillRect(63,0,1.2,h);          // joints de tôle
+ if(rivets){c.fillStyle='rgba(0,0,0,.45)';for(let y=8;y<h;y+=30)for(let x=6;x<w;x+=30){c.beginPath();c.arc(x,y,1.3,0,TAU);c.fill();}}
+ const g=c.createLinearGradient(0,h*.7,0,h);g.addColorStop(0,'rgba(70,55,35,0)');g.addColorStop(1,'rgba(70,55,35,.35)');c.fillStyle=g;c.fillRect(0,0,w,h);   // boue en bas
+},true));}
+function vehTarpTex(base){return cached('vtarp'+base,()=>canvasTex(128,128,(c,w,h)=>{
+ c.fillStyle=base;c.fillRect(0,0,w,h);
+ for(let y=0;y<h;y+=2){c.fillStyle='rgba(0,0,0,'+rand(.03,.08)+')';c.fillRect(0,y,w,1);}
+ for(let x=0;x<w;x+=2){c.fillStyle='rgba(255,255,255,'+rand(.02,.05)+')';c.fillRect(x,0,1,h);}    // trame de la toile
+ blotches(c,w,h,8,'40,32,20',.16,5,20);blotches(c,w,h,5,'255,250,230',.06,8,26);           // taches, usure
+ c.strokeStyle='rgba(0,0,0,.3)';c.lineWidth=1;for(let y=20;y<h;y+=42){c.beginPath();c.moveTo(0,y);c.lineTo(w,y+rand(-2,2));c.stroke();}  // coutures
+},true));}
+const VEH_T={};
+function vehMat(name,pb,kind){
+ const col=new THREE.Color().fromArray(pb.baseColorFactor||[.5,.5,.5]),mr=pb.metallicFactor!==undefined?pb.metallicFactor:0,ro=pb.roughnessFactor!==undefined?pb.roughnessFactor:.6;
+ const E=(c,i)=>new THREE.MeshStandardMaterial({color:col,emissive:C(c),emissiveIntensity:i,roughness:.3});
+ const sand=kind==='camion_sable';
+ switch(name){
+  case 'paint':{const t=kind==='blinde'?vehPaintTex('#2c312e',1):vehPaintTex(sand?'#a08f68':'#5c6650',0);t.repeat.set(.6,.6);
+   return new THREE.MeshStandardMaterial(Object.assign({map:t,roughness:kind==='blinde'?.5:.75,metalness:kind==='blinde'?.45:.25},reliefOf(t,3)));}
+  case 'tarp':{const t=vehTarpTex(sand?'#b4a37c':'#5d6648');t.repeat.set(.7,.7);
+   return new THREE.MeshStandardMaterial(Object.assign({map:t,roughness:.97,side:THREE.DoubleSide},reliefOf(t,2)));}
+  case 'inner':return new THREE.MeshStandardMaterial({map:carInTex(),roughness:.85,metalness:.3});
+  case 'floor':return new THREE.MeshStandardMaterial({map:heliFloorTex(),roughness:.95});
+  case 'wood':{const t=woodTex().clone();t.needsUpdate=true;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(2.5,2.5);return new THREE.MeshStandardMaterial({map:t,roughness:.85});}
+  case 'glass':return new THREE.MeshStandardMaterial({color:C(0x1a2630),roughness:.05,metalness:.8,transparent:true,opacity:.35,depthWrite:false,side:THREE.DoubleSide});
+  case 'headlight':return E(0xfff4dd,2.2);
+  case 'taillight':return E(0xff2010,1.4);
+  case 'amber':return E(0xff8a10,1.2);
+  case 'beacon_L':return new THREE.MeshStandardMaterial({color:C(0x001a55),emissive:C(0x2a6bff),emissiveIntensity:0});
+  case 'beacon_R':return new THREE.MeshStandardMaterial({color:C(0x550000),emissive:C(0xff2a2a),emissiveIntensity:0});
+ }
+ return new THREE.MeshStandardMaterial({color:col,metalness:mr,roughness:ro});
+}
+// UV par projection cubique (axe dominant de la normale), en mètres
+function vehBoxUV(pos,nrm,sc){
+ const n=pos.length/3,uv=new Float32Array(n*2);
+ for(let i=0;i<n;i++){const ax=Math.abs(nrm[i*3]),ay=Math.abs(nrm[i*3+1]),az=Math.abs(nrm[i*3+2]),x=pos[i*3],y=pos[i*3+1],z=pos[i*3+2];
+  if(ax>=ay&&ax>=az){uv[i*2]=z*sc;uv[i*2+1]=y*sc;}else if(ay>=az){uv[i*2]=x*sc;uv[i*2+1]=z*sc;}else{uv[i*2]=x*sc;uv[i*2+1]=y*sc;}}
+ return uv;
+}
+const VEH_ANIM=/^(wheel_|door_|tailgate|beacon_)/;
+function loadVehicle(kind){
+ const file=kind.startsWith('camion')?'camion':kind;
+ if(typeof VEH_DATA==='undefined'||!VEH_DATA[file])return null;
+ const buf=b64buf(VEH_DATA[file]),dv=new DataView(buf),jl=dv.getUint32(12,true);
+ const json=JSON.parse(new TextDecoder().decode(new Uint8Array(buf,20,jl)));
+ const bl=dv.getUint32(20+jl,true),bin=buf.slice(28+jl,28+jl+bl);
+ const TY={5126:Float32Array,5125:Uint32Array,5123:Uint16Array,5121:Uint8Array},NC={SCALAR:1,VEC2:2,VEC3:3,VEC4:4};
+ const acc=i=>{const a=json.accessors[i],bv=json.bufferViews[a.bufferView],T=TY[a.componentType],o=(bv.byteOffset||0)+(a.byteOffset||0);return new T(bin.slice(o,o+a.count*NC[a.type]*T.BYTES_PER_ELEMENT));};
+ const mats=json.materials.map(m=>vehMat(m.name,m.pbrMetallicRoughness||{},kind));
+ const g=new THREE.Group(),U=g.userData,parts={},buckets=new Map();
+ // triangles d'une primitive, transformés par M, versés dans le seau de son matériau (ou un maillage à part)
+ const prim=(p,M,into)=>{
+  const P0=acc(p.attributes.POSITION),N0=acc(p.attributes.NORMAL),I=p.indices!==undefined?acc(p.indices):null,cnt=I?I.length:P0.length/3;
+  const pos=new Float32Array(cnt*3),nrm=new Float32Array(cnt*3),v=new THREE.Vector3(),nm=new THREE.Matrix3().getNormalMatrix(M);
+  for(let k=0;k<cnt;k++){const j=I?I[k]:k;v.set(P0[j*3],P0[j*3+1],P0[j*3+2]).applyMatrix4(M);pos[k*3]=v.x;pos[k*3+1]=v.y;pos[k*3+2]=v.z;
+   v.set(N0[j*3],N0[j*3+1],N0[j*3+2]).applyMatrix3(nm).normalize();nrm[k*3]=v.x;nrm[k*3+1]=v.y;nrm[k*3+2]=v.z;}
+  const mi=p.material||0;if(!into.has(mi))into.set(mi,[]);into.get(mi).push([pos,nrm]);
+ };
+ const flush=(into,parent)=>{for(const [mi,L] of into){
+  let n=0;for(const [a] of L)n+=a.length;const pos=new Float32Array(n),nrm=new Float32Array(n);let o=0;for(const [a,b] of L){pos.set(a,o);nrm.set(b,o);o+=a.length;}
+  const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(pos,3));geo.setAttribute('normal',new THREE.BufferAttribute(nrm,3));
+  geo.setAttribute('uv',new THREE.BufferAttribute(vehBoxUV(pos,nrm,.5),2));
+  const m=new THREE.Mesh(geo,mats[mi]);m.castShadow=!mats[mi].transparent;m.receiveShadow=true;parent.add(m);}};
+ const walk=(ni,PM)=>{
+  const n=json.nodes[ni],L=new THREE.Matrix4().compose(V3().fromArray(n.translation||[0,0,0]),new THREE.Quaternion().fromArray(n.rotation||[0,0,0,1]),V3().fromArray(n.scale||[1,1,1]));
+  const M=PM.clone().multiply(L);
+  if(n.mesh!==undefined){
+   if(VEH_ANIM.test(n.name||'')){
+    // pièce animée : son propre groupe à son pivot, géométrie en local
+    const pg=new THREE.Group();pg.position.setFromMatrixPosition(M);g.add(pg);parts[n.name]=pg;
+    const loc=new Map();for(const p of json.meshes[n.mesh].primitives)prim(p,new THREE.Matrix4().extractRotation(M),loc);flush(loc,pg);
+   }else for(const p of json.meshes[n.mesh].primitives)prim(p,M,buckets);
+  }
+  for(const c of n.children||[])walk(c,M);
+ };
+ for(const ni of json.scenes[json.scene||0].nodes)walk(ni,new THREE.Matrix4());
+ flush(buckets,g);
+ const I=VEH_INFO[file]||{};
+ U.kind=kind;U.CF=I.CF;U.CW=I.W;U.Z1=I.rear;U.wheelR=I.wheelR||.5;U.tailgate=parts.tailgate||null;
+ U.doors=[parts.door_L,parts.door_R].filter(Boolean);
+ U.wheels=['wheel_FL','wheel_FR','wheel_RL','wheel_RR'].map(k=>parts[k]).filter(Boolean);
+ U.beacons=['beacon_L','beacon_R'].filter(k=>parts[k]).map(k=>parts[k].children[0].material);
+ U.seats=I.seats;U.player=I.player;U.driver=I.driver;
+ // halo des phares
+ const hz=-(file==='blinde'?3.08:3.25),hy=file==='blinde'?1.36:1.25,hx=file==='blinde'?.8:.85;
+ for(const s of [-1,1]){const gl=new THREE.Sprite(new THREE.SpriteMaterial({map:GLOW.white,blending:THREE.AdditiveBlending,transparent:true,depthWrite:false,opacity:.75}));gl.scale.set(1.5,1.5,1);gl.position.set(s*hx,hy,hz-.15);g.add(gl);}
+ return g;
+}
+const VEH_CACHE={};
+function makeVehicle(){
+ const k=carKind();
+ if(cfg.vehGlb!==0&&VEH_CACHE[k]===undefined){try{VEH_CACHE[k]=loadVehicle(k);}catch(e){console.warn('véhicule',k,e);VEH_CACHE[k]=null;}}
+ return cfg.vehGlb!==0&&VEH_CACHE[k]||makeCar();
+}
 // ruban de route (asphalte + accotements) sur lequel roule le véhicule
 function carRoad(E,u,len){
  const t=roadTex();t.repeat.set(1,len/7);
@@ -109,10 +216,25 @@ function carRoad(E,u,len){
  for(const s of [-1,1]){const k=new THREE.Mesh(GBOX,kerb);k.scale.set(.3,.18,len);k.rotation.y=Math.atan2(u.x,u.z);k.position.set(m.position.x+u.z*s*3.65,.09,m.position.z-u.x*s*3.65);g.add(k);}
  return g;
 }
+// dégage le couloir de la route : décors hors carte (immeubles de l'horizon, pins, minarets…) masqués le temps de la cinématique
+function carClear(E,u,n){
+ const hid=[],m4=new THREE.Matrix4(),p=V3(),q=new THREE.Quaternion(),sc=V3(),Z=new THREE.Matrix4().makeScale(0,0,0);
+ const inside=(x,z,r)=>{const dn=(x-E.x)*n.x+(z-E.z)*n.z,du=-((x-E.x)*u.x+(z-E.z)*u.z);return dn>-4.5&&dn<11+r&&du>-30-r&&du<135+r;};
+ for(const o of worldG.children){
+  if(o.isInstancedMesh){let ch=0;const keep=[];
+   for(let i=0;i<o.count;i++){o.getMatrixAt(i,m4);m4.decompose(p,q,sc);if(inside(p.x,p.z,Math.max(sc.x,sc.z)*2.5)){keep.push([i,m4.clone()]);o.setMatrixAt(i,Z);ch=1;}}
+   if(ch){o.instanceMatrix.needsUpdate=true;hid.push({o,keep});}
+  }else if(o.visible&&!o.isLight){const M=N*S,ps=o.position;
+   if((ps.x<-1||ps.x>M+1||ps.z<-1||ps.z>M+1)&&inside(ps.x,ps.z,4)){o.visible=false;hid.push({o});}}
+ }
+ return hid;
+}
+function carRestore(hid){for(const h of hid||[]){if(h.keep){for(const [i,m] of h.keep)h.o.setMatrixAt(i,m);h.o.instanceMatrix.needsUpdate=true;}else h.o.visible=true;}}
 function startCarCine(){
- CINE.on=true;CINE.t=0;CINE.skipped=false;CINE.team=P.team;CINE.car=true;CINE.covered=true;CINE.dur=9.2;
- const H=makeCar();scene.add(H);CINE.heli=H;
- for(const d of H.userData.doors)d.rotation.y=0;
+ CINE.on=true;CINE.t=0;CINE.skipped=false;CINE.team=P.team;CINE.car=true;CINE.covered=true;CINE.dur=9.9;
+ const H=makeVehicle();scene.add(H);CINE.heli=H;
+ const HU=H.userData;
+ for(const d of HU.doors)d.rotation.y=0;if(HU.tailgate)HU.tailgate.rotation.x=0;
  // arrêt : juste à l'extérieur du bord de carte le plus proche du camp de l'équipe ; la route longe ce bord
  const roster=ents.filter(e=>e.team===P.team);
  let hx=0,hz=0;for(const e of roster){hx+=e.x;hz+=e.z;}hx/=roster.length||1;hz/=roster.length||1;
@@ -121,20 +243,22 @@ function startCarCine(){
  if(Math.abs(dx)>Math.abs(dz)){const s=dx>0?1:-1;n=V3(s,0,0);E=V3(s>0?M+5:-5,0,clamp(hz,12,M-12));u=V3(0,0,hz<cz?1:-1);}
  else{const s=dz>0?1:-1;n=V3(0,0,s);E=V3(clamp(hx,12,M-12),0,s>0?M+5:-5);u=V3(hx<cx?1:-1,0,0);}
  CINE.E=E;CINE.u=u;CINE.n=n;CINE.yaw=Math.atan2(-u.x,-u.z);CINE.dist=70;
- CINE.road=carRoad(E,u,140);scene.add(CINE.road);
+ CINE.road=carRoad(E,u,140);scene.add(CINE.road);CINE.hid=carClear(E,u,n);
  // chauffeur
  for(const R of CINE.pilots)if(R.root.parent)R.root.parent.remove(R.root);CINE.pilots=[];
  {const look={kind:P.team===0?'t':'ct',acc:PALETTE[P.team===0?5:1],tone:SKIN_TONES[1]};const R=makeSoldier(look);setSoldierGun(R,'usp');R.gunObj.visible=false;
-  R.root.position.set(-.5,H.userData.CF,-1.62);H.add(R.root);CINE.pilots.push(R);}
+  const dp=HU.seats?HU.driver:[-.5,-1.62];
+  if(dp){R.root.position.set(dp[0],HU.CF,dp[1]);H.add(R.root);CINE.pilots.push(R);}}
  // coéquipiers sur les banquettes (le joueur est assis à gauche, au milieu)
  const mates=roster.filter(e=>!e.isPlayer);
- const SEATS=[{x:-.72,z:-.35,f:-Math.PI/2},{x:.72,z:-.35,f:Math.PI/2},{x:.72,z:.55,f:Math.PI/2},{x:.72,z:1.45,f:Math.PI/2}];
+ const SEATS=HU.seats?HU.seats.map(([x,z])=>({x,z,f:x<0?-Math.PI/2:Math.PI/2})):[{x:-.72,z:-.35,f:-Math.PI/2},{x:.72,z:-.35,f:Math.PI/2},{x:.72,z:.55,f:Math.PI/2},{x:.72,z:1.45,f:Math.PI/2}];
+ CINE.pp=HU.player?{x:HU.player[0],z:HU.player[1]}:{x:-.68,z:.55};   // place du joueur
  CINE.seats=[];
  mates.forEach((e,i)=>{
   e.cineSeat=true;e.seated=1;
   const st=SEATS[i];if(!st){e.cineSeat=false;e.seated=0;e.rig.root.visible=false;CINE.seats.push({e,hidden:true});return;}
   H.add(e.rig.root);e.rig.root.position.set(st.x,H.userData.CF,st.z);e.rig.root.rotation.set(0,st.f,0);e.y=H.userData.CF;
-  CINE.seats.push({e,x:st.x,z:st.z,f:st.f,drop:6.7+i*.35});
+  CINE.seats.push({e,x:st.x,z:st.z,f:st.f,drop:6.3+i*.3});
  });
  for(const e of ents){if(!e.cineSeat&&e.rig)e.rig.root.visible=false;const ol=e.rig&&e.rig.root.userData.ol;if(ol)for(const o of ol)o.visible=false;}
  CINE.ropes=[];CINE.hands=null;
@@ -155,8 +279,8 @@ function startEngine(){
 }
 const CAR_STOP=6.0;
 function carDist(T){const k=clamp(T/CAR_STOP,0,1);return CINE.dist*(1-(1-(1-k)*(1-k)));}   // distance restant avant l'arrêt
-const CLOOKA=[[2.4,.05],[3.3,-.1],[4.3,-1.15],[5.3,-1.25],[6.0,-.2],[6.6,2.6]];
-const CLOOKP=[[2.4,-.08],[3.3,-.1],[4.3,-.22],[5.3,-.2],[6.0,-.1],[6.6,-.05]];
+const CLOOKA=[[2.4,.05],[3.3,-.1],[4.3,-1.15],[5.3,-1.25],[6.0,-.2],[6.8,2.6]];
+const CLOOKP=[[2.4,-.08],[3.3,-.1],[4.3,-.22],[5.3,-.2],[6.0,-.1],[6.8,-.12]];
 function updateCarCine(dt,t){
  CINE.t+=dt;const T=CINE.t,H=CINE.heli,U=H.userData,E=CINE.E,u=CINE.u,n=CINE.n;
  const d=carDist(T),d2=carDist(T+.05),v=(d-d2)/.05;
@@ -165,10 +289,11 @@ function updateCarCine(dt,t){
  const brake=T>CAR_STOP-1.6&&T<CAR_STOP+.4?Math.sin(clamp((T-(CAR_STOP-1.6))/2,0,1)*Math.PI)*.025:0;
  H.position.y=Math.sin(T*11)*.012*Math.min(1,v/8);
  _he.set(-brake+Math.sin(T*7.3)*.003*Math.min(1,v/8),CINE.yaw,Math.sin(T*5.1)*.004*Math.min(1,v/8),'YXZ');H.quaternion.setFromEuler(_he);
- for(const w of U.wheels)w.rotation.x-=v*dt/.48;
- for(let i=0;i<2;i++)U.beacons[i].emissiveIntensity=((T*3+i*.5)%1)<.5?2.5:0;
- // portes arrière qui s'ouvrent
- const ko=easeIO((T-6.2)/.7);U.doors[0].rotation.y=-ko*1.9;U.doors[1].rotation.y=ko*1.9;
+ for(const w of U.wheels)w.rotation.x-=v*dt/(U.wheelR||.48);
+ U.beacons.forEach((b,i)=>b.emissiveIntensity=((T*3+i*.5)%1)<.5?2.5:0);
+ // portes arrière qui s'ouvrent (ou hayon du camion qui s'abaisse)
+ const ko=easeIO((T-6.0)/.7);if(U.doors.length===2){U.doors[0].rotation.y=-ko*1.9;U.doors[1].rotation.y=ko*1.9;}
+ if(U.tailgate)U.tailgate.rotation.x=ko*1.62;
  H.updateMatrixWorld(true);
  if(CINE.snd)CINE.snd.set(clamp(v/22,0,1));
  for(const R of CINE.pilots)animateSoldier(R,{vx:0,vz:0,yaw:0,pitch:-.05,speed:0,onGround:true,crouch:false,alive:true,reload:0,reloadMax:0,fire:0,ready:1,alert:0,y:U.CF,seated:1},dt,T);
@@ -197,18 +322,18 @@ function updateCarCine(dt,t){
  if(T<2.4){ // plan 1 : au bord de la route, le blindé arrive gyrophares allumés
   const cp=V3(E.x-u.x*18+n.x*6.5,1.1+T*.1,E.z-u.z*18+n.z*6.5);
   camera.position.copy(cp);camera.lookAt(H.position.x,1.3,H.position.z);camera.fov=lerp(38,46,T/2.4);
- }else if(T<6.6){ // plan 2 : assis dans la cellule, on regarde la route puis les coéquipiers
+ }else if(T<7.6){ // plan 2 : assis dans la cellule, on regarde la route puis les coéquipiers
   const a=keyAt(CLOOKA,T),p=keyAt(CLOOKP,T),vib=Math.min(1,v/8);
-  _hp.set(-.68+Math.sin(T*13.1)*.004*vib,U.CF+1.12+Math.sin(T*17.3)*.006*vib,.55);H.localToWorld(_hp);camera.position.copy(_hp);
+  _hp.set(CINE.pp.x+.1+Math.sin(T*13.1)*.004*vib,U.CF+1.12+Math.sin(T*17.3)*.006*vib,CINE.pp.z);H.localToWorld(_hp);camera.position.copy(_hp);
   _he.set(p+Math.sin(T*9.7)*.004*vib,a,Math.sin(T*1.9)*.006,'YXZ');_hq.setFromEuler(_he);
   camera.quaternion.copy(H.quaternion).multiply(_hq);camera.fov=70;
- }else{ // plan 3 : on se lève, on sort par l'arrière et on se tourne vers l'objectif
-  const k=easeIO((T-6.6)/1.6);
-  _hp.set(lerp(-.68,0,k),lerp(U.CF+1.12,1.6,k),lerp(.55,U.Z1+2.2,k));H.localToWorld(_hp);
+ }else{ // plan 3 : les coéquipiers sont descendus ; on se lève, on sort par l'arrière et on se tourne vers l'objectif
+  const k=easeIO((T-7.6)/1.6);
+  _hp.set(lerp(CINE.pp.x+.1,0,k),lerp(U.CF+1.12,1.6,k),lerp(CINE.pp.z,U.Z1+2.2,k));H.localToWorld(_hp);
   camera.position.copy(_hp);
   _he.set(-.08,CINE.yaw+Math.PI,0,'YXZ');_hq.setFromEuler(_he);
   _he.set(-.03,Math.atan2(n.x,n.z),0,'YXZ');_hq2.setFromEuler(_he);
-  camera.quaternion.copy(_hq).slerp(_hq2,easeIO((T-7.6)/1.0));camera.fov=72;
+  camera.quaternion.copy(_hq).slerp(_hq2,easeIO((T-8.6)/1.0));camera.fov=72;
  }
  camera.updateProjectionMatrix();
  lis.x=camera.position.x;lis.z=camera.position.z;lis.yaw=0;
@@ -222,6 +347,6 @@ function updateCarCine(dt,t){
   const car=CINE.car;
   if(car)for(const R of CINE.pilots)if(R.root.parent)R.root.parent.remove(R.root);
   e0();
-  if(car){if(CINE.road){scene.remove(CINE.road);CINE.road=null;}CINE.pilots=[];CINE.car=false;}
+  if(car){if(CINE.road){scene.remove(CINE.road);CINE.road=null;}carRestore(CINE.hid);CINE.hid=null;CINE.pilots=[];CINE.car=false;}
  };
 }

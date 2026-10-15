@@ -32,6 +32,15 @@ for my $k (@rk) { open(my $f, '<:raw', "$rd/$k.glb") or die; local $/; my $b = <
 print "};\nconst GLB_REAL_INFO={\n";
 for my $k (@rk) { open(my $f, '<:raw', "$rd/$k.json") or next; local $/; my $j = <$f>; close $f; $j =~ s/\s+$//; print " $k:$j,\n"; }
 print "};\n";
+# véhicules des arrivées (modélisés par tools/blender/vehicles.py) : models/vehicles/*.glb + .json
+my $vd = 'models/vehicles';
+my @vk = ();
+if (opendir(my $v, $vd)) { @vk = sort map { /^(\w+)\.glb$/ ? $1 : () } readdir($v); closedir $v; }
+print "const VEH_DATA={\n";
+for my $k (@vk) { open(my $f, '<:raw', "$vd/$k.glb") or die; local $/; my $b = <$f>; close $f; print " $k:'", encode_base64($b, ''), "',\n"; }
+print "};\nconst VEH_INFO={\n";
+for my $k (@vk) { open(my $f, '<:raw', "$vd/$k.json") or next; local $/; my $j = <$f>; close $f; $j =~ s/\s+$//; print " $k:$j,\n"; }
+print "};\n";
 sub readcred { my ($p) = @_; open(my $f, '<:raw', $p) or return ''; local $/; my $c = <$f>; close $f; $c =~ s/^\s*\[//; $c =~ s/\]\s*$//; $c =~ s/^\s+|\s+$//g; return $c; }
 my @cr = grep { length } (readcred("$rd/credits_real.json"), readcred("$dir/credits.json"), readcred("models/characters/credits_zombies.json"));
 print "const GLB_CREDITS=[", join(',', @cr), "];\n";
