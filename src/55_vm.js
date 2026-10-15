@@ -213,7 +213,7 @@ function vmUpdate(dt,t,ent){
  // main droite
  if(VM.rackR){_vr.copy(VM.rackR);VM.rackR=null;}
  VM.hR.position.copy(_vr);VM.hR.quaternion.copy(g.quaternion);
- VM.hL.visible=u.twoHand;VM.hL.position.copy(_vl);_vq.copy(g.quaternion);VM.hL.quaternion.copy(_vq);
+ VM.hL.visible=u.twoHand;VM.hL.position.copy(_vl);_vq.copy(g.quaternion);VM.hL.quaternion.copy(_vq);if(typeof leftHold==='function')leftHold(u.leftV&&!(ins&&ins.lh>.3));
  // avant-bras
  // bras en deux segments (épaule -> coude -> main) au lieu d'un seul tube étiré
  const seg=(m,a,b,len)=>{_vl.subVectors(b,a);const L=_vl.length();_vl.divideScalar(L||1);m.position.copy(a);m.quaternion.setFromUnitVectors(_dn,_vl);m.scale.set(1.15,L/len,1.15);};

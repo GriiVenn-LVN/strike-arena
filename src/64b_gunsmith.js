@@ -219,7 +219,7 @@ function attBuild(g,k,sel,opt){
     o.position.set(0,bore,u.muzzle-L/2+.005);add(o,a);u.muzzle-=L-.005;break;}
    case 'grip':{const z=u.left?u.left.z:-.25,b=pr.under(z),o=new THREE.Group();
     o.add(boxA(.022,.012,.04,AM.dark,0,b-.004,z),cylZ(.012,.012,.075,AM.rub,0,b-.045,z,12));o.children[1].rotation.x=0;
-    add(o,a);u.left=V3(u.left?u.left.x:0,b-.05,z);break;}
+    add(o,a);u.left=V3(u.left?u.left.x:0,b-.012,z);u.leftV=true;break;}   // main gauche autour de la poignée verticale
    case 'angled':{const z=u.left?u.left.z:-.25,b=pr.under(z),o=new THREE.Group();
     const p=boxA(.02,.03,.07,AM.dark,0,b-.016,z+.005);p.rotation.x=-.5;o.add(p);o.add(boxA(.022,.008,.075,AM.blk,0,b-.002,z));
     add(o,a);u.left=V3(u.left?u.left.x:0,b-.03,z+.01);break;}
