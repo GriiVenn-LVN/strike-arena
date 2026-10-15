@@ -34,3 +34,9 @@ wonderFire=function(e,w,wi){
  for(const [v,h] of hp)if(v.hp<h||!v.alive){MS.hits++;break;}
  return r;
 };
+// Course aux armes : pas d'achat (une arme achetée faisait monter les niveaux trop vite) ;
+// l'arme vient seulement de l'échelle GG_LADDER
+const _buyItemFix=buyItem;
+buyItem=function(e,k){if(G.mode==='gg')return false;return _buyItemFix.apply(this,arguments);};
+const _openBuyFix=openBuy;
+openBuy=function(){if(G.running&&G.mode==='gg'){uiToast('Course aux armes : pas d\'achat, chaque élimination te donne l\'arme suivante');return;}return _openBuyFix.apply(this,arguments);};
