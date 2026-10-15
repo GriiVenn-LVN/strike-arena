@@ -6346,10 +6346,10 @@ function commitMatch(win){
  const coinsGain=Math.round(xp*.15);
  s.matches++;if(win)s.wins++;s.kills+=P.kills;s.deaths+=P.deaths;s.hs+=P.hsKills;s.dmg+=P.dmg;s.shots+=MS.shots;s.hits+=MS.hits;s.secs+=secs;
  s.bestStreak=Math.max(s.bestStreak,P.bestStreak||0);s.plants+=MS.plants;s.defuses+=MS.defuses;
- const m=(s.byMode[G.mode]||(s.byMode[G.mode]={m:0,w:0,k:0,d:0}));m.m++;if(win)m.w++;m.k+=P.kills;m.d+=P.deaths;
+ const m=(s.byMode[G.variant||G.mode]||(s.byMode[G.variant||G.mode]={m:0,w:0,k:0,d:0}));m.m++;if(win)m.w++;m.k+=P.kills;m.d+=P.deaths;
  const mp=(s.byMap[cfg.map]||(s.byMap[cfg.map]={m:0,w:0}));mp.m++;if(win)mp.w++;
  for(const k in MS.wkills)s.byWeapon[k]=(s.byWeapon[k]||0)+MS.wkills[k];
- PROF.history.unshift({t:Date.now(),mode:G.mode,map:cfg.map,diff:cfg.diff,win:!!win,k:P.kills,d:P.deaths,hs:P.hsKills,dmg:P.dmg,xp});
+ PROF.history.unshift({t:Date.now(),mode:G.variant||G.mode,map:cfg.map,diff:cfg.diff,win:!!win,k:P.kills,d:P.deaths,hs:P.hsKills,dmg:P.dmg,xp});
  PROF.history.length=Math.min(PROF.history.length,25);
  PROF.coins+=coinsGain;
  metaEvent('matches');if(win)metaEvent('win');metaEvent('dmg',P.dmg);
@@ -16458,6 +16458,382 @@ function ecoPlant(e){
 }
 // une fois : on repasse en économie réaliste (demande de Noa), l'option « Armes libres » reste dans le menu
 if(!cfg.ecoV){cfg.eco=1;cfg.ecoV=1;}
+/* =====================================================================
+   CORRECTIONS DU 15/10
+   - Quitter vers le menu pendant une kill-cam ou une rediffusion :
+     les bandes noires et « KILL-CAM » restaient affichées sur le menu,
+     et la kill-cam suivante était bloquée.
+   - Quitter vers le menu laissait les objets du mode dans le décor du
+     menu (drapeaux de Domination, plaques, objets Zombies, zone…).
+   - Recommencer pendant une kill-cam la laissait active (la suivante
+     ne se lançait plus).
+   - Armes prodiges (Zombies) : les tirs comptaient, jamais les touches,
+     donc la précision affichée chutait.
+   ===================================================================== */
+function fixStopReplay(){
+ if(typeof KCAM!=='undefined'&&KCAM.on){KCAM.on=false;KCAM.px=null;}
+ if(typeof POTG!=='undefined')POTG.playing=false;
+ if(RP.on){RP.on=false;rpOverlay(false);}
+}
+const _toMenuFix=toMenu;
+toMenu=function(){
+ fixStopReplay();
+ try{variantCleanup();}catch(e){console.error(e);}
+ if(typeof VOTE!=='undefined'){VOTE.timers.forEach(clearTimeout);VOTE.timers.length=0;VOTE.on=false;}
+ return _toMenuFix.apply(this,arguments);
+};
+$('toMenu').onclick=()=>toMenu();$('oMenu').onclick=()=>toMenu();
+const _rpResetFix=rpReset;
+rpReset=function(){if(typeof KCAM!=='undefined'&&KCAM.on){KCAM.on=false;KCAM.px=null;}return _rpResetFix.apply(this,arguments);};
+// armes prodiges : une touche = au moins un ennemi blessé par le tir
+const _wonderFireFix=wonderFire;
+wonderFire=function(e,w,wi){
+ if(!e||!e.isPlayer)return _wonderFireFix(e,w,wi);
+ const hp=new Map();for(const v of ents)if(v.alive&&v!==e)hp.set(v,v.hp);
+ const r=_wonderFireFix(e,w,wi);
+ for(const [v,h] of hp)if(v.hp<h||!v.alive){MS.hits++;break;}
+ return r;
+};
+/* =====================================================================
+   MODE CAPTURE DU DRAPEAU (façon Halo / Call of Duty / Roblox)
+   - Chaque équipe a un drapeau dans sa base (près de son point de départ).
+   - Touche le drapeau adverse pour le prendre, ramène-le dans ta base
+     pendant que ton propre drapeau y est : +1 capture.
+   - Le porteur éliminé lâche le drapeau. Un adversaire qui le touche le
+     ramène aussitôt à sa base ; un allié du porteur peut le reprendre.
+     Un drapeau lâché revient seul au bout de 25 s.
+   - Les éliminations ne donnent pas de points. Réapparition rapide.
+   Variante du mode « tdm » : réutilise ses réapparitions et sa fin.
+   ===================================================================== */
+MODES.ctf={n:'Capture du drapeau',ic:'🚩',c:'#ff9f43',team:true,respawn:3,desc:'Va prendre le drapeau adverse et ramène-le dans ta base. Ton drapeau doit être chez toi pour marquer.',limitLabel:'Captures pour gagner',limits:[3,5,7]};
+VARIANT_BASE.ctf='tdm';NOKILLSCORE.ctf=1;
+MODE_GROUPS[1][1].push('ctf');MODE_TAG.ctf='Ramène le drapeau adverse';
+if(typeof RTIME!=='undefined')RTIME.ctf={l:'Durée de la partie',o:[8,10,15],d:10,u:'min'};
+if(typeof QUICK_MODES!=='undefined')QUICK_MODES.push('ctf');
+const CTF={flags:[],caps:[0,0]};
+const CTF_R=1.5,CTF_BACK=25,CTF_COL=[0xff7a4a,0x4aa3ff];
+const isCtf=()=>G.variant==='ctf';
+
+function ctfFlagMesh(team){
+ const g=new THREE.Group(),col=[0xd8400f,0x1660d8][team];
+ const pole=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,2.3,8),new THREE.MeshStandardMaterial({color:0xd8dde4,metalness:.8,roughness:.3}));pole.position.y=1.15;g.add(pole);
+ const tip=new THREE.Mesh(new THREE.SphereGeometry(.07,10,8),new THREE.MeshStandardMaterial({color:0xffd23a,metalness:.9,roughness:.25}));tip.position.y=2.33;g.add(tip);
+ const geo=new THREE.PlaneGeometry(1.1,.7,8,4);geo.translate(.55,0,0);
+ const cloth=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:col,roughness:.9,side:THREE.DoubleSide}));
+ cloth.position.set(.03,1.92,0);g.add(cloth);g.userData.cloth=cloth;g.userData.base=geo.attributes.position.array.slice();
+ return g;
+}
+function ctfWave(f,t){
+ const c=f.mesh.userData.cloth,p=c.geometry.attributes.position,b=f.mesh.userData.base;
+ for(let i=0;i<p.count;i++){const x=b[i*3];p.array[i*3+2]=Math.sin(x*6-t*7+f.team)*.09*x;}
+ p.needsUpdate=true;
+}
+function ctfBase(team){
+ const l=team===0?MAP.spawnT:MAP.spawnCT;let x=0,z=0;for(const c of l){x+=c[0];z+=c[1];}
+ const o=team===0?MAP.spawnCT:MAP.spawnT;let ox=0,oz=0;for(const c of o){ox+=c[0];oz+=c[1];}
+ x/=l.length;z/=l.length;ox/=o.length;oz/=o.length;
+ // un peu en avant du point de départ, vers le milieu de la carte
+ const c=typeof domSpot==='function'?domSpot(x+(ox-x)*.12,z+(oz-z)*.12):[Math.round(x),Math.round(z)];
+ return [cc(c[0]),cc(c[1])];
+}
+function ctfSetup(){
+ ctfCleanup();
+ for(const team of [0,1]){
+  const [x,z]=ctfBase(team),y=groundH(x,z);
+  const mesh=ctfFlagMesh(team);mesh.position.set(x,y,z);scene.add(mesh);
+  // la toile fait face au milieu de la carte (d'où arrivent les attaquants)
+  const rot=Math.atan2(cc(N/2)-x,cc(N/2)-z)-Math.PI/4;mesh.rotation.y=rot;
+  const ring=ringMesh(CTF_COL[team],.9);ring.position.set(x,y,z);ring.scale.set(CTF_R+.3,1,CTF_R+.3);scene.add(ring);
+  if(ring.userData.wall)ring.userData.wall.material.opacity=.07;
+  CTF.flags.push({team,hx:x,hz:z,hy:y,x,z,y,rot,state:'home',carrier:null,backT:0,mesh,ring});
+ }
+ CTF.caps=[0,0];
+}
+function ctfCleanup(){
+ for(const f of CTF.flags){if(f.mesh.parent)f.mesh.parent.remove(f.mesh);scene.remove(f.ring);}
+ CTF.flags.length=0;const h=$('ctfHud');if(h)h.style.display='none';
+}
+function ctfHome(f){
+ if(f.mesh.parent!==scene){if(f.mesh.parent)f.mesh.parent.remove(f.mesh);scene.add(f.mesh);f.mesh.scale.setScalar(1);f.mesh.rotation.set(0,0,0);}
+ f.state='home';f.carrier=null;f.x=f.hx;f.z=f.hz;f.y=f.hy;f.mesh.position.set(f.hx,f.hy,f.hz);f.mesh.rotation.y=f.rot||0;
+}
+function ctfDrop(f){
+ const c=f.carrier;f.carrier=null;if(c)c.ctfFlag=null;
+ if(f.mesh.parent!==scene){if(f.mesh.parent)f.mesh.parent.remove(f.mesh);scene.add(f.mesh);f.mesh.scale.setScalar(1);f.mesh.rotation.set(0,0,0);}
+ f.state='dropped';f.backT=CTF_BACK;f.x=c?c.x:f.x;f.z=c?c.z:f.z;f.y=groundH(f.x,f.z);f.mesh.position.set(f.x,f.y,f.z);
+}
+function ctfTake(f,e){
+ f.state='carried';f.carrier=e;e.ctfFlag=f;
+ if(f.mesh.parent)f.mesh.parent.remove(f.mesh);
+ if(e.rig&&e.rig.root&&!e.isPlayer){e.rig.root.add(f.mesh);f.mesh.position.set(-.18,.55,.22);f.mesh.rotation.set(.18,0,-.12);f.mesh.scale.setScalar(.75);}
+ else{scene.add(f.mesh);f.mesh.scale.setScalar(.75);}
+}
+function ctfSay(txt,good){uiBanner(txt,'',1500,good?'#7dff9f':'#ff6b6b');sfx(good?'pickup':'alarm');}
+function ctfUpdate(dt,t){
+ for(const f of CTF.flags){
+  ctfWave(f,t);f.ring.userData.ring.rotation.z+=dt*.6;
+  if(f.state==='carried'&&f.mesh.parent===scene&&f.carrier){f.mesh.position.set(f.carrier.x+.25,f.carrier.y+.35,f.carrier.z+.25);f.mesh.visible=!(f.carrier.isPlayer&&P.alive);}
+  else f.mesh.visible=true;
+ }
+ if(G.state!=='live'){ctfHud();return;}
+ for(const f of CTF.flags){
+  const mine=f.team===P.team;
+  if(f.state==='carried'){
+   const c=f.carrier;
+   if(!c||!c.alive||c.downed||!ents.includes(c)){ctfDrop(f);ctfSay(mine?'NOTRE DRAPEAU EST TOMBÉ':'DRAPEAU ENNEMI LÂCHÉ',!mine);continue;}
+   f.x=c.x;f.z=c.z;f.y=c.y;
+   const own=CTF.flags[c.team];
+   if(own.state==='home'&&Math.hypot(c.x-own.hx,c.z-own.hz)<CTF_R+.6&&Math.abs(c.y-own.hy)<2){
+    G.score[c.team]++;CTF.caps[c.team]++;c.ctfCaps=(c.ctfCaps||0)+1;c.ctfFlag=null;ctfHome(f);
+    const us=c.team===P.team;uiBanner(us?'DRAPEAU CAPTURÉ !':'L\'ENNEMI A CAPTURÉ NOTRE DRAPEAU',(c===P?'Bien joué ! ':'')+G.score[P.team]+' – '+G.score[1-P.team],2200,us?'#7dff9f':'#ff6b6b');
+    sfx(us?'powerup':'alarm');if(c===P&&typeof uiToast==='function')uiToast('+1 capture');
+    for(const b of ents)if(!b.isPlayer)b.ctfT=0;
+    checkDMEnd();
+   }
+   continue;
+  }
+  if(f.state==='dropped'){f.backT-=dt;f.mesh.position.y=f.y+Math.sin(t*3)*.05;if(f.backT<=0){ctfHome(f);ctfSay(mine?'NOTRE DRAPEAU EST REVENU':'LE DRAPEAU ENNEMI EST REVENU',mine);continue;}}
+  for(const e of ents){
+   if(!e.alive||e.downed||e.dummy||Math.hypot(e.x-f.x,e.z-f.z)>CTF_R||Math.abs(e.y-f.y)>2)continue;
+   if(e.team!==f.team){if(e.ctfFlag)continue;ctfTake(f,e);ctfSay(e===P?'TU AS LE DRAPEAU ! RAMÈNE-LE À TA BASE':mine?'NOTRE DRAPEAU EST PRIS':'DRAPEAU ENNEMI PRIS',!mine);break;}
+   if(f.state==='dropped'){ctfHome(f);ctfSay(mine?'DRAPEAU RÉCUPÉRÉ':'L\'ENNEMI A RÉCUPÉRÉ SON DRAPEAU',mine);if(e===P&&typeof uiToast==='function')uiToast('Drapeau ramené');break;}
+  }
+ }
+ ctfHud();
+}
+function ctfHud(){
+ let el=$('ctfHud');if(!el){el=document.createElement('div');el.id='ctfHud';$('hud').appendChild(el);}
+ el.style.display='';
+ const st=f=>f.state==='home'?'à la base':f.state==='dropped'?'à terre '+Math.ceil(f.backT)+' s':(f.carrier===P?'TU LE PORTES':'porté par '+ctfEsc(f.carrier.name));
+ const me=CTF.flags[P.team],them=CTF.flags[1-P.team];if(!me||!them){el.innerHTML='';return;}
+ el.innerHTML='<span style="color:'+TEAMCSS[P.team]+'">🚩 Le nôtre : '+st(me)+'</span><span style="color:'+TEAMCSS[1-P.team]+'">🚩 Le leur : '+st(them)+'</span>'+
+  (P.ctfFlag?'<div class="cg">RAMÈNE LE DRAPEAU À TA BASE'+(me.state!=='home'?' — RÉCUPÈRE D\'ABORD LE TIEN':'')+'</div>':'');
+}
+function ctfEsc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);}
+
+// branchements sur le moteur de variantes
+const _variantInitCtf=variantInit;
+variantInit=function(){
+ ctfCleanup();for(const e of ents)e.ctfFlag=null;
+ _variantInitCtf();
+ if(!isCtf())return;
+ G.limit=limitOf('ctf');ctfSetup();
+};
+const _variantUpdateCtf=variantUpdate;
+variantUpdate=function(dt,t){_variantUpdateCtf(dt,t);if(isCtf()&&CTF.flags.length&&(G.state==='live'||G.state==='freeze'||G.state==='end'))ctfUpdate(dt,t);};
+const _variantTimeUpCtf=variantTimeUp;
+variantTimeUp=function(){
+ if(!isCtf())return _variantTimeUpCtf();
+ G.winner=G.score[0]===G.score[1]?-1:G.score[0]>G.score[1]?0:1;
+ if(G.winner===-1){G.state='end';G.endT=4.5;G.final=true;uiBanner('ÉGALITÉ','Temps écoulé',4000);return true;}
+ endDM();return true;
+};
+const _variantSubCtf=variantSub;
+variantSub=function(){return isCtf()?'Ramène le drapeau adverse — premier à '+G.limit+' captures':_variantSubCtf();};
+const _variantCleanupCtf=variantCleanup;
+variantCleanup=function(){_variantCleanupCtf();ctfCleanup();};
+const _variantRadarCtf=variantRadar;
+variantRadar=function(c,pt){
+ _variantRadarCtf(c,pt);
+ if(!isCtf())return;
+ for(const f of CTF.flags){
+  const p=pt(f.x,f.z);c.fillStyle=TEAMCSS[f.team];c.strokeStyle='#000';c.lineWidth=1;
+  c.fillRect(p[0]-1,p[1]-9,2,11);c.beginPath();c.moveTo(p[0]+1,p[1]-9);c.lineTo(p[0]+9,p[1]-6);c.lineTo(p[0]+1,p[1]-3);c.closePath();c.fill();c.stroke();
+  if(f.state==='carried'){c.strokeStyle='#ffd23a';c.lineWidth=2;c.beginPath();c.arc(p[0],p[1],8+Math.sin(G.t*6)*1.5,0,TAU);c.stroke();}
+ }
+};
+// bots : un tiers défend, le reste attaque ; tout le monde poursuit le voleur
+const _botGoalCtf=botGoal;
+botGoal=function(b){
+ if(!isCtf()||CTF.flags.length<2)return _botGoalCtf(b);
+ const own=CTF.flags[b.team],foe=CTF.flags[1-b.team];
+ // pick : l'objectif passe avant la traque du dernier ennemi aperçu
+ if(b.ctfFlag)return {x:own.hx,z:own.hz,pick:true};
+ if(G.t<(b.ctfT||0)&&b.ctfX!==undefined)return {x:b.ctfX,z:b.ctfZ,pick:b.ctfP};
+ const def=b.id%3===0;let x,z,hold=1.2,pk=true;
+ if(own.state==='carried'&&own.carrier&&(def||Math.random()<.6)){x=own.carrier.x;z=own.carrier.z;hold=.8;}
+ else if(own.state==='dropped'&&(def||Math.hypot(own.x-b.x,own.z-b.z)<28)){x=own.x;z=own.z;}
+ else if(def){x=own.hx+rand(-5,5);z=own.hz+rand(-5,5);hold=rand(4,8);pk=false;}
+ else if(foe.state==='carried'&&foe.carrier){x=foe.carrier.x+rand(-3,3);z=foe.carrier.z+rand(-3,3);}
+ else{x=foe.x;z=foe.z;}
+ b.ctfX=x;b.ctfZ=z;b.ctfT=G.t+hold;b.ctfP=pk;
+ return {x,z,pick:pk};
+};
+// un bot porteur file vers sa base : il ne s'arrête que pour un ennemi tout proche
+const _botUpdateCtf=botUpdate;
+botUpdate=function(b,dt){
+ if(isCtf()&&b.ctfFlag&&b.target&&Math.hypot(b.target.x-b.x,b.target.z-b.z)>12)b.target=null;
+ return _botUpdateCtf(b,dt);
+};
+(function(){const s=document.createElement('style');s.textContent=`
+#ctfHud{position:absolute;top:86px;left:50%;transform:translateX(-50%);display:flex;gap:16px;padding:4px 12px;border-radius:6px;background:#000000a0;flex-wrap:wrap;justify-content:center;pointer-events:none;font:800 .74rem Bahnschrift,Arial;letter-spacing:1.5px;text-shadow:0 1px 4px #000;white-space:nowrap}
+#ctfHud .cg{flex-basis:100%;text-align:center;color:#ffd23a;font-size:.86rem;letter-spacing:2.5px;animation:ctfP 1s ease-in-out infinite alternate}
+@keyframes ctfP{from{opacity:.65}to{opacity:1}}
+`;document.head.appendChild(s);})();
+/* =====================================================================
+   MODE ARME TOURNANTE (façon Call of Duty « Sharpshooter » / Krunker)
+   - Chacun pour soi, tout le monde a la MÊME arme.
+   - Toutes les 30 s, une nouvelle arme est tirée au sort et remplace
+     celle de tous les joueurs (munitions en réserve illimitées).
+   - Pas de grenades. Premier au nombre d'éliminations gagne.
+   Variante du mode « ffa » : réutilise ses réapparitions et sa fin.
+   ===================================================================== */
+MODES.shp={n:'Arme tournante',ic:'🎲',c:'#ffa94d',team:false,respawn:2,desc:'Tout le monde a la même arme, tirée au sort toutes les 30 secondes. Adapte-toi vite !',limitLabel:'Éliminations pour gagner',limits:[15,25,35]};
+VARIANT_BASE.shp='ffa';
+MODE_GROUPS[1][1].push('shp');MODE_TAG.shp='Même arme pour tous, elle change';
+if(typeof RTIME!=='undefined')RTIME.shp={l:'Durée de la partie',o:[5,8,10],d:8,u:'min'};
+if(typeof QUICK_MODES!=='undefined')QUICK_MODES.push('shp');
+const SHP={k:null,t:0,every:30,last:[]};
+const isShp=()=>G.variant==='shp';
+const SHP_CATS=['pistol','smg','shotgun','rifle','sniper','lmg'];
+function shpPool(){return Object.keys(W).filter(k=>{const w=W[k];return w&&!w.wonder&&!w.melee&&w.slot!==2&&w.price>0&&SHP_CATS.includes(w.cat);});}
+function shpPick(){
+ const pool=shpPool().filter(k=>!SHP.last.includes(k));
+ const k=pick(pool.length?pool:shpPool());SHP.last.push(k);if(SHP.last.length>4)SHP.last.shift();return k;
+}
+function shpEquip(e){
+ if(!SHP.k)return;
+ e.wp.p=null;e.wp.s=null;giveWeapon(e,SHP.k);
+ const sl=W[SHP.k].slot===0?'p':'s';e.wp[sl].res=999;e.cur=sl;e.reload=0;e.switchT=.35;
+ e.nade={f:0,fl:0,sm:0,mn:0};
+ if(e.isPlayer&&typeof vmDraw==='function')vmDraw();
+}
+function shpRoll(first){
+ SHP.k=shpPick();SHP.t=SHP.every;
+ for(const e of ents)if(e.alive)shpEquip(e);
+ if(!first){uiBanner('NOUVELLE ARME',W[SHP.k].n,1500,'#ffa94d');sfx('draw');}
+}
+function shpHud(){
+ let el=$('shpHud');if(!el){el=document.createElement('div');el.id='shpHud';$('hud').appendChild(el);}
+ el.style.display='';
+ const s=Math.ceil(SHP.t),warn=s<=5&&G.state==='live';
+ el.innerHTML='🎲 '+(SHP.k?W[SHP.k].n.toUpperCase():'—')+'<small class="'+(warn?'w':'')+'">nouvelle arme dans '+s+' s</small>';
+}
+const _variantInitShp=variantInit;
+variantInit=function(){
+ SHP.k=null;SHP.last=[];
+ _variantInitShp();
+ const h=$('shpHud');if(h)h.style.display=isShp()?'':'none';
+ if(!isShp())return;
+ G.limit=limitOf('shp');shpRoll(true);
+};
+const _dmLoadoutShp=dmLoadout;
+dmLoadout=function(e){if(isShp()&&SHP.k)return shpEquip(e);return _dmLoadoutShp(e);};
+const _variantUpdateShp=variantUpdate;
+variantUpdate=function(dt,t){
+ _variantUpdateShp(dt,t);
+ if(!isShp())return;
+ if(G.state==='live'){SHP.t-=dt;if(SHP.t<=0)shpRoll(false);}
+ // l'arme du tour reste la seule : pas de ramassage ni d'achat d'une autre
+ if(SHP.k)for(const e of ents){if(!e.alive)continue;const sl=W[SHP.k].slot===0?'p':'s',o=sl==='p'?'s':'p';if(e.wp[o]){e.wp[o]=null;if(e.cur===o){e.cur=sl;if(e.isPlayer&&typeof vmDraw==='function')vmDraw();}}const wi=e.wp[sl];if(wi&&wi.res<200)wi.res=999;}
+ shpHud();
+};
+const _variantSubShp=variantSub;
+variantSub=function(){return isShp()?'Même arme pour tous, elle change toutes les 30 s — premier à '+G.limit:_variantSubShp();};
+const _variantCleanupShp=variantCleanup;
+variantCleanup=function(){_variantCleanupShp();const h=$('shpHud');if(h)h.style.display='none';};
+(function(){const s=document.createElement('style');s.textContent=`
+#shpHud{position:absolute;top:86px;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none;font:900 .9rem Bahnschrift,Arial;letter-spacing:2px;color:#ffa94d;text-shadow:0 1px 4px #000}
+#shpHud small{display:block;font:700 .66rem Bahnschrift,Arial;letter-spacing:1.5px;color:#dfe6f2;margin-top:2px}
+#shpHud small.w{color:#ff6b6b}
+`;document.head.appendChild(s);})();
+/* =====================================================================
+   CONFORT DE JEU (idées reprises de CS2, Valorant, Call of Duty)
+   - Sensibilité en visée : multiplicateur réglable (Réglages), appliqué
+     en visée et à la lunette, en plus de la sensibilité normale.
+   - Alerte grenade : une icône autour du centre de l'écran indique d'où
+     vient une grenade explosive qui va sauter près de toi.
+   - Bouton RECOMMENCER dans la pause (parties solo).
+   - Bilan perso en fin de partie : précision, tirs à la tête, dégâts,
+     meilleure série.
+   ===================================================================== */
+cfg.adsSens=typeof cfg.adsSens==='number'?cfg.adsSens:1;
+
+/* ---------- sensibilité en visée ---------- */
+const _wsensMulCf=wsensMul;
+wsensMul=function(){
+ const b=_wsensMulCf();
+ return P&&P.alive&&P.ads>0?b*lerp(1,cfg.adsSens,clamp(P.ads,0,1)):b;
+};
+// le curseur se place sous « Sensibilité » ; le menu simplifié (87c) reconstruit l'onglet, d'où le second appel
+function adsSensUI(){
+ if($('rAdsS'))return;
+ const r=$('rSens');if(!r)return;const grp=r.closest('.grp');if(!grp)return;
+ const g=document.createElement('div');g.className='grp';
+ g.innerHTML='<label>Sensibilité en visée <b id="vAdsS"></b></label><input type="range" id="rAdsS" min="0.3" max="1.5" step="0.05">';
+ grp.after(g);
+ const ra=$('rAdsS'),va=$('vAdsS');
+ const show=()=>{ra.value=cfg.adsSens;va.textContent='×'+(+cfg.adsSens).toFixed(2);};
+ ra.oninput=()=>{cfg.adsSens=+ra.value;show();saveCfg();};show();
+}
+if(typeof menuSimplify==='function'){const _menuSimplifyCf=menuSimplify;menuSimplify=function(){const r=_menuSimplifyCf.apply(this,arguments);adsSensUI();return r;};}
+adsSensUI();
+
+/* ---------- alerte grenade ---------- */
+const NADEWARN={els:[],R:9.5};
+function nadeWarnUpdate(){
+ const host=$('hud');if(!host)return;
+ const list=[];
+ if(P&&P.alive&&G.running&&!RP.on)for(const n of nades){
+  if(n.type!=='f'||n.owner===P&&!G.netClient)continue;
+  const dx=n.x-P.x,dz=n.z-P.z,d=Math.hypot(dx,dz);if(d>NADEWARN.R||Math.abs(n.y-P.y)>4)continue;
+  list.push({n,dx,dz,d});
+ }
+ while(NADEWARN.els.length<list.length){const e=document.createElement('div');e.className='nwarn';e.innerHTML='<i>💣</i><b></b>';host.appendChild(e);NADEWARN.els.push(e);}
+ NADEWARN.els.forEach((el,i)=>{
+  const it=list[i];if(!it){el.style.display='none';return;}
+  const y=P.yaw,fwd=it.dx*-Math.sin(y)+it.dz*-Math.cos(y),rgt=it.dx*Math.cos(y)+it.dz*-Math.sin(y),L=Math.hypot(fwd,rgt)||1;
+  const R=it.d<1.2?0:118;
+  el.style.display='';
+  el.style.transform='translate(-50%,-50%) translate('+(rgt/L*R).toFixed(1)+'px,'+(-fwd/L*R).toFixed(1)+'px)';
+  el.style.opacity=(.55+.45*Math.abs(Math.sin(G.t*(it.n.t<1?18:9)))).toFixed(2);
+  el.classList.toggle('near',it.d<5);
+  const ar=el.querySelector('b');ar.style.transform='rotate('+Math.atan2(rgt,fwd).toFixed(3)+'rad)';ar.style.display=R?'':'none';
+ });
+}
+const _updateHUDCf=updateHUD;
+updateHUD=function(dt,t){_updateHUDCf(dt,t);try{nadeWarnUpdate();}catch(e){}};
+
+/* ---------- RECOMMENCER (pause, solo) ---------- */
+{
+ const row=$('toMenu').parentNode,b=document.createElement('button');
+ b.className='btn alt cut';b.id='pRestart';b.textContent='RECOMMENCER';b.style.display='none';
+ row.insertBefore(b,$('toMenu'));
+ b.onclick=()=>{
+  if(!G.running||NET.role||G.netClient)return;
+  $('pause').classList.remove('show');G.paused=false;
+  if(typeof initAudio==='function')initAudio();
+  startMatch();buildRadarMap();lockMouse();
+ };
+ new MutationObserver(()=>{b.style.display=$('pause').classList.contains('show')&&G.running&&!NET.role&&!G.netClient&&!(typeof TUT!=='undefined'&&TUT.on)?'':'none';})
+  .observe($('pause'),{attributes:true,attributeFilter:['class']});
+}
+
+/* ---------- bilan perso en fin de partie ---------- */
+const _uiMatchOverCf=uiMatchOver;
+uiMatchOver=function(){
+ _uiMatchOverCf.apply(this,arguments);
+ try{
+  let el=$('oPerso');
+  if(!el){el=document.createElement('div');el.id='oPerso';$('oS').after(el);}
+  if(!P||G.variant==='train'){el.innerHTML='';return;}
+  const pc=(a,b)=>b?Math.round(a/b*100)+' %':'—';
+  const tiles=[['PRÉCISION',pc(MS.hits,MS.shots)],['TÊTES',pc(P.hsKills||0,P.kills||0)],['DÉGÂTS',Math.round(P.dmg||0)],['MEILLEURE SÉRIE',P.bestStreak||0]];
+  el.innerHTML=tiles.map(t=>'<div><small>'+t[0]+'</small><b>'+t[1]+'</b></div>').join('');
+ }catch(e){console.error(e);}
+};
+
+(function(){const s=document.createElement('style');s.textContent=`
+.nwarn{position:absolute;left:50%;top:50%;width:44px;height:44px;pointer-events:none;z-index:6}
+.nwarn i{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:1.35rem;border-radius:50%;background:#000a;border:2px solid #ffb23a;box-shadow:0 0 14px #ff8a2a99}
+.nwarn.near i{border-color:#ff4655;box-shadow:0 0 18px #ff4655}
+.nwarn b{position:absolute;left:50%;top:50%;width:0;height:0;margin:-34px 0 0 -7px;border:7px solid transparent;border-bottom:10px solid #ffb23a;transform-origin:7px 34px}
+.nwarn.near b{border-bottom-color:#ff4655}
+#oPerso{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:12px 0 4px}
+#oPerso div{min-width:104px;padding:7px 12px;border-radius:8px;background:#0f1726;border:1px solid #ffffff14;text-align:center}
+#oPerso small{display:block;font-size:.6rem;letter-spacing:2px;color:#8da0bd}
+#oPerso b{font-size:1.15rem;color:#fff}
+`;document.head.appendChild(s);})();
 /* =====================================================================
    BOUCLE PRINCIPALE
    ===================================================================== */
