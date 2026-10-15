@@ -5,6 +5,7 @@
 -- Les Robux achètent des pièces, des caisses, le passe Premium, et les EXCLUSIFS (camos animés) qu'on ne peut obtenir qu'en payant.
 local Config = require(script.Parent.Config)
 local X = require(script.Parent.ConfigExtra)
+local LoyaltyConfig = require(script.Parent.LoyaltyConfig)
 
 local Catalog = {}
 
@@ -27,6 +28,7 @@ Catalog.TABS = {
 	{ id = "skins", name = "Skins" },
 	{ id = "sights", name = "Viseurs" },
 	{ id = "style", name = "Tenues & style" },
+	{ id = "premium", name = "Premium ⭐" },
 	{ id = "exclusive", name = "Exclusifs ✨" },
 	{ id = "robux", name = "Robux" },
 }
@@ -102,6 +104,11 @@ for _, it in ipairs(X.EXCLUSIVES) do
 		camos = it.camos or { it.camo }, camo = it.camo })
 end
 
+-- Abonnement Premium (Robux, jours cumulables) : couleur de pseudo, +20 % XP et pièces, cadeau quotidien. Voir LoyaltyConfig.VIP.
+for _, o in ipairs(LoyaltyConfig.VIP.offers) do
+	add({ id = o.id, tab = "premium", kind = "vip", name = o.name, rarity = 5, robux = o.robux, productId = o.productId, days = o.days, best = o.best })
+end
+
 Catalog.ITEMS = items
 function Catalog.get(id: string): any
 	return byId[id]
@@ -110,7 +117,7 @@ end
 -- ---------- Possession ----------
 -- Inventaire du profil (voir DataService) : inv.weapons, inv.skins[arme], inv.outfits, inv.sights, inv.reticles, inv.misc
 function Catalog.owns(profile: any, it: any): boolean
-	if it.kind == "devproduct" then return false end
+	if it.kind == "devproduct" or it.kind == "vip" then return false end   -- se rachète (jours cumulables)
 	local inv = profile.inv
 	if it.kind == "exclusive" then
 		for _, c in ipairs(it.camos) do

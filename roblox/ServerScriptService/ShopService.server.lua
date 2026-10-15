@@ -2,7 +2,7 @@
 -- ServerScriptService/ShopService (Script)
 -- Boutique : achats en pièces (armes, skins, viseurs, tenues), offres du jour, équipement, produits Robux et exclusifs payants.
 -- Le catalogue est dans ReplicatedStorage/Shared/ShopCatalog. Le serveur revérifie TOUT (prix, possession, pièces) : ne jamais croire le client.
--- C'est le SEUL ProcessReceipt du jeu (Roblox n'en accepte qu'un) : pièces, caisses et passe Premium passent tous par ici.
+-- C'est le SEUL ProcessReceipt du jeu (Roblox n'en accepte qu'un) : pièces, caisses, passe de combat et abonnement Premium passent tous par ici.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MarketplaceService = game:GetService("MarketplaceService")
 local DataStoreService = game:GetService("DataStoreService")
@@ -13,6 +13,8 @@ local X = require(ReplicatedStorage.Shared.ConfigExtra)
 local Catalog = require(ReplicatedStorage.Shared.ShopCatalog)
 local DataService = require(script.Parent.DataService)
 local ProgressService = require(script.Parent.ProgressService)
+local LoyaltyService = require(script.Parent.LoyaltyService)
+local LoyaltyConfig = require(ReplicatedStorage.Shared.LoyaltyConfig)
 
 local receipts = DataStoreService:GetDataStore("StrikeArenaReceipts_v1")
 
@@ -23,7 +25,7 @@ end
 -- ---------- Robux (Developer Products) ----------
 local byProduct: { [number]: any } = {}
 for _, it in ipairs(Catalog.ITEMS) do
-	if (it.kind == "devproduct" or it.kind == "exclusive") and it.productId > 0 then byProduct[it.productId] = it end
+	if (it.kind == "devproduct" or it.kind == "exclusive" or it.kind == "vip") and it.productId > 0 then byProduct[it.productId] = it end
 end
 
 MarketplaceService.ProcessReceipt = function(info)
@@ -39,6 +41,7 @@ MarketplaceService.ProcessReceipt = function(info)
 	if it.coins then profile.coins += it.coins end
 	if it.box then profile.boxes[it.box] = (profile.boxes[it.box] or 0) + (it.boxes or 1) end
 	if it.premium then ProgressService.grantPremium(player) end
+	if it.kind == "vip" then LoyaltyService.grantVip(player, it.days) end   -- abonnement Premium : jours ajoutés + caisse offerte
 	if it.kind == "exclusive" then                                            -- camos animés : ajoutés pour toujours
 		profile.inv.exclusive = profile.inv.exclusive or {}
 		for _, c in ipairs(it.camos) do
@@ -95,7 +98,7 @@ buy.OnServerInvoke = function(player: Player, id: any)
 	local it = Catalog.get(id)
 	if not it then return { ok = false, err = "Objet inconnu" } end
 
-	if it.kind == "devproduct" or it.kind == "exclusive" then
+	if it.kind == "devproduct" or it.kind == "exclusive" or it.kind == "vip" then
 		if it.kind == "exclusive" and Catalog.owns(profile, it) then return { ok = false, err = "Déjà possédé" } end
 		if it.productId <= 0 then return { ok = false, err = "Bientôt disponible" } end
 		MarketplaceService:PromptProductPurchase(player, it.productId)   -- le crédit se fait dans ProcessReceipt
@@ -143,7 +146,7 @@ end
 -- Vérification au démarrage : un productId en double ferait créditer le mauvais produit
 do
 	local seen = {}
-	for _, list in ipairs({ X.SHOP, X.EXCLUSIVES }) do for _, it in ipairs(list) do
+	for _, list in ipairs({ X.SHOP, X.EXCLUSIVES, LoyaltyConfig.VIP.offers }) do for _, it in ipairs(list) do
 		if it.productId > 0 then
 			if seen[it.productId] then warn("[ShopService] productId en double dans ConfigExtra.SHOP :", it.productId) end
 			seen[it.productId] = true

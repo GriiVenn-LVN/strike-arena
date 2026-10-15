@@ -6,7 +6,7 @@ local Players = game:GetService("Players")
 local DataService = require(script.Parent.DataService)
 local RewardService = require(script.Parent.RewardService)
 require(script.Parent.WeaponService)
-local RoundService = require(script.Parent.RoundService)
+local ModeConfig = require(ReplicatedStorage.Shared.ModeConfig)
 
 -- ---------- Remotes pour l'interface (profil, récompense quotidienne, défis) ----------
 local function remoteFunction(name: string): RemoteFunction
@@ -56,15 +56,23 @@ equipSkin.OnServerInvoke = function(player: Player, weapon: any, skinIndex: any)
 	return true
 end
 
--- ---------- Lancement automatique d'une partie quand assez de joueurs sont là ----------
-local MIN_PLAYERS = 2     -- mets 10 pour de vrais 5v5 ; complète avec des bots (PathfindingService) si besoin
-local started = false
-local function tryStart()
-	if started or #Players:GetPlayers() < MIN_PLAYERS then return end
-	started = true
-	task.spawn(function()
-		RoundService.startMatch("village")
-		started = false
-	end)
+-- ---------- Lancement du mode de jeu (ModeConfig.MODE) ----------
+if ModeConfig.MODE == "tdm" then
+	-- match à mort par équipe sur Village : démarre dès qu'un joueur est là, les bots complètent les équipes
+	local TDMService = require(script.Parent.TDMService)
+	task.spawn(TDMService.run)
+else
+	-- compétitif 5v5 avec bombe (pose/désamorçage pas encore branchés : voir README_ROBLOX.md)
+	local RoundService = require(script.Parent.RoundService)
+	local MIN_PLAYERS = 2     -- mets 10 pour de vrais 5v5
+	local started = false
+	local function tryStart()
+		if started or #Players:GetPlayers() < MIN_PLAYERS then return end
+		started = true
+		task.spawn(function()
+			RoundService.startMatch("village")
+			started = false
+		end)
+	end
+	Players.PlayerAdded:Connect(function() task.wait(5); tryStart() end)
 end
-Players.PlayerAdded:Connect(function() task.wait(5); tryStart() end)
