@@ -115,7 +115,9 @@ input[type=text]{background:#111827;border:1px solid var(--line);color:#fff;padd
 @keyframes pulse{0%,100%{opacity:.12}50%{opacity:.5}}
 #flashfx{position:absolute;inset:0;background:#fff;opacity:0}
 #fadefx{position:absolute;inset:0;background:#000;opacity:0;transition:opacity .5s}
-#scope{position:absolute;inset:0;display:none;background:radial-gradient(circle at 50% 50%,transparent 0,transparent 33vh,#000 34vh)}
+#scope{position:absolute;inset:0;display:none;background:radial-gradient(circle at 50% 50%,transparent 0,transparent 29vh,rgba(0,0,0,.28) 32.6vh,#000 33.3vh,#000 34.6vh,rgba(0,0,0,.5) 37vh,rgba(0,0,0,.22) 55vh,rgba(0,0,0,.35) 90vh)}
+/* hors de la lentille : l'image (arme, décor) reste visible mais floue */
+#scopeBlur{position:absolute;inset:0;-webkit-backdrop-filter:blur(9px) saturate(.75);backdrop-filter:blur(9px) saturate(.75);-webkit-mask-image:radial-gradient(circle at 50% 50%,transparent 0,transparent 32.8vh,#000 35vh);mask-image:radial-gradient(circle at 50% 50%,transparent 0,transparent 32.8vh,#000 35vh)}
 #scope::before,#scope::after{content:"";position:absolute;background:#000c}
 #scope::before{left:0;right:0;top:50%;height:2px}#scope::after{top:0;bottom:0;left:50%;width:2px}
 #top{position:absolute;top:.7rem;left:50%;transform:translateX(-50%);display:flex;align-items:stretch;gap:3px}
@@ -313,7 +315,7 @@ input[type=text]{background:#111827;border:1px solid var(--line);color:#fff;padd
 <canvas id="c"></canvas>
 
 <div id="hud">
-  <div id="scope"></div><div id="vig"></div><div id="lowhp" style="display:none"></div><div id="flashfx"></div><div id="fadefx"></div>
+  <div id="scope"><div id="scopeBlur"></div></div><div id="vig"></div><div id="lowhp" style="display:none"></div><div id="flashfx"></div><div id="fadefx"></div>
   <div id="top"><div class="tl"><span class="sc" id="sL">0</span><span class="al" id="aliveL"></span></div><div id="timer">1:40<small id="tmode"></small></div><div class="tr"><span class="sc" id="sR">0</span><span class="al" id="aliveR"></span></div></div>
   <div id="phase"></div>
   <div id="radarWrap"><canvas id="radar" width="260" height="260"></canvas><div id="loc"></div></div>

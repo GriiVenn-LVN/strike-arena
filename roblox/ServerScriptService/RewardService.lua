@@ -4,6 +4,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local DataService = require(script.Parent.DataService)
+local LoyaltyService = require(script.Parent.LoyaltyService)
 
 local RewardService = {}
 
@@ -57,7 +58,9 @@ function RewardService.dailyStatus(profile)
 		return { canClaim = false, day = ((profile.streak - 1) % 7) + 1, streak = profile.streak }
 	end
 	local nextStreak = (profile.lastLoginDay == t - 1) and (profile.streak + 1) or 1
-	return { canClaim = true, day = ((nextStreak - 1) % 7) + 1, streak = nextStreak }
+	local shield = nextStreak == 1 and LoyaltyService.shieldOk(profile)   -- Premium : un jour manqué par semaine est pardonné
+	if shield then nextStreak = profile.streak + 1 end
+	return { canClaim = true, day = ((nextStreak - 1) % 7) + 1, streak = nextStreak, shield = shield }
 end
 
 function RewardService.claimDaily(player: Player)
@@ -65,6 +68,7 @@ function RewardService.claimDaily(player: Player)
 	if not profile then return nil end
 	local st = RewardService.dailyStatus(profile)
 	if not st.canClaim then return nil end
+	if st.shield then LoyaltyService.useShield(profile) end
 	profile.streak = st.streak
 	profile.lastLoginDay = today()
 	local r = Config.DAILY[st.day]
@@ -139,12 +143,14 @@ function RewardService.finishMatch(player: Player, summary)
 	while #profile.history > 25 do table.remove(profile.history) end
 	local xp = 40 + summary.kills * 10 + summary.hs * 5 + (summary.won and 120 or 0) + (summary.plants + summary.defuses) * 25
 	local coins = math.floor(xp * 0.15)   -- ~35 pièces par partie : progression lente, comme sur le web
+	local bonusXp, bonusCoins, bonusLines = LoyaltyService.matchBonus(player, xp, coins, summary.won)   -- fidélité, Premium, boost, 1re victoire
+	xp += bonusXp; coins += bonusCoins
 	profile.coins += coins
 	RewardService.missionEvent(player, "matches")
 	if summary.won then RewardService.missionEvent(player, "win") end
 	RewardService.missionEvent(player, "dmg", summary.dmg)
 	local ups = RewardService.addXP(player, xp)
-	return { xp = xp, coins = coins, levelUps = ups }
+	return { xp = xp, coins = coins, levelUps = ups, bonus = bonusLines }
 end
 
 return RewardService
