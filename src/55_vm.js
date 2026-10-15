@@ -20,11 +20,12 @@ vmCam.add(VM.root);
  };
  VM.setLook(look);
 }
-// skin affiché : celui du joueur pour sa propre arme, finition d'usine pour un joueur regardé en spectateur
-const vmSkinId=(e,k)=>!e||e===P?cfg.skins[k]||0:0;
+// skin affiché : celui du joueur pour sa propre arme (rediffusions comprises), finition d'usine pour un joueur regardé en spectateur
+const vmMine=e=>!e||e===P||(!!P&&e._src===P);
+const vmSkinId=(e,k)=>vmMine(e)?cfg.skins[k]||0:0;
 function vmSetGun(k){
  if(VM.gun)VM.root.remove(VM.gun);
- const e=VM.ent||P,sk=e===P?skinOf(k):SKINS[0],g=gunParts(k,sk);VM.gun=g;VM.gk=k;VM.skin=vmSkinId(e,k);VM.pap=!!(e&&e.wp&&curWi(e)&&curWi(e).pap);if(VM.pap)papCamo(g);decorateVM(g,k);
+ const e=VM.ent||P,sk=vmMine(e)?skinOf(k):SKINS[0],g=gunParts(k,sk);VM.gun=g;VM.gk=k;VM.skin=vmSkinId(e,k);VM.pap=!!(e&&e.wp&&curWi(e)&&curWi(e).pap);if(VM.pap)papCamo(g);decorateVM(g,k);
  const u=g.userData;
  // bornes de l'arme (repère local) : sert à garder la crosse devant la caméra en visée
  // la crosse (pièces entièrement derrière la poignée) est masquée en visée : vue de 15 cm, elle boucherait l'écran
@@ -115,7 +116,7 @@ function vmUpdate(dt,t,ent){
  // position de hanche : canon légèrement tourné vers le centre, arme un peu inclinée
  let rx=.02*(1-ads),ry=.06*(1-ads),rz=-.05*(1-ads);
  const sw=1-ads*.75;
- px+=bx+brX+VM.sx*sw;py+=by+brY+VM.sy*sw+(p.crouch?.015:0);
+ px+=bx+brX+VM.sx*sw;py+=by+brY+VM.sy*sw+(p.crouch?.015*(1-ads):0);   // accroupi : arme un peu relevée à la hanche, jamais en visée (sinon la mire passe au-dessus du centre)
  ry+=VM.sx*1.6*sw;rx+=VM.sy*1.2*sw;rz+=br-VM.sx*1.2*sw-VM.strafe*.06*(1-ads*.7);
  if(!p.onGround){const a=clamp(-p.vy*.005,-.035,.03);py+=a*(1-ads*.6);rx-=a*1.5;}
  py+=VM.land*.1;rx+=VM.land*.35;

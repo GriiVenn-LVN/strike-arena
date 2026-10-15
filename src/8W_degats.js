@@ -155,41 +155,43 @@ sfx=function(type,x,z,vol,extra){
   case 'hit': // impact chair : coup sourd + claque + petit clic net
    tn(185*r(),.09,'sine',.55*vol,0,70);
    nz(.07,1300*r(),'bandpass',.6*vol,0,.04,1.3);
-   nz(.016,5600,'highpass',.3*vol,0);
-   tn(2650*up,.035,'triangle',.11*vol,0,2100*up);
+   nz(.02,2600,'bandpass',.28*vol,0,0,1.5);
+   tn(1500*up*r(),.035,'triangle',.1*vol,0,1150*up);
    break;
   case 'hs': // tête : tintement de casque métallique + craquement
    tn(160,.11,'sine',.5*vol,0,60);
-   nz(.04,6500,'highpass',.45*vol,0,.05);
-   nz(.07,1900,'bandpass',.4*vol,0,.04,1.6);
-   [[3150,.34,.2],[4710,.24,.12],[2140,.42,.09],[6280,.12,.05]].forEach(([f,d,a])=>tn(f*up,d,'sine',a*vol,0,null,.12));
+   nz(.04,3000,'bandpass',.4*vol,0,.05,1.2);
+   nz(.07,1500,'bandpass',.4*vol,0,.04,1.6);
+   {const k=r();[[1480,.34,.2],[2210,.24,.11],[990,.42,.12],[2960,.12,.04]].forEach(([f,d,a])=>tn(f*up*k,d,'sine',a*vol,0,null,.12));}
    break;
   case 'kill': // élimination : gros impact + carillon qui monte
    tn(92,.3,'sine',.75*vol,0,38);
    nz(.14,650,'lowpass',.5*vol,0,.1);
-   nz(.03,4500,'highpass',.3*vol,0);
-   tn(784,.16,'triangle',.22*vol,0,null,.25,.03);
-   tn(1175,.32,'triangle',.24*vol,0,null,.3,.1);
-   tn(2350,.38,'sine',.08*vol,0,null,.3,.1);
+   nz(.03,2400,'bandpass',.3*vol,0,0,1.2);
+   tn(523,.16,'triangle',.24*vol,0,null,.25,.03);
+   tn(784,.32,'triangle',.26*vol,0,null,.3,.1);
+   tn(1568,.38,'sine',.06*vol,0,null,.3,.1);
+   tn(196,.4,'sine',.2*vol,0,null,.2,.1);
    break;
   case 'killhs': // élimination à la tête : version plus brillante
    tn(88,.32,'sine',.8*vol,0,36);
    nz(.16,700,'lowpass',.5*vol,0,.1);
-   nz(.05,7000,'highpass',.4*vol,0,.1);
-   [[3150,.4,.16],[4710,.3,.1]].forEach(([f,d,a])=>tn(f,d,'sine',a*vol,0,null,.15));
-   tn(880,.14,'triangle',.22*vol,0,null,.25,.05);
-   tn(1319,.2,'triangle',.24*vol,0,null,.3,.12);
-   tn(1760,.42,'triangle',.22*vol,0,null,.35,.19);
+   nz(.05,3000,'bandpass',.4*vol,0,.1,1.2);
+   [[1480,.4,.16],[2210,.3,.09]].forEach(([f,d,a])=>tn(f,d,'sine',a*vol,0,null,.15));
+   tn(587,.14,'triangle',.24*vol,0,null,.25,.05);
+   tn(880,.2,'triangle',.26*vol,0,null,.3,.12);
+   tn(1175,.42,'triangle',.22*vol,0,null,.35,.19);
+   tn(147,.5,'sine',.22*vol,0,null,.2,.12);
    break;
   case 'shield': // bouclier : impact d'énergie
    tn(1500*r(),.13,'sine',.26*vol,0,650);
    nz(.09,3600,'bandpass',.32*vol,0,.06,4);
-   tn(3100,.05,'square',.04*vol,0,2400);
+   tn(1900,.05,'triangle',.05*vol,0,1400);
    break;
   case 'shieldbreak': // bris de bouclier : verre qui éclate
-   nz(.38,4200,'highpass',.55*vol,0,.25);
+   nz(.38,2600,'bandpass',.55*vol,0,.25,.8);
    tn(620,.32,'sawtooth',.16*vol,0,110,.1);
-   for(let i=0;i<7;i++)tn(2400+Math.random()*4200,.09+Math.random()*.12,'sine',.08*vol,(Math.random()-.5)*.6,null,.2,Math.random()*.14);
+   for(let i=0;i<7;i++)tn(1100+Math.random()*2200,.09+Math.random()*.12,'sine',.08*vol,(Math.random()-.5)*.6,null,.2,Math.random()*.14);
    break;
   case 'dmg': // dégâts reçus : choc grave et étouffé
    tn(86*r(),.26,'sine',.85*vol,0,36);
