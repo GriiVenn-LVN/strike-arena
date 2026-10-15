@@ -18,9 +18,9 @@ const ATTS={
  comp:{s:'muzzle',n:'Compensateur',lv:2,d:'Canalise les gaz vers le haut : recul vertical réduit.',m:{rec:.85,ads:.97}},
  brake:{s:'muzzle',n:'Frein de bouche',lv:3,d:'Gaz sur les côtés : recul horizontal fortement réduit, tir plus bruyant.',m:{recH:.68,snd:1.15}},
  flash:{s:'muzzle',n:'Cache-flamme',lv:1,d:'Masque la flamme de bouche, léger gain de stabilité.',m:{rec:.95},noFlash:1},
- reddot:{s:'optic',n:'Point rouge',lv:1,d:'Visée nette et dégagée : dispersion en visée −25 %.',m:{adsSpr:.75}},
- holo:{s:'optic',n:'Holographique',lv:2,d:'Réticule cerclé, grande fenêtre : dispersion en visée −20 %, visée plus rapide.',m:{adsSpr:.8,ads:1.05}},
- mini:{s:'optic',n:'Mini réflex',lv:1,d:'Petit viseur ouvert, très léger : visée plus rapide, dispersion en visée −15 %.',m:{adsSpr:.85,ads:1.08}},
+ reddot:{s:'optic',n:'Point rouge',lv:1,d:'Visée nette et dégagée : dispersion en visée −25 %.',m:{adsSpr:.75,zoom:1.55}},
+ holo:{s:'optic',n:'Holographique',lv:2,d:'Réticule cerclé, grande fenêtre : dispersion en visée −20 %, visée plus rapide.',m:{adsSpr:.8,ads:1.05,zoom:1.5}},
+ mini:{s:'optic',n:'Mini réflex',lv:1,d:'Petit viseur ouvert, très léger : visée plus rapide, dispersion en visée −15 %.',m:{adsSpr:.85,ads:1.08,zoom:1.42}},
  acog:{s:'optic',n:'Lunette ×2,5',lv:4,d:'Grossissement ×2,5 pour la moyenne distance. Visée plus lente.',m:{adsSpr:.7,ads:.85,zoom:1.9}},
  sc4:{s:'optic',n:'Lunette ×4',lv:3,d:'Lunette de précision ×4 : vue plein écran en visée, idéale à longue distance. Visée lente.',m:{adsSpr:.6,ads:.78,mob:.97,zoom:2.4},ov:1},
  sc6:{s:'optic',n:'Lunette ×6',lv:5,d:'Grossissement ×6 : pour tenir une longue ligne. Visée lente.',m:{adsSpr:.55,ads:.72,mob:.96,zoom:3.1},ov:1},
@@ -219,7 +219,7 @@ function attBuild(g,k,sel,opt){
     o.position.set(0,bore,u.muzzle-L/2+.005);add(o,a);u.muzzle-=L-.005;break;}
    case 'grip':{const z=u.left?u.left.z:-.25,b=pr.under(z),o=new THREE.Group();
     o.add(boxA(.022,.012,.04,AM.dark,0,b-.004,z),cylZ(.012,.012,.075,AM.rub,0,b-.045,z,12));o.children[1].rotation.x=0;
-    add(o,a);u.left=V3(u.left?u.left.x:0,b-.05,z);break;}
+    add(o,a);u.left=V3(u.left?u.left.x:0,b-.012,z);u.leftV=true;break;}   // main gauche autour de la poignée verticale
    case 'angled':{const z=u.left?u.left.z:-.25,b=pr.under(z),o=new THREE.Group();
     const p=boxA(.02,.03,.07,AM.dark,0,b-.016,z+.005);p.rotation.x=-.5;o.add(p);o.add(boxA(.022,.008,.075,AM.blk,0,b-.002,z));
     add(o,a);u.left=V3(u.left?u.left.x:0,b-.03,z+.01);break;}

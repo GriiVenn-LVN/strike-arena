@@ -80,7 +80,7 @@ const W={
  m249:{n:'M249',slot:0,cat:'lmg',price:5200,dmg:32,hs:3.5,rpm:750,auto:1,mag:100,res:200,rel:5.7,spr:.6,mv:8,rec:.5,spd:.82,kill:300,len:.95,ap:.8,fo:45,fr:.003,col:0x3a3d33}
 };
 const CATS=[['Pistolets',['glock','usp','p250','fiveseven','deagle']],['SMG',['mac10','mp9','ump','p90']],['Pompes',['nova','sawedoff','xm']],['Fusils',['galil','famas','ak','m4','sg553','aug']],['Snipers',['ssg','awp','scar']],['Lourd',['negev','m249']]];
-const ADS_ZOOM={pistol:1.12,smg:1.2,shotgun:1.1,rifle:1.3,lmg:1.2,sniper:1,melee:1};
+const ADS_ZOOM={pistol:1.2,smg:1.3,shotgun:1.18,rifle:1.4,lmg:1.3,sniper:1,melee:1};   // léger zoom en visée (mires d'origine)
 const NADEW={n:'Grenade',kill:300,hs:1,ap:.5,fo:999,fr:0};
 const CATFR={pistol:'Pistolet',smg:'SMG',shotgun:'Fusil à pompe',rifle:'Fusil d\'assaut',sniper:'Sniper',lmg:'Mitrailleuse',melee:'Mêlée'};
 
