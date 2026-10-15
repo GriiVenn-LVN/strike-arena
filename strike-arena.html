@@ -4837,7 +4837,7 @@ function vmUpdate(dt,t,ent){
   u.mag.position.set(u.magP0.x+d.x*out*.2,u.magP0.y+d.y*out*.2,u.magP0.z+d.z*out*.2);
   u.mag.rotation.set(u.magR0.x+tw*.5,u.magR0.y,u.magR0.z+tw*.35);
   u.mag.visible=vis;
-  if(ins)inspectMag(u,g,ins,p);else if(u.rounds)u.rounds.visible=false;
+  if(ins)inspectMag(u,g,ins,p);else if(u.rounds){u.rounds.visible=false;insParts(u,false);}
  }
  // armement en fin de recharge à vide (culasse / glissière tirée puis relâchée) ; glissière bloquée en arrière quand le pistolet est vide
  let pull=0;
@@ -12957,7 +12957,7 @@ const INSK={
 };
 const INSD={mag:4.4,plain:3,knife:2.2};
 function inspectKind(e){const wi=e&&e.wp?curWi(e):null,w=wi?W[wi.k]:null;if(!w)return 'plain';if(w.melee)return 'knife';
- const u=VM.gun&&VM.gun.userData;return u&&u.mag&&VM.gk!=='p90'?'mag':'plain';}   // P90 : chargeur posé sur le dessus, trop long pour être montré
+ const u=VM.gun&&VM.gun.userData;return u&&u.mag&&VM.gk!=='p90'&&VM.gk!=='m249'?'mag':'plain';}   // P90 (chargeur sur le dessus) et M249 (caisse à bande) : trop gros pour être montrés
 function inspectDur(e){VM.inspKind=inspectKind(e);return INSD[VM.inspKind];}
 const _ik=[0,0,0,0,0,0];
 function inspectPose(u,w){
@@ -12986,7 +12986,7 @@ const _im={m:new THREE.Matrix4(),m2:new THREE.Matrix4(),p:new THREE.Vector3(),q:
 // matrice de l'objet dans le repère de VM.root (g = arme, enfant direct de VM.root)
 function vmRel(o,g,out){out.identity();const chain=[];for(let x=o;x&&x!==VM.root;x=x.parent)chain.push(x);for(let i=chain.length-1;i>=0;i--){chain[i].updateMatrix();out.multiply(chain[i].matrix);}return out;}
 function inspectPrep(u,g){
- if(u.insPrep)return;u.insPrep=true;
+ if(u.insPrep)return;u.insPrep=true;insSolid(g);
  const mag=u.mag;
  // orientation du chargeur dans le repère de l'arme (arme non tournée), boîte englobante dans son propre repère
  const gq=g.quaternion.clone(),gp=g.position.clone(),gs=g.scale.clone();g.position.set(0,0,0);g.quaternion.identity();g.scale.set(1,1,1);
@@ -13001,6 +13001,18 @@ function inspectPrep(u,g){
  const iq=u.insQmg.clone().invert(),up=new THREE.Vector3(0,1,0).applyQuaternion(iq),fw=new THREE.Vector3(0,0,-1).applyQuaternion(iq);
  const hs=box.getSize(new THREE.Vector3()).multiplyScalar(.5),ext=Math.abs(up.x)*hs.x+Math.abs(up.y)*hs.y+Math.abs(up.z)*hs.z;
  const top=u.insC.clone().addScaledVector(up,ext*.96),side=new THREE.Vector3().crossVectors(up,fw).normalize();
+ // petites pièces métalliques du modèle (cartouche, planchette) : remplacées par nos cartouches, sinon elles brillent comme du verre
+ {const parts=[];let vmax=0;mag.traverse(o=>{if(o.isMesh&&!o.userData.liner){o.geometry.computeBoundingBox();const z=o.geometry.boundingBox.getSize(new THREE.Vector3());const v=z.x*z.y*z.z;parts.push([o,v]);vmax=Math.max(vmax,v);}});
+  u.insHide=parts.filter(([o,v])=>v<vmax*.25).map(([o])=>o);}
+ // ouverture réelle du chargeur : sommets de la tranche haute (sans les pièces masquées) → hauteur des lèvres, centre et avant de l'ouverture
+ let oS=0,oF=0,tH=ext*.96,oW=0,oFr=0;
+ {const keep=new Set(u.insHide),pts=[],v=new THREE.Vector3(),mm=new THREE.Matrix4();
+  mag.traverse(o=>{if(!o.isMesh||o.userData.liner||keep.has(o)||!o.geometry.attributes.position)return;mm.multiplyMatrices(mi,o.matrixWorld);const pa=o.geometry.attributes.position;
+   for(let i=0;i<pa.count;i++){v.fromBufferAttribute(pa,i).applyMatrix4(mm).sub(u.insC);pts.push([v.dot(up),v.dot(side),v.dot(fw)]);}});
+  if(pts.length){const H=pts.map(q=>q[0]).sort((x,y)=>x-y),hmin=H[0],hmax=H[H.length-1];
+   const band=pts.filter(q=>q[0]>hmax-(hmax-hmin)*.1),pc=(arr,k)=>arr[Math.min(arr.length-1,Math.floor(arr.length*k))];
+   const bh=band.map(q=>q[0]).sort((x,y)=>x-y),bs=band.map(q=>q[1]).sort((x,y)=>x-y),bf=band.map(q=>q[2]).sort((x,y)=>x-y);
+   tH=pc(bh,.5);const s0=pc(bs,.05),s1=pc(bs,.95),f0=pc(bf,.05),f1=pc(bf,.95);oS=(s0+s1)/2;oF=(f0+f1)/2;oW=s1-s0;oFr=f1;}}
  // cartouches : deux rangées en quinconce, laiton + ogive cuivre (taille réelle quelle que soit l'échelle du modèle)
  const sc=1/Math.max(1e-4,(_im.s.x+_im.s.y+_im.s.z)/3),pistol=W[VM.gk]&&W[VM.gk].cat==='pistol';
  const R=(pistol?.0036:.0037)*sc,L=(pistol?.013:.021)*sc,TL=(pistol?.006:.009)*sc;
@@ -13008,14 +13020,26 @@ function inspectPrep(u,g){
  const brass=new THREE.MeshStandardMaterial({color:C('#c9a24a'),metalness:1,roughness:.25}),cu=new THREE.MeshStandardMaterial({color:C('#b8643a'),metalness:1,roughness:.3});
  const grp=new THREE.Group(),qd=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),fw);
  u.insRounds=[];
- for(let i=0;i<5;i++){const c=new THREE.Group(),m1=new THREE.Mesh(caseG,brass),m2=new THREE.Mesh(tipG,cu);m2.position.y=L/2;c.add(m1,m2);
-  c.quaternion.copy(qd);c.position.copy(top).addScaledVector(up,-R*.7-i*R*1.6).addScaledVector(side,(i&1?1:-1)*R*.95).addScaledVector(fw,L*.1);grp.add(c);u.insRounds.push(c);}
+ // rangée du haut : cartouches côte à côte, bien parallèles, pointes au ras de l'avant ; rangées suivantes en quinconce dessous
+ const R0=tH-R*.35,fitK=n=>oW>0?Math.min(1,oW*.95/(n*R*2.08)):1,across=pistol?(fitK(2)>=.7?2:1):(fitK(3)>=.75?3:2),rk=fitK(across);
+ const fP=oFr?oFr-(L/2+TL)+TL*.55:oF-TL/2;
+ for(let i=0;i<6;i++){const c=new THREE.Group(),m1=new THREE.Mesh(caseG,brass),m2=new THREE.Mesh(tipG,cu);m2.position.y=L/2;c.add(m1,m2);
+  const row=Math.floor(i/across),col=i%across,sx=(col-(across-1)/2+(row&1?.5:0))*R*2.08*rk;c.scale.setScalar(rk);
+  c.quaternion.copy(qd);c.position.copy(u.insC).addScaledVector(up,R0-row*R*1.75*rk).addScaledVector(side,oS+sx).addScaledVector(fw,fP);grp.add(c);u.insRounds.push(c);}
  grp.visible=false;mag.add(grp);u.rounds=grp;
 }
 const _iA=new THREE.Vector3(),_iB=new THREE.Vector3(),_iBasis1=new THREE.Matrix4(),_iBasis2=new THREE.Matrix4();
+// modèles allégés : chargeur et puits de chargeur en faces simples, vus de près ou par le haut on voyait au travers.
+// Chaque pièce opaque reçoit une doublure sombre qui ne dessine que l'intérieur (faces arrière) : l'extérieur garde son skin.
+const INS_LINER=new THREE.MeshStandardMaterial({color:C('#141518'),roughness:.85,metalness:0,side:THREE.BackSide});
+function insSolid(g){const list=[];g.traverse(o=>{if(o.isMesh&&o.geometry&&!o.userData.insLiner&&!o.userData.liner){const m=Array.isArray(o.material)?o.material[0]:o.material;
+  if(m&&!m.transparent&&m.opacity>=1&&m.side!==THREE.DoubleSide&&!m.isMeshBasicMaterial)list.push(o);}});
+ list.forEach(o=>{o.userData.insLiner=1;const l=new THREE.Mesh(o.geometry,INS_LINER);l.userData.liner=1;l.castShadow=l.receiveShadow=false;o.add(l);});}
+function insParts(u,show){if(u.insHide)u.insHide.forEach(o=>o.visible=!show);}
 function inspectMag(u,g,ins,p){
  if(!u.mag)return;inspectPrep(u,g);
  const mag=u.mag,show=ins.out>0||ins.hold>0;
+ insParts(u,show);
  if(u.rounds){u.rounds.visible=show;const n=p&&p.wp?curWi(p).mag:5;u.insRounds.forEach((r,i)=>r.visible=i<n);}
  if(!show){u.insMagC=null;return;}
  // pose « sortie » : glissée dans le prolongement du puits
