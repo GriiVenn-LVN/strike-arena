@@ -132,9 +132,9 @@ function drkArm(f,up,cuff,hand,sx){
  cuff.position.lerpVectors(el,hand,.9);cuff.quaternion.copy(f.quaternion);cuff.scale.set(1.45,.9,1.45);cuff.visible=true;
 }
 const _drkVm=vmUpdate;
-vmUpdate=function(dt,t){
+vmUpdate=function(dt,t,ent){
  if(DRK.on){P.ads=0;if(!P.alive||P.downed||G.variant!=='zombies'){drkEnd(true);}}
- _drkVm(dt,t);
+ _drkVm(dt,t,ent);   // ent : joueur regardé en spectateur ou tueur en kill-cam
  drkFlyUpdate(dt);
  if(!DRK.on)return;
  DRK.t+=dt;const T=DRK.t,g=VM.gun,B=DRK.btl,u=B.userData;
