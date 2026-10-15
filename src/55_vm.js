@@ -221,8 +221,10 @@ function vmUpdate(dt,t,ent){
   // poignet : bande de manche qui sépare le bras du gant
   const c=sx>0?VM.cR:VM.cL;c.position.lerpVectors(el,hand,.9);c.quaternion.copy(f.quaternion);c.scale.set(1.45,.9,1.45);c.visible=true;
  };
- const hrp=VM.hR.position.clone();place(VM.fR,VM.uR,hrp,1);
- if(u.twoHand){const hlp=VM.hL.position.clone();place(VM.fL,VM.uL,hlp,-1);VM.fL.visible=VM.uL.visible=true;}else VM.fL.visible=VM.uL.visible=false;
+ // le bras s'arrête au poignet (mains modelées : point « wrist » dans le repère de la main), pas au centre de la poignée
+ const wrist=h=>{const w=h.userData.wrist;if(!w)return h.position.clone();h.updateMatrix();return w.clone().applyMatrix4(h.matrix);};
+ const hrp=wrist(VM.hR);place(VM.fR,VM.uR,hrp,1);
+ if(u.twoHand){const hlp=wrist(VM.hL);place(VM.fL,VM.uL,hlp,-1);VM.fL.visible=VM.uL.visible=true;}else VM.fL.visible=VM.uL.visible=false;
  if(!u.twoHand)VM.cL.visible=false;
  // masquer en lunette
  VM.root.visible=!(p.scoped)&&p.alive;

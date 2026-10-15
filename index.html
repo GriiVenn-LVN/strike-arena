@@ -4754,8 +4754,10 @@ function vmUpdate(dt,t,ent){
   // poignet : bande de manche qui sépare le bras du gant
   const c=sx>0?VM.cR:VM.cL;c.position.lerpVectors(el,hand,.9);c.quaternion.copy(f.quaternion);c.scale.set(1.45,.9,1.45);c.visible=true;
  };
- const hrp=VM.hR.position.clone();place(VM.fR,VM.uR,hrp,1);
- if(u.twoHand){const hlp=VM.hL.position.clone();place(VM.fL,VM.uL,hlp,-1);VM.fL.visible=VM.uL.visible=true;}else VM.fL.visible=VM.uL.visible=false;
+ // le bras s'arrête au poignet (mains modelées : point « wrist » dans le repère de la main), pas au centre de la poignée
+ const wrist=h=>{const w=h.userData.wrist;if(!w)return h.position.clone();h.updateMatrix();return w.clone().applyMatrix4(h.matrix);};
+ const hrp=wrist(VM.hR);place(VM.fR,VM.uR,hrp,1);
+ if(u.twoHand){const hlp=wrist(VM.hL);place(VM.fL,VM.uL,hlp,-1);VM.fL.visible=VM.uL.visible=true;}else VM.fL.visible=VM.uL.visible=false;
  if(!u.twoHand)VM.cL.visible=false;
  // masquer en lunette
  VM.root.visible=!(p.scoped)&&p.alive;
@@ -12575,7 +12577,7 @@ buildOpts=function(){
    La main droite tient la poignée (axe vertical), la gauche tient le
    garde-main (axe le long du canon).
    ===================================================================== */
-const HANDG={};
+const HANDG={};let HAND_ROLL=0;
 // capsule (cylindre + demi-sphères) le long de Y, longueur totale L
 function capsGeo(r,L){const k=r.toFixed(4)+'_'+L.toFixed(4);if(HANDG[k])return HANDG[k];
  const pts=[],h=Math.max(0,L/2-r),n=6;
@@ -12592,8 +12594,7 @@ function puffGeo(w,h,d,round){const k='p'+w+'_'+h+'_'+d+'_'+round;if(HANDG[k])re
 // tissu du gant : trame fine + coutures
 function gloveTex(){return cached('gloveFab',()=>canvasTex(128,128,(c,w,h)=>{
  c.fillStyle='#bdbdbd';c.fillRect(0,0,w,h);
- for(let y=0;y<h;y+=2)for(let x=0;x<w;x+=2){const v=150+((x*7+y*13)%5)*12+Math.random()*30;c.fillStyle='rgb('+v+','+v+','+v+')';c.fillRect(x,y,1.5,1.5);}
- c.strokeStyle='rgba(60,60,60,.7)';c.setLineDash([2,2]);c.lineWidth=1;for(let x=16;x<w;x+=32){c.beginPath();c.moveTo(x,0);c.lineTo(x,h);c.stroke();}c.setLineDash([]);
+ for(let y=0;y<h;y+=2)for(let x=0;x<w;x+=2){const v=175+((x+y)&2?10:-10)+Math.random()*16;c.fillStyle='rgb('+v+','+v+','+v+')';c.fillRect(x,y,1.5,1.5);}
 },true));}
 const HAND_MATS=new Map();
 function handMats(glove){
@@ -12615,7 +12616,7 @@ function makeRealHand(glove){
  const R=.026,P=(phi,y,rr)=>new THREE.Vector3(Math.cos(phi)*(rr||R),y,Math.sin(phi)*(rr||R));
  const D=Math.PI/180;
  // paume + dos de la main (côté droit et arrière de la poignée)
- const palm=new THREE.Mesh(puffGeo(.026,.084,.07,.75),M.fab);palm.position.set(.03,-.036,.018);palm.rotation.y=-.62;inner.add(palm);
+ const palm=new THREE.Mesh(puffGeo(.028,.084,.07,1),M.fab);palm.position.set(.03,-.036,.018);palm.rotation.y=-.62;inner.add(palm);
  // coque des jointures + sangle du poignet
  const pad=new THREE.Mesh(puffGeo(.012,.07,.026,.9),M.pad);pad.position.set(.046,-.034,-.006);pad.rotation.y=-.35;inner.add(pad);
  const strap=new THREE.Mesh(puffGeo(.03,.05,.02,.6),M.strap);strap.position.set(.03,-.03,.05);strap.rotation.y=-.9;inner.add(strap);
@@ -12623,13 +12624,13 @@ function makeRealHand(glove){
  const F=[{y:-.008,L:[.042,.026,.021],r:.0088},{y:-.027,L:[.046,.029,.022],r:.0092},{y:-.046,L:[.043,.027,.021],r:.0088},{y:-.063,L:[.034,.021,.018],r:.0076}];
  for(const f of F){
   let phi=-14*D,a=P(phi,f.y);const k=new THREE.Mesh(capsGeo(f.r*1.12,f.r*2.4),M.fab);k.position.copy(a);inner.add(k);   // jointure
-  f.L.forEach((L,i)=>{const dphi=-L/R*(i?1.05:.95);phi+=dphi;const b=P(phi,f.y-.002*i,R-.002*i);handSeg(inner,a,b,f.r*(1-i*.08),i?M.fab:M.fab);a=b;});
-  const tip=new THREE.Mesh(capsGeo(f.r*.86,f.r*1.7),M.palm);tip.position.copy(a);inner.add(tip);   // bout renforcé
+  f.L.forEach((L,i)=>{const dphi=-L/R*(i?1.05:.95);phi+=dphi;const b=P(phi,f.y-.002*i,R-.002*i);handSeg(inner,a,b,f.r*(1-i*.1),i===2?M.palm:M.fab);a=b;});
  }
  // pouce : de la base de la paume, autour de l'arrière et du côté gauche, au-dessus de l'index
  {let a=new THREE.Vector3(.03,-.03,.042),pts=[P(118*D,-.004,.03),P(168*D,.004,.028),P(205*D,.008,.026)],rr=[.0125,.0105,.0095];
-  pts.forEach((b,i)=>{handSeg(inner,a,b,rr[i],i===2?M.palm:M.fab);a=b;});}
+  pts.forEach((b,i)=>{handSeg(inner,a,b,rr[i],M.fab);a=b;});}
  inner.traverse(o=>{if(o.isMesh)o.castShadow=false;});
+ root.userData.wristL=new THREE.Vector3(.032,-.032,.07);root.userData.wrist=root.userData.wristL.clone();
  return root;
 }
 {const _mh=makeHandMesh;
@@ -12637,7 +12638,7 @@ function makeRealHand(glove){
 // la main gauche tient le garde-main : poignée couchée le long du canon, paume dessous
 {const _sl=VM.setLook;
  VM.setLook=function(lk){const key=lk.kind+lk.acc+lk.tone+(lk.outfit||0),fresh=VM.look!==key;_sl(lk);
-  if(fresh&&VM.hL&&VM.hL.userData.inner){const i=VM.hL.userData.inner;i.rotation.set(-Math.PI/2,0,-1.1);i.position.set(0,-.006,0);}};
+  if(fresh&&VM.hL&&VM.hL.userData.inner){const i=VM.hL.userData.inner;i.quaternion.setFromEuler(new THREE.Euler(Math.PI/2,0,HAND_ROLL,'ZXY'));i.position.set(0,-.006,0);i.updateMatrix();VM.hL.userData.wrist=VM.hL.userData.wristL.clone().applyMatrix4(i.matrix);}};
  VM.look='';}
 /* =====================================================================
    ANIMATIONS DES SOLDATS EN 3E PERSONNE (vues par les autres joueurs)
