@@ -14418,7 +14418,9 @@ const DG={col:null,pend:null,batch:null,nums:new Map(),dirs:[],snd:{},combo:0,co
 #dgDirs svg{position:absolute;left:-170px;top:-170px;width:340px;height:340px;opacity:0;overflow:visible}
 #dgHurt{position:absolute;inset:0;pointer-events:none;opacity:0;z-index:4;
  background:radial-gradient(ellipse at center,rgba(0,0,0,0) 48%,rgba(120,0,0,.35) 72%,rgba(170,0,0,.85) 100%)}
-.vital .meter .dgGhost{position:absolute;left:0;top:0;bottom:0;background:#fff;opacity:.75;width:0}
+.vital .meter .dgGhost{position:absolute;left:0;top:0;bottom:0;background:#fff;opacity:.75;width:0;z-index:0}
+#dgRel{position:fixed;left:50%;top:calc(50% + 46px);width:84px;height:4px;margin-left:-42px;border-radius:3px;background:rgba(255,255,255,.12);pointer-events:none;z-index:6;opacity:0;transition:opacity .15s}
+#dgRel i{display:block;height:100%;width:0;border-radius:3px;background:rgba(255,255,255,.5);box-shadow:0 0 4px rgba(0,0,0,.35)}
 .vital .meter i{position:relative;z-index:1}
 `;
  document.head.appendChild(st);
@@ -14427,7 +14429,8 @@ const DG={col:null,pend:null,batch:null,nums:new Map(),dirs:[],snd:{},combo:0,co
  const n=document.createElement('div');n.id='dgNums';document.body.appendChild(n); // hors du HUD : il peut être mis à l'échelle, les chiffres suivent l'écran
  const d=document.createElement('div');d.id='dgDirs';hud.appendChild(d);
  const v=document.createElement('div');v.id='dgHurt';hud.appendChild(v);
- const m=$('hpm');if(m){const g=document.createElement('b');g.className='dgGhost';m.insertBefore(g,m.firstChild);}
+ const rl=document.createElement('div');rl.id='dgRel';rl.innerHTML='<i></i>';document.body.appendChild(rl); // barre de rechargement discrète sous le viseur
+ const m=$('hpm');if(m){const g=document.createElement('b');g.className='dgGhost';m.appendChild(g);} // après la jauge : le HUD met à jour la largeur de son premier enfant
  for(let i=0;i<6;i++){
   const s=document.createElementNS('http://www.w3.org/2000/svg','svg');s.setAttribute('viewBox','-170 -170 340 340');
   // arc rouge en dégradé + chevron vers l'extérieur
@@ -14481,7 +14484,7 @@ uiDamage=function(att,dmg){
 function dgFrame(){
  requestAnimationFrame(dgFrame);
  const now=performance.now(),dt=Math.min(.1,(now-(DG.last||now))/1000);DG.last=now;
- if(!G.running||!P){for(const [k,o] of DG.nums){o.el.remove();DG.nums.delete(k);}for(const s of DG.dirs){s.el.style.opacity=0;s.t=9;}return;}
+ if(!G.running||!P){for(const [k,o] of DG.nums){o.el.remove();DG.nums.delete(k);}for(const s of DG.dirs){s.el.style.opacity=0;s.t=9;}const rl=$('dgRel');if(rl)rl.style.opacity=0;return;}
  // chiffres de dégâts accrochés au-dessus de la cible
  const W2=innerWidth/2,H2=innerHeight/2,vv=dgFrame.v||(dgFrame.v=new THREE.Vector3()),fw=camera.getWorldDirection(dgFrame.f||(dgFrame.f=new THREE.Vector3())); // derrière la caméra = caché
  for(const [k,o] of DG.nums){
@@ -14504,7 +14507,10 @@ function dgFrame(){
  }
  // barre de vie : traînée blanche qui rattrape la vie restante
  const m=$('hpm'),g=m&&m.querySelector('.dgGhost');
- if(g){const hp=clamp(P.hp,0,100);if(hp>=DG.ghost||!P.alive)DG.ghost=hp;else if(now>DG.ghostT)DG.ghost=Math.max(hp,DG.ghost-dt*70);g.style.width=DG.ghost+'%';}
+ if(g){const f=m.firstElementChild,hp=clamp(f?parseFloat(f.style.width)||0:P.hp,0,100);if(hp>=DG.ghost||!P.alive)DG.ghost=hp;else if(now>DG.ghostT)DG.ghost=Math.max(hp,DG.ghost-dt*70);g.style.width=DG.ghost+'%';}
+ // rechargement : progression presque transparente
+ const rl=$('dgRel');
+ if(rl){const on=P.alive&&P.reload>0&&P.reloadMax>0;rl.style.opacity=on?1:0;if(on)rl.firstChild.style.width=(clamp(1-P.reload/P.reloadMax,0,1)*100).toFixed(1)+'%';}
 }
 requestAnimationFrame(dgFrame);
 
