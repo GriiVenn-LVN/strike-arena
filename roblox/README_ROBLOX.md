@@ -80,10 +80,12 @@ Régénérer les cartes après modification du prototype : `perl tools/export_ma
 - **Robux** : pièces (49 à 699 R$), caisses Premium (79 / 349 R$), passe Premium (399 R$) et les **Exclusifs** : 6 camos animés (249 à 449 R$, ou 1 299 R$ les six) qu'on ne peut obtenir qu'en payant. Prix alignés sur Arsenal, RIVALS et Phantom Forces.
 - **Onglets** : Armes (débloquées pour toujours ; 8 armes de départ gratuites), Skins (par arme), Viseurs (modèle d'optique par arme + réticule commun, purement visuels), Tenues & style (tenues, traînées, titres), Exclusifs ✨ (camos animés, Robux uniquement, à poser arme par arme), Robux.
 - **Prix** : par rareté (`ShopCatalog.PRICE_BY_RARITY`) ; armes = 40 % de leur prix en partie (`ShopCatalog.weaponPrice`). 4 **offres du jour** à -25 % (une par onglet), identiques pour tous les joueurs, renouvelées à minuit UTC.
+- **Abonnement Premium ⭐** (onglet Premium, `LoyaltyConfig.VIP`) : 30 jours 349 R$, 90 jours 899 R$, jours cumulables. Donne une couleur de pseudo (chat, `LoyaltyConfig.richName` pour le futur HUD), +20 % XP et pièces, +60 pièces par jour, 1 Caisse Premium à l'achat, série protégée un jour par semaine, titre « ⭐ Premium ». Crédité par `LoyaltyService.grantVip` depuis le ProcessReceipt de ShopService.
+- **Fidélité** (`LoyaltyService`, `LoyaltyUI`) : 5 cadeaux de temps de jeu par jour (10 à 75 min avec un personnage en vie), paliers de série (3 à 100 jours), rang de fidélité selon les jours joués (bonus d'XP permanent jusqu'à +12 %), boost d'XP, première victoire du jour, cadeau « bon retour » après 3 jours d'absence. Mêmes valeurs que le web (`src/8W_loyalty.js`).
 - **Menu d'achat en partie** (à faire) : ne proposer que les armes débloquées avec `ShopCatalog.ownsWeapon(profile, key)`.
 
 **Activer les achats Robux** (quand tu auras un compte Roblox et un jeu publié) :
-1. Creator Hub → ton expérience → **Monetization → Developer Products** → crée un produit par ligne de `ConfigExtra.SHOP` **et** de `ConfigExtra.EXCLUSIVES` (même nom, même prix en Robux).
+1. Creator Hub → ton expérience → **Monetization → Developer Products** → crée un produit par ligne de `ConfigExtra.SHOP`, de `ConfigExtra.EXCLUSIVES` **et** de `LoyaltyConfig.VIP.offers` (même nom, même prix en Robux).
 2. Copie l'identifiant de chaque produit dans le champ `productId` de la ligne correspondante. Tant qu'il vaut 0, le bouton affiche « Bientôt ».
 3. Teste dans Studio : les achats y sont simulés, aucun Robux n'est débité.
 
