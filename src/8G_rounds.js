@@ -65,11 +65,11 @@ const _afterEndRT=afterEnd;
 afterEnd=function(){
  if(!halfTimeDue())return _afterEndRT();
  G.halfDone=true;
- for(const e of ents){e.team=1-e.team;e.keep=false;if(cfg.eco&&G.variant!=='rapid')e.money=800;}
+ for(const e of ents){e.team=1-e.team;e.keep=false;if(ecoOn())e.money=ECO.start;}
  G.score=[G.score[1],G.score[0]];G.loss=[0,0];
  for(const e of ents)attachRig(e);
+ G.halfPistol=true;   // comme Valorant : la 2e mi-temps repart sur une manche au pistolet
  _afterEndRT();
- if(cfg.eco&&G.variant!=='rapid')G.pistolRound=true;
  const side=P.team===0?'ATTAQUANTS':'DÉFENSEURS';
  uiBanner('MI-TEMPS','Changement de camp — vous êtes maintenant '+side+(G.pistolRound?' · manche au pistolet':''),3600,'#ffd75e');
  sfx('round');
