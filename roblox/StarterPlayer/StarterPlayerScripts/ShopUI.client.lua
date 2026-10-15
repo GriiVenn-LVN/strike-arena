@@ -92,7 +92,7 @@ end
 
 -- Libellé et action du bouton d'un objet
 local function actionFor(it: any): (string, Color3, (() -> ())?)
-	if it.kind == "devproduct" then
+	if it.kind == "devproduct" or it.kind == "vip" then   -- vip = abonnement Premium, se rachète pour ajouter des jours
 		if it.productId <= 0 then return "Bientôt", MUTED, nil end
 		return "R$ " .. it.robux, Color3.fromRGB(0, 176, 111), function()
 			shopBuy:InvokeServer(it.id)                   -- Roblox affiche sa propre fenêtre de paiement
@@ -169,7 +169,7 @@ render = function()
 end
 
 for _, tab in ipairs(Catalog.TABS) do
-	local b = make("TextButton", { Name = tab.id, Size = UDim2.fromOffset(136, 36), BackgroundColor3 = PANEL, Text = tab.name, TextSize = 15 }, tabBar)
+	local b = make("TextButton", { Name = tab.id, Size = UDim2.fromOffset(96, 36), BackgroundColor3 = PANEL, Text = tab.name, TextSize = 13 }, tabBar)
 	corner(b, 6)
 	b.MouseButton1Click:Connect(function() currentTab = tab.id; render() end)
 end

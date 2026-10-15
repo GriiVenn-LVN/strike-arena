@@ -9,25 +9,52 @@ code **Luau** prêt à coller / synchroniser avec **Rojo**, données de cartes e
 2. Dans ce dossier : `rojo serve` puis connecte-toi depuis Studio (plugin Rojo → *Connect*).
    Sans Rojo : copie chaque fichier dans l'explorateur Studio selon l'arborescence ci-dessous.
 3. Active **Game Settings → Security → Enable Studio Access to API Services** (DataStore en test).
-4. Lance une partie locale à 2 joueurs (*Test → Local Server*, 2 joueurs) : `Main.server.lua` démarre une partie dès `MIN_PLAYERS` joueurs.
+4. Appuie sur **Play** (F5) : `Main.server.lua` lance un **match à mort par équipe sur Village** dès que tu es là, les bots complètent les deux équipes (5 contre 5). Pour tester à plusieurs : *Test → Local Server*, 2 joueurs. Détails et commandes : section 1 bis.
 
 ```
 ReplicatedStorage/Shared/Config.lua      armes, raretés, caisses, récompenses, danses, skins (valeurs du prototype)
 ReplicatedStorage/Shared/ShopCatalog.lua catalogue de la boutique (armes, skins, viseurs, tenues, produits Robux)
+ReplicatedStorage/Shared/ModeConfig.lua  mode lancé (tdm / bomb), réglages du match à mort, des bots et des sons de combat
 ReplicatedStorage/Shared/MapData.lua     3 cartes exportées du prototype (généré par tools/export_maps_lua.pl)
 ServerScriptService/DataService.lua      DataStore : profil, XP, pièces, inventaire, stats, défis, série quotidienne
 ServerScriptService/RewardService.lua    niveaux, récompense quotidienne, défis du jour, récompenses de fin de partie
 ServerScriptService/LootService.server.lua  caisses : tirage pondéré + pitié + doublons
 ServerScriptService/ShopService.server.lua  boutique : achats en pièces, offres du jour, équiper, achats Robux (seul ProcessReceipt du jeu)
-ServerScriptService/WeaponService.lua    tir hitscan validé serveur : cadence, munitions, bouclier → gilet → santé
+ServerScriptService/WeaponService.lua    tir hitscan validé serveur : cadence, munitions, recharge, 3 armes, couteau, bouclier → gilet → santé (joueurs et bots)
+ServerScriptService/BotService.lua       bots R15 : patrouille (PathfindingService), vision, temps de réaction, rafales
+ServerScriptService/TDMService.lua       match à mort par équipe : équipes, bots, réapparition, protection, objets, fil, séries, assistances, fin
 ServerScriptService/MapBuilder.lua       construit la carte (Parts, rampes en escaliers, plafonds, spawns, sites)
-ServerScriptService/RoundService.lua     mode compétitif 5v5 : cinématique → achat → manche → fin, bombe (ProximityPrompt)
+ServerScriptService/RoundService.lua     mode compétitif 5v5 : cinématique → achat → manche → fin, bombe (ProximityPrompt, pas encore branchée ; ModeConfig.MODE = "bomb")
 ServerScriptService/Main.server.lua      point d'entrée + RemoteFunctions (profil, daily, défis, danses, skins)
 StarterPlayerScripts/CinematicController.client.lua   cinématique d'arrivée en hélicoptère (caméra scriptée, barres de cinéma)
 StarterPlayerScripts/EmoteController.client.lua       danses (touche T) via Animator
+StarterPlayerScripts/WeaponController.client.lua  tir à la première personne : clic gauche/droit, R, 1-2-3, molette, manette, tactile, recul, traceurs, sons
+StarterPlayerScripts/HudController.client.lua     HUD : score, vie/bouclier, munitions, marqueur de touche, chiffres de dégâts, direction des dégâts, fil, séries, Tab, fin
 StarterPlayerScripts/LobbyUI.client.lua  UI minimale : profil, récompense quotidienne, caisses (avec probabilités)
 StarterPlayerScripts/ShopUI.client.lua   écran boutique : 5 onglets, offres du jour, Acheter / Équiper
 ```
+
+## 1 bis. Premier test : match à mort par équipe sur Village
+
+**Ce que tu dois faire (une fois que tu as un compte Roblox)** :
+1. Crée une expérience vide (*Baseplate*) dans Studio, supprime la `Baseplate` et le `SpawnLocation`.
+2. Synchronise ce dossier avec Rojo (section 1) et appuie sur **Play**.
+3. Tu apparais sur Village, dans l'équipe orange ou bleue, avec Galil/FAMAS + pistolet + couteau ; 9 bots complètent les équipes.
+
+**Commandes** : clic gauche tirer · clic droit viser · R recharger · 1/2/3 ou molette changer d'arme · **Tab** tableau des scores · **M** libérer la souris (boutique, profil, caisses) · T danse.
+Manette : RT/LT/X/Y, Select pour les scores. Téléphone : boutons Tir / Viser / R / Arme et « Scores ».
+
+**Règles de la partie** (modifiables dans `ModeConfig.TDM`) : première équipe à 50 éliminations ou 8 minutes ; réapparition après 3 s loin des ennemis, avec 2 s de protection (annulée si tu tires) ; santé, bouclier et munitions à ramasser sur la carte (20 s avant de revenir) ; assistance à partir de 30 dégâts ; séries annoncées à 3, 5, 7 et 10 ; écran de fin avec XP, pièces, paliers du passe, puis nouvelle partie après 15 s. Les citrouilles d'Halloween apparaissent si l'événement est actif.
+
+**Bots** (`ModeConfig.BOT`) : temps de réaction, imprécision, distance de vue et armes réglables. Ils tirent avec exactement les mêmes règles que les joueurs (`WeaponService.fire`).
+
+**Ce qui reste provisoire** :
+- Armes : un bloc gris dans la main. Mets tes modèles dans `ReplicatedStorage/Assets/Weapons/<clé>` (ex. `ak`, `galil`), ils seront pris automatiquement ; une `Attachment` nommée `Muzzle` place l'éclair de bouche.
+- Pas encore de bras/arme à la première personne (viewmodel) ni d'animations de tir/recharge : à faire dans l'Animation Editor.
+- Sons : des sons fournis avec Roblox servent de remplacement. Remplace les identifiants de `ModeConfig.SOUNDS` par de vrais sons (tir, touche corps, touche tête, élimination) depuis Creator Store → Audio, en vérifiant la licence.
+- Choix de l'arme principale : le serveur accepte déjà `SetLoadout` (armes de départ ou achetées) ; il manque le petit menu qui l'appelle.
+
+**Ce que je n'ai pas pu vérifier** : rien n'a tourné dans Studio (pas de compte). La syntaxe Luau de chaque fichier est vérifiée avec `luau-compile`, mais le premier test dans Studio montrera sûrement des réglages à ajuster (position de l'arme dans la main, vitesse des bots, volume des sons). Envoie-moi la fenêtre *Output* s'il y a une erreur rouge.
 
 Régénérer les cartes après modification du prototype : `perl tools/export_maps_lua.pl > roblox/ReplicatedStorage/Shared/MapData.lua`
 
@@ -53,10 +80,12 @@ Régénérer les cartes après modification du prototype : `perl tools/export_ma
 - **Robux** : pièces (49 à 699 R$), caisses Premium (79 / 349 R$), passe Premium (399 R$) et les **Exclusifs** : 6 camos animés (249 à 449 R$, ou 1 299 R$ les six) qu'on ne peut obtenir qu'en payant. Prix alignés sur Arsenal, RIVALS et Phantom Forces.
 - **Onglets** : Armes (débloquées pour toujours ; 8 armes de départ gratuites), Skins (par arme), Viseurs (modèle d'optique par arme + réticule commun, purement visuels), Tenues & style (tenues, traînées, titres), Exclusifs ✨ (camos animés, Robux uniquement, à poser arme par arme), Robux.
 - **Prix** : par rareté (`ShopCatalog.PRICE_BY_RARITY`) ; armes = 40 % de leur prix en partie (`ShopCatalog.weaponPrice`). 4 **offres du jour** à -25 % (une par onglet), identiques pour tous les joueurs, renouvelées à minuit UTC.
+- **Abonnement Premium ⭐** (onglet Premium, `LoyaltyConfig.VIP`) : 30 jours 349 R$, 90 jours 899 R$, jours cumulables. Donne une couleur de pseudo (chat, `LoyaltyConfig.richName` pour le futur HUD), +20 % XP et pièces, +60 pièces par jour, 1 Caisse Premium à l'achat, série protégée un jour par semaine, titre « ⭐ Premium ». Crédité par `LoyaltyService.grantVip` depuis le ProcessReceipt de ShopService.
+- **Fidélité** (`LoyaltyService`, `LoyaltyUI`) : 5 cadeaux de temps de jeu par jour (10 à 75 min avec un personnage en vie), paliers de série (3 à 100 jours), rang de fidélité selon les jours joués (bonus d'XP permanent jusqu'à +12 %), boost d'XP, première victoire du jour, cadeau « bon retour » après 3 jours d'absence. Mêmes valeurs que le web (`src/8W_loyalty.js`).
 - **Menu d'achat en partie** (à faire) : ne proposer que les armes débloquées avec `ShopCatalog.ownsWeapon(profile, key)`.
 
 **Activer les achats Robux** (quand tu auras un compte Roblox et un jeu publié) :
-1. Creator Hub → ton expérience → **Monetization → Developer Products** → crée un produit par ligne de `ConfigExtra.SHOP` **et** de `ConfigExtra.EXCLUSIVES` (même nom, même prix en Robux).
+1. Creator Hub → ton expérience → **Monetization → Developer Products** → crée un produit par ligne de `ConfigExtra.SHOP`, de `ConfigExtra.EXCLUSIVES` **et** de `LoyaltyConfig.VIP.offers` (même nom, même prix en Robux).
 2. Copie l'identifiant de chaque produit dans le champ `productId` de la ligne correspondante. Tant qu'il vaut 0, le bouton affiche « Bientôt ».
 3. Teste dans Studio : les achats y sont simulés, aucun Robux n'est débité.
 
@@ -93,7 +122,6 @@ Régénérer les cartes après modification du prototype : `perl tools/export_ma
 9. **Spectateur** : suivre un ami après la mort ; mode streamer.
 
 **Gameplay**
-10. **Agents à capacités** (style Valorant) : fumée, flash, mur, soin ; choisis avant la partie.
 11. **Plus de modes** : Désamorçage rapide (7 manches courtes), Capture de zone, Escorte, Bataille royale 20 joueurs, Zombies (coopératif contre IA).
 12. **Plus de cartes** (les 3 actuelles se portent directement ; ajoute une 4ᵉ : port / métro / jungle) + **mini-carte rotative** et callouts vocaux.
 13. **Personnalisation d'armes** : accessoires (silencieux, viseur, chargeur étendu), breloques, compteur de kills sur l'arme, inspection (V).

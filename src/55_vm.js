@@ -224,6 +224,10 @@ function vmUpdate(dt,t,ent){
  const hrp=VM.hR.position.clone();place(VM.fR,VM.uR,hrp,1);
  if(u.twoHand){const hlp=VM.hL.position.clone();place(VM.fL,VM.uL,hlp,-1);VM.fL.visible=VM.uL.visible=true;}else VM.fL.visible=VM.uL.visible=false;
  if(!u.twoHand)VM.cL.visible=false;
- // masquer en lunette
- VM.root.visible=!(p.scoped)&&p.alive;
+ // en lunette : l'arme reste affichée autour de la lentille (floutée par #scopeBlur) ; un disque invisible
+ // posé contre la caméra occupe la profondeur dans la lentille, pour que l'arme n'y soit pas dessinée
+ if(!VM.lens){VM.lens=new THREE.Mesh(new THREE.CircleGeometry(1,48),new THREE.MeshBasicMaterial({colorWrite:false}));VM.lens.renderOrder=-10;vmCam.add(VM.lens);}
+ VM.lens.visible=!!p.scoped;
+ if(p.scoped){const d=vmCam.near*1.05,r=d*Math.tan(vmCam.fov*Math.PI/360)*.665;VM.lens.position.set(0,0,-d);VM.lens.scale.setScalar(r);}
+ VM.root.visible=p.alive;
 }
