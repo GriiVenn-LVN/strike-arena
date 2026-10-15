@@ -102,7 +102,8 @@ function netHostMsg(m,from){
  if(!p||!p.ent||!G.running)return;
  const e=p.ent;
  if(m.t==='in'){p.in=m;}
- else if(m.t==='shot'&&e.alive){netShoot(e,m.yaw,m.pitch);}
+ else if(m.t==='shot'&&e.alive){netShoot(e,m.yaw,m.pitch,m.h);}
+ else if(m.t==='fall'){dgFallHost(e,m.d);}
  else if(m.t==='buy'){buyItem(e,m.k);}
  else if(m.t==='nade'&&e.alive){throwNade(e,m.k);}
  else if(m.t==='reload'){startReload(e);}
@@ -221,7 +222,7 @@ function netById(id){return id===NET.myEnt?P:NET.view.get(id);}
 function netClientEvent(ev){
  switch(ev.t){
   case 'tr':if(ev.s===NET.myEnt)break;{const a=ev.a;addTracer(a[0],a[1],a[2],a[3],a[4],a[5]);sfx(ev.c,a[0],a[2],1);muzzleFlash3D(a[0],a[1],a[2],.5);break;}
-  case 'feed':{const a=netById(ev.a),v=netById(ev.v),w=W[ev.w]||W.knife;if(a&&v){uiFeed(a,v,w,ev.hs);rpKill(a,v,w,ev.hs);if(a===P&&v!==P){uiKillMsg(v,ev.hs,1);sfx('kill');}if(v===P)uiDeath(a);}break;}
+  case 'feed':{const a=netById(ev.a),v=netById(ev.v),w=W[ev.w]||W.knife;if(a&&v){uiFeed(a,v,w,ev.hs);rpKill(a,v,w,ev.hs);if(a===P&&v!==P)uiKillMsg(v,ev.hs,1);/* son d'élimination : confirmation de touche (8W_degats) */if(v===P)uiDeath(a);}break;}
   case 'hurt':if(ev.to===NET.myEnt){const a=netById(ev.f);if(a)uiDamage(a);sfx('dmg');G.shake=Math.max(G.shake,.25);}break;
   case 'ban':uiBanner(ev.a[0],ev.a[1],ev.a[2],ev.a[3]);break;
   case 'msg':if(ev.to===NET.myEnt){if(ev.b)uiBanner(ev.b[0],ev.b[1],ev.b[2],ev.b[3]);if(ev.m)uiToast(ev.m);if(ev.s)sfx(ev.s);}break;

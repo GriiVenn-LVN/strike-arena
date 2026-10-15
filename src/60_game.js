@@ -240,7 +240,7 @@ function killEnt(v,att,w,hs){
  if(BM.state==='carried'&&BM.carrier===v.id){BM.state='dropped';BM.x=v.x;BM.z=v.z;BM.y=v.y;BM.carrier=-1;}
  uiFeed(att,v,w,hs);
  netEvent({t:'feed',a:att.id,v:v.id,w:Object.keys(W).find(k=>W[k]===w)||'knife',hs});
- if(att.isPlayer&&att!==v){uiKillMsg(v,hs,att.streak);sfx('kill');}
+ if(att.isPlayer&&att!==v){uiKillMsg(v,hs,att.streak);sfx(hs?'killhs':'kill');}
  if(v.isPlayer){G.spec=null;uiDeath(att);}
  if(G.mode==='bomb'){
   if(att!==v&&att.team!==v.team)att.money=Math.min(16000,att.money+(w.kill||300));
