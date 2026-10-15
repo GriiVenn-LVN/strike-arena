@@ -16,7 +16,7 @@ const INSK={
 };
 const INSD={mag:4.4,plain:3,knife:2.2};
 function inspectKind(e){const wi=e&&e.wp?curWi(e):null,w=wi?W[wi.k]:null;if(!w)return 'plain';if(w.melee)return 'knife';
- const u=VM.gun&&VM.gun.userData;return u&&u.mag?'mag':'plain';}
+ const u=VM.gun&&VM.gun.userData;return u&&u.mag&&VM.gk!=='p90'?'mag':'plain';}   // P90 : chargeur posé sur le dessus, trop long pour être montré
 function inspectDur(e){VM.inspKind=inspectKind(e);return INSD[VM.inspKind];}
 const _ik=[0,0,0,0,0,0];
 function inspectPose(u,w){
