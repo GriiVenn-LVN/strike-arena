@@ -39,7 +39,7 @@ StarterPlayerScripts/ShopUI.client.lua   écran boutique : 5 onglets, offres du 
 **Ce que tu dois faire (une fois que tu as un compte Roblox)** :
 1. Crée une expérience vide (*Baseplate*) dans Studio, supprime la `Baseplate` et le `SpawnLocation`.
 2. Synchronise ce dossier avec Rojo (section 1) et appuie sur **Play**.
-3. Tu apparais sur Village, dans l'équipe orange ou bleue, avec Galil/FAMAS + pistolet + couteau ; 9 bots complètent les équipes.
+3. Tu apparais dans le **lobby** (section 1 ter). Passe le portail rouge (ou bouton « Jouer ») : tu arrives sur Village, dans l'équipe orange ou bleue, avec Galil/FAMAS + pistolet + couteau ; 9 bots complètent les équipes.
 
 **Commandes** : clic gauche tirer · clic droit viser · R recharger · 1/2/3 ou molette changer d'arme · **Tab** tableau des scores · **M** libérer la souris (boutique, profil, caisses) · T danse.
 Manette : RT/LT/X/Y, Select pour les scores. Téléphone : boutons Tir / Viser / R / Arme et « Scores ».
@@ -57,6 +57,23 @@ Manette : RT/LT/X/Y, Select pour les scores. Téléphone : boutons Tir / Viser /
 **Ce que je n'ai pas pu vérifier** : rien n'a tourné dans Studio (pas de compte). La syntaxe Luau de chaque fichier est vérifiée avec `luau-compile`, mais le premier test dans Studio montrera sûrement des réglages à ajuster (position de l'arme dans la main, vitesse des bots, volume des sons). Envoie-moi la fenêtre *Output* s'il y a une erreur rouge.
 
 Régénérer les cartes après modification du prototype : `perl tools/export_maps_lua.pl > roblox/ReplicatedStorage/Shared/MapData.lua`
+
+## 1 ter. Lobby, duels, codes, effets d'élimination, classement, groupe
+
+Tout se règle dans `ReplicatedStorage/Shared/CommunityConfig.lua` (sauf les codes, côté serveur). Mets `LOBBY_ENABLED = false` pour revenir à l'ancien fonctionnement (directement dans le match).
+
+- **Lobby jouable** (`LobbyService`) : on y arrive avec son arme. Personne ne peut blesser personne. On y trouve :
+  - le **portail** du match à mort (bouton « 🏠 Lobby » pour revenir) ;
+  - le **stand de tir** : 15 cibles libres, et un défi de 30 s (borne verte, touche E) ; 20 cibles = 50 🪙 la première fois, record gardé ;
+  - le **parcours** : 16 plateformes de plus en plus hautes, chrono du départ vert à l'arrivée dorée ; 75 🪙 au premier parcours, record gardé ;
+  - les **bornes Codes et Groupe** (touche E) et le **classement géant**.
+- **Duels façon Rivals** (`DuelService`) : 4 plateformes (1v1, 1v1 avec mise, 2v2, 2v2 avec mise). Le duel part quand la plateforme est pleine. Premier à 5 manches, une vie par manche, 60 s par manche. Les mises vont dans un pot partagé par les gagnants. Chaque duel change l'**Elo** (rangs Bronze → Champion).
+- **Codes promo** (`ServerScriptService/CodeList.lua`) : ajoute une ligne par code (pièces, caisse, effet, danse, dates de validité). La liste reste sur le serveur pour que personne ne puisse la lire. Déjà prêts : `BIENVENUE`, `HALLOWEEN25` (jusqu'au 8 novembre, donne l'effet Citrouilles), `DUEL`.
+- **Effets d'élimination** (`KillFxConfig.lua`, onglet « Effets 💥 » de la boutique) : Confettis, Désintégration pixel et Envol céleste en pièces ; Foudre, Glace et Trou noir en Robux (crée les produits dans le Creator Hub et colle leurs `productId`) ; Citrouilles par code ; Esprit du groupe en rejoignant le groupe.
+- **Groupe Roblox** : crée le groupe sur roblox.com et colle son identifiant dans `CommunityConfig.GROUP.id`. Le bouton « Rejoindre » ouvre la fenêtre officielle de Roblox, et le serveur vérifie l'adhésion avant de donner 200 🪙 + l'effet Esprit du groupe. Roblox ne permet pas de vérifier un « J'aime » : il y a seulement un rappel après 10 minutes de jeu, sans récompense.
+- **Classement géant** (`LeaderboardService`) : éliminations de la semaine (remise à zéro le lundi) et meilleurs duellistes, partagés par tous les serveurs.
+
+**Pour tester dans Studio** : active *Game Settings → Security → Enable Studio Access to API Services* (sinon les classements et la sauvegarde ne marchent pas). Pour un duel 1v1, lance *Test → Clients and Servers* avec 2 joueurs et mets-les sur la même plateforme. La souris se libère avec **M** pour cliquer sur les boutons de gauche.
 
 ## 2. Correspondance prototype web → Roblox
 

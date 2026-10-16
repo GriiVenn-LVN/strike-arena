@@ -6,6 +6,7 @@
 local Config = require(script.Parent.Config)
 local X = require(script.Parent.ConfigExtra)
 local LoyaltyConfig = require(script.Parent.LoyaltyConfig)
+local KillFxConfig = require(script.Parent.KillFxConfig)
 
 local Catalog = {}
 
@@ -28,6 +29,7 @@ Catalog.TABS = {
 	{ id = "skins", name = "Skins" },
 	{ id = "sights", name = "Viseurs" },
 	{ id = "style", name = "Tenues & style" },
+	{ id = "killfx", name = "Effets 💥" },
 	{ id = "premium", name = "Premium ⭐" },
 	{ id = "exclusive", name = "Exclusifs ✨" },
 	{ id = "robux", name = "Robux" },
@@ -90,6 +92,12 @@ for _, t in ipairs(X.TRAILS) do
 end
 add({ id = "title_pack", tab = "style", kind = "misc", name = "Pack de titres de profil", rarity = 2, price = 800 })
 
+-- Effets d'élimination (KillFxConfig) : pièces, Robux, ou seulement via un code promo / le groupe Roblox
+for _, fx in ipairs(KillFxConfig.LIST) do
+	add({ id = "killfx_" .. fx.id, tab = "killfx", kind = "killfx", fx = fx.id, name = fx.name, rarity = fx.rarity, source = fx.source,
+		price = if fx.source == "coins" then fx.price else 0, robux = fx.robux, productId = fx.productId or 0 })
+end
+
 -- Robux (Developer Products) : renseigne productId après création dans le Creator Hub (0 = désactivé)
 for _, it in ipairs(X.SHOP) do
 	if it.kind == "devproduct" then
@@ -125,6 +133,7 @@ function Catalog.owns(profile: any, it: any): boolean
 		end
 		return true
 	end
+	if it.kind == "killfx" then return it.fx == "none" or table.find(inv.killfx or {}, it.fx) ~= nil end
 	if it.price == 0 then return true end
 	if it.kind == "weapon" then return table.find(inv.weapons or {}, it.weapon) ~= nil end
 	if it.kind == "skin" then return table.find(inv.skins[it.weapon] or {}, it.skin) ~= nil end

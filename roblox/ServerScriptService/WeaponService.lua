@@ -34,9 +34,11 @@ local WeaponService = {}
 local killedEvent = Instance.new("BindableEvent")
 local damagedEvent = Instance.new("BindableEvent")
 local shotEvent = Instance.new("BindableEvent")
+local targetEvent = Instance.new("BindableEvent")
 WeaponService.Killed = killedEvent.Event       -- (tueur, victime, cléArme, tête)
 WeaponService.Damaged = damagedEvent.Event     -- (tireur, victime, dégâts, tête)
 WeaponService.ShotFired = shotEvent.Event      -- (tireur, cléArme)
+WeaponService.TargetHit = targetEvent.Event    -- (tireur, cible) : cibles du stand de tir (attribut RangeTarget)
 
 type Ammo = { mag: number, reserve: number }
 type WState = {
@@ -59,7 +61,11 @@ function WeaponService.combatantOf(model: Model): any
 end
 
 function WeaponService.teamOf(c: any): string?
-	if typeof(c) == "Instance" and c:IsA("Player") then return c.Team and c.Team.Name or nil end
+	if typeof(c) == "Instance" and c:IsA("Player") then
+		local duelTeam = c:GetAttribute("DuelTeam")          -- en duel, l'équipe du duel passe avant celle du match
+		if typeof(duelTeam) == "string" then return duelTeam end
+		return c.Team and c.Team.Name or nil
+	end
 	if typeof(c) == "Instance" and c:IsA("Model") then return c:GetAttribute("Team") :: string? end
 	return nil
 end
@@ -307,7 +313,9 @@ function WeaponService.fire(c: any, origin: Vector3, direction: Vector3): boolea
 			local result = workspace:Raycast(origin, dir * range, params)
 			local endPos = result and result.Position or origin + dir * range
 			if not w.melee then tracerFx:FireAllClients(origin, endPos, char) end
-			if result and result.Instance then
+			if result and result.Instance and result.Instance:GetAttribute("RangeTarget") then
+				targetEvent:Fire(c, result.Instance)
+			elseif result and result.Instance then
 				local victim = result.Instance:FindFirstAncestorOfClass("Model")
 				if victim and victim:FindFirstChildOfClass("Humanoid") then
 					local vc = WeaponService.combatantOf(victim)

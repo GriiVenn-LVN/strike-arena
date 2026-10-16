@@ -6,7 +6,11 @@ local Players = game:GetService("Players")
 local DataService = require(script.Parent.DataService)
 local RewardService = require(script.Parent.RewardService)
 require(script.Parent.WeaponService)
+require(script.Parent.CodeService)        -- codes promo + récompense du groupe Roblox
+require(script.Parent.KillFxService)      -- effets d'élimination
+local LeaderboardService = require(script.Parent.LeaderboardService)
 local ModeConfig = require(ReplicatedStorage.Shared.ModeConfig)
+local CommunityConfig = require(ReplicatedStorage.Shared.CommunityConfig)
 
 -- ---------- Remotes pour l'interface (profil, récompense quotidienne, défis) ----------
 local function remoteFunction(name: string): RemoteFunction
@@ -60,9 +64,19 @@ end
 if ModeConfig.MODE == "tdm" then
 	-- match à mort par équipe sur Village : démarre dès qu'un joueur est là, les bots complètent les équipes
 	local TDMService = require(script.Parent.TDMService)
+	if CommunityConfig.LOBBY_ENABLED then
+		-- lobby jouable (stand de tir, parcours, classement géant, bornes) + duels 1v1 / 2v2 depuis ses plateformes
+		local LobbyService = require(script.Parent.LobbyService)
+		LobbyService.start()
+		LeaderboardService.start(LobbyService.board)
+		require(script.Parent.DuelService).start()
+	else
+		LeaderboardService.start(nil)
+	end
 	task.spawn(TDMService.run)
 else
 	-- compétitif 5v5 avec bombe (pose/désamorçage pas encore branchés : voir README_ROBLOX.md)
+	LeaderboardService.start(nil)
 	local RoundService = require(script.Parent.RoundService)
 	local MIN_PLAYERS = 2     -- mets 10 pour de vrais 5v5
 	local started = false

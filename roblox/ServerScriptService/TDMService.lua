@@ -8,6 +8,7 @@ local Teams = game:GetService("Teams")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local ModeConfig = require(ReplicatedStorage.Shared.ModeConfig)
+local CommunityConfig = require(ReplicatedStorage.Shared.CommunityConfig)
 local ShopCatalog = require(ReplicatedStorage.Shared.ShopCatalog)
 local DataService = require(script.Parent.DataService)
 local RewardService = require(script.Parent.RewardService)
@@ -58,6 +59,22 @@ local M = {
 	stats = {} :: { [any]: Stat }, dmgBy = {} :: { [any]: { [any]: number } },
 	map = nil :: any, roam = {} :: { Vector3 }, chosen = {} :: { [Player]: string },
 }
+
+-- Joueurs qui participent au match (attribut Zone = "tdm") ; les autres sont dans le lobby ou en duel
+local function participants(): { Player }
+	local list = {}
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p:GetAttribute("Zone") == "tdm" then table.insert(list, p) end
+	end
+	return list
+end
+
+-- Un combattant compte pour ce match : bot, ou joueur dans la zone « tdm »
+local function inTDM(c: any): boolean
+	if typeof(c) ~= "Instance" then return false end
+	if c:IsA("Model") then return true end
+	return c:IsA("Player") and c:GetAttribute("Zone") == "tdm"
+end
 
 local function keyOf(c: any): any
 	if typeof(c) == "Instance" and c:IsA("Model") then return "bot:" .. c.Name end
@@ -130,7 +147,7 @@ end
 
 local spawnPlayer: (Player) -> ()
 spawnPlayer = function(p: Player)
-	if not p.Parent or not p.Team then return end
+	if not p.Parent or not p.Team or p:GetAttribute("Zone") ~= "tdm" then return end
 	p:LoadCharacter()
 	local char = p.Character or p.CharacterAdded:Wait()
 	local team = p.Team.Name
@@ -143,7 +160,7 @@ spawnPlayer = function(p: Player)
 		WeaponService.reset(p)
 		if M.state ~= "live" then return end
 		task.delay(TDM.respawnDelay, function()
-			if M.state == "live" and p.Parent and p.Character == char then spawnPlayer(p) end
+			if M.state == "live" and p.Parent and p.Character == char and p:GetAttribute("Zone") == "tdm" then spawnPlayer(p) end
 		end)
 	end)
 end
@@ -245,7 +262,7 @@ local function weaponName(key: string): string
 end
 
 WeaponService.Damaged:Connect(function(attacker, victim, amount: number, _headshot: boolean)
-	if M.state ~= "live" then return end
+	if M.state ~= "live" or not inTDM(attacker) or not inTDM(victim) then return end
 	local s = statOf(attacker)
 	if s then s.dmg += amount; s.hits += 1 end
 	local vk = keyOf(victim)
@@ -255,13 +272,13 @@ WeaponService.Damaged:Connect(function(attacker, victim, amount: number, _headsh
 end)
 
 WeaponService.ShotFired:Connect(function(shooter, _key: string)
-	if M.state ~= "live" then return end
+	if M.state ~= "live" or not inTDM(shooter) then return end
 	local s = statOf(shooter)
 	if s then s.shots += 1 end
 end)
 
 WeaponService.Killed:Connect(function(killer, victim, key: string, headshot: boolean)
-	if M.state ~= "live" then return end
+	if M.state ~= "live" or not inTDM(killer) or not inTDM(victim) then return end
 	local ks, vs = statOf(killer), statOf(victim)
 	if not ks or not vs then return end
 	vs.d += 1; vs.streak = 0
@@ -320,18 +337,42 @@ loadoutFn.OnServerInvoke = function(player: Player, key: any)
 	local profile = DataService.get(player)
 	if not ShopCatalog.STARTER_WEAPONS[key] and not (profile and ShopCatalog.ownsWeapon(profile, key)) then return false end
 	M.chosen[player] = key       -- appliquée à la prochaine apparition
+	player:SetAttribute("Primary", key)   -- reprise aussi par les duels et le stand de tir du lobby
 	return true
 end
 
 -- ---------- arrivées / départs en cours de partie ----------
-Players.PlayerAdded:Connect(function(p)
-	if M.state ~= "live" and M.state ~= "intermission" then return end
+-- Entrer dans le match en cours (depuis le lobby, ou directement à l'arrivée si le lobby est désactivé)
+function TDMService.join(p: Player)
+	if p:GetAttribute("Zone") == "tdm" then return end
+	p:SetAttribute("Zone", "tdm")
+	if M.state ~= "live" and M.state ~= "intermission" then return end   -- la prochaine partie le placera
 	ensureTeams()
 	p.Team = teamObjs[smallestTeam()]
 	if M.state == "live" then
 		balanceBots()
 		task.spawn(spawnPlayer, p)
 	end
+end
+
+-- Quitter le match (retour au lobby) : un bot reprend la place
+function TDMService.leave(p: Player)
+	if p:GetAttribute("Zone") ~= "tdm" then return end
+	p:SetAttribute("Zone", "lobby")
+	p.Team = nil
+	M.chosen[p] = nil
+	M.stats[p] = nil
+	WeaponService.reset(p)
+	task.delay(0.2, balanceBots)
+end
+
+function TDMService.state(): string
+	return M.state
+end
+
+Players.PlayerAdded:Connect(function(p)
+	if CommunityConfig.LOBBY_ENABLED then return end   -- avec le lobby, on rejoint par le portail (LobbyService)
+	TDMService.join(p)
 end)
 Players.PlayerRemoving:Connect(function(p)
 	M.chosen[p] = nil
@@ -356,7 +397,7 @@ function TDMService.playMatch()
 	pcall(ProgressService.spawnPumpkins, M.map.data, cellToWorld)   -- décor Halloween si l'événement est actif
 
 	-- équipes équilibrées (les groupes d'amis pourront être gardés ensemble via PartyService plus tard)
-	local list = Players:GetPlayers()
+	local list = participants()
 	for i = #list, 2, -1 do local j = math.random(i); list[i], list[j] = list[j], list[i] end
 	for i, p in ipairs(list) do p.Team = teamObjs[TDM.teams[(i - 1) % 2 + 1]] end
 
@@ -373,7 +414,7 @@ function TDMService.playMatch()
 			if M.score[t] >= TDM.killsToWin then winner = t end
 		end
 		if winner or os.clock() >= M.endsAt then break end
-		if #Players:GetPlayers() == 0 then break end
+		if #participants() == 0 then break end
 	end
 	if not winner then
 		local a, b = M.score[TDM.teams[1]], M.score[TDM.teams[2]]
@@ -386,7 +427,7 @@ function TDMService.playMatch()
 	local seconds = math.floor(os.clock() - M.startedAt)
 	local finalBoard = board()
 	local mvp = finalBoard[1]
-	for _, p in ipairs(Players:GetPlayers()) do
+	for _, p in ipairs(participants()) do
 		local s = M.stats[p]
 		local won = winner ~= nil and p.Team ~= nil and p.Team.Name == winner
 		local rewards, progress = nil, nil
@@ -404,7 +445,7 @@ function TDMService.playMatch()
 			next = TDM.intermission })
 	end
 	BotService.setPaused(true)
-	for _, p in ipairs(Players:GetPlayers()) do
+	for _, p in ipairs(participants()) do
 		local h = p.Character and p.Character:FindFirstChildOfClass("Humanoid"); if h then h.WalkSpeed = 0 end
 	end
 
@@ -418,7 +459,10 @@ end
 function TDMService.run()
 	Players.CharacterAutoLoads = false
 	while true do
-		while #Players:GetPlayers() < TDM.minHumans do task.wait(1) end
+		if not CommunityConfig.LOBBY_ENABLED then
+			for _, p in ipairs(Players:GetPlayers()) do p:SetAttribute("Zone", "tdm") end
+		end
+		while #participants() < TDM.minHumans do task.wait(1) end
 		task.wait(2)
 		local ok, err = pcall(TDMService.playMatch)
 		if not ok then warn("[TDMService] partie interrompue :", err); M.state = "idle"; BotService.removeAll(); task.wait(3) end

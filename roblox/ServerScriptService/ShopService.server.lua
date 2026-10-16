@@ -15,6 +15,7 @@ local DataService = require(script.Parent.DataService)
 local ProgressService = require(script.Parent.ProgressService)
 local LoyaltyService = require(script.Parent.LoyaltyService)
 local LoyaltyConfig = require(ReplicatedStorage.Shared.LoyaltyConfig)
+local KillFxConfig = require(ReplicatedStorage.Shared.KillFxConfig)
 
 local receipts = DataStoreService:GetDataStore("StrikeArenaReceipts_v1")
 
@@ -25,7 +26,9 @@ end
 -- ---------- Robux (Developer Products) ----------
 local byProduct: { [number]: any } = {}
 for _, it in ipairs(Catalog.ITEMS) do
-	if (it.kind == "devproduct" or it.kind == "exclusive" or it.kind == "vip") and it.productId > 0 then byProduct[it.productId] = it end
+	if (it.kind == "devproduct" or it.kind == "exclusive" or it.kind == "vip" or (it.kind == "killfx" and it.source == "robux")) and it.productId > 0 then
+		byProduct[it.productId] = it
+	end
 end
 
 MarketplaceService.ProcessReceipt = function(info)
@@ -48,6 +51,10 @@ MarketplaceService.ProcessReceipt = function(info)
 			if not table.find(profile.inv.exclusive, c) then table.insert(profile.inv.exclusive, c) end
 		end
 	end
+	if it.kind == "killfx" then                                               -- effet d'élimination exclusif : pour toujours
+		profile.inv.killfx = profile.inv.killfx or {}
+		if not table.find(profile.inv.killfx, it.fx) then table.insert(profile.inv.killfx, it.fx) end
+	end
 	local ok = pcall(function() receipts:SetAsync(key, true) end)
 	if not ok then return Enum.ProductPurchaseDecision.NotProcessedYet end
 	DataService.save(player)
@@ -68,6 +75,7 @@ local function grant(profile: any, it: any)
 	elseif it.kind == "outfit" then push("outfits", it.outfit)
 	elseif it.kind == "sight" then push("sights", it.sight)
 	elseif it.kind == "reticle" then push("reticles", it.reticle)
+	elseif it.kind == "killfx" then push("killfx", it.fx)
 	else push("misc", it.id) end
 end
 
@@ -105,6 +113,15 @@ buy.OnServerInvoke = function(player: Player, id: any)
 		return { ok = true, pending = true }
 	end
 
+	if it.kind == "killfx" and it.source ~= "coins" then
+		if Catalog.owns(profile, it) then return { ok = false, err = "Déjà possédé" } end
+		if it.source == "code" then return { ok = false, err = "S'obtient avec un code promo" } end
+		if it.source == "group" then return { ok = false, err = "S'obtient en rejoignant le groupe Roblox" } end
+		if it.productId <= 0 then return { ok = false, err = "Bientôt disponible" } end
+		MarketplaceService:PromptProductPurchase(player, it.productId)
+		return { ok = true, pending = true }
+	end
+
 	if Catalog.owns(profile, it) then return { ok = false, err = "Déjà possédé" } end
 	local price = Catalog.priceFor(it, Catalog.today())
 	if profile.coins < price then return { ok = false, err = "Pièces insuffisantes" } end
@@ -137,6 +154,8 @@ equip.OnServerInvoke = function(player: Player, id: any, weapon: any)
 		if typeof(weapon) ~= "string" or not Config.WEAPONS[weapon] or Config.WEAPONS[weapon].melee then return false end
 		eq.animCamo = eq.animCamo or {}
 		eq.animCamo[weapon] = it.camo
+	elseif it.kind == "killfx" then
+		eq.killFx = it.fx
 	else
 		return false
 	end
@@ -146,8 +165,8 @@ end
 -- Vérification au démarrage : un productId en double ferait créditer le mauvais produit
 do
 	local seen = {}
-	for _, list in ipairs({ X.SHOP, X.EXCLUSIVES, LoyaltyConfig.VIP.offers }) do for _, it in ipairs(list) do
-		if it.productId > 0 then
+	for _, list in ipairs({ X.SHOP, X.EXCLUSIVES, LoyaltyConfig.VIP.offers, KillFxConfig.LIST }) do for _, it in ipairs(list) do
+		if (it.productId or 0) > 0 then
 			if seen[it.productId] then warn("[ShopService] productId en double dans ConfigExtra.SHOP :", it.productId) end
 			seen[it.productId] = true
 		end

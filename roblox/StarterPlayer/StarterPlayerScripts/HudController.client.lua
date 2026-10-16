@@ -224,6 +224,7 @@ local feed = make("Frame", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.n
 make("UIListLayout", { HorizontalAlignment = Enum.HorizontalAlignment.Right, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, feed)
 local feedOrder = 0
 feedRemote.OnClientEvent:Connect(function(k: any)
+	if player:GetAttribute("Zone") == "lobby" or player:GetAttribute("Zone") == "duel" then return end   -- fil du match à mort : seulement pour ceux qui y jouent
 	feedOrder += 1
 	local me = player.DisplayName
 	local involved = k.killer == me or k.victim == me
@@ -443,6 +444,10 @@ end)
 -- Mise à jour continue
 -- ==========================================================================================
 stateRemote.OnClientEvent:Connect(function(st: any)
+	-- avec le lobby, le score du match à mort ne s'affiche que pour ceux qui y jouent
+	local inMatch = player:GetAttribute("Zone") == nil or player:GetAttribute("Zone") == "tdm"
+	top.Visible = inMatch
+	if not inMatch then centerMsg.Text = ""; return end
 	lastState = st
 	local a, b = st.teams[1], st.teams[2]
 	scoreA.Text = tostring(st.score[a] or 0); scoreB.Text = tostring(st.score[b] or 0)
