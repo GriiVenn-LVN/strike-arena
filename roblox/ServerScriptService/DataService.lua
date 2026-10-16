@@ -19,9 +19,9 @@ local function template()
 		coins = 250,
 		lastLoginDay = 0,            -- jour UTC (os.time() // 86400)
 		streak = 0,
-		inv = { skins = {}, dances = { "wave", "clap" }, weapons = {}, outfits = {}, sights = {}, reticles = {}, misc = {}, exclusive = {} },   -- exclusive = camos animés achetés en Robux   -- skins[weaponKey] = { skinIndex, ... } ; voir Shared/ShopCatalog
+		inv = { skins = {}, dances = { "wave", "clap" }, weapons = {}, outfits = {}, sights = {}, reticles = {}, misc = {}, exclusive = {}, killfx = {} },   -- exclusive = camos animés achetés en Robux   -- skins[weaponKey] = { skinIndex, ... } ; voir Shared/ShopCatalog
 		equippedDance = "wave",
-		equipped = { outfit = 1, reticle = "dot_red", trail = "", sights = {}, animCamo = {} },   -- animCamo[weaponKey] = camo animé (ConfigExtra.EXCLUSIVES)   -- sights[weaponKey] = id de ConfigExtra.SIGHTS
+		equipped = { outfit = 1, reticle = "dot_red", trail = "", sights = {}, animCamo = {}, killFx = "none" },   -- animCamo[weaponKey] = camo animé (ConfigExtra.EXCLUSIVES)   -- sights[weaponKey] = id de ConfigExtra.SIGHTS
 		boxes = { std = 1, prem = 0 },
 		pity = { epic = 0, legend = 0 },
 		opened = 0,
@@ -29,6 +29,10 @@ local function template()
 		history = {},
 		missions = { day = 0, list = {} },
 		binds = {},                 -- touches personnalisées (synchronisées avec le client)
+		codes = {},                 -- codes promo déjà utilisés (CodeService)
+		social = {},                -- social.group = date de la récompense du groupe Roblox
+		duel = { elo = 1000, w = 0, l = 0, best = 1000 },   -- duels 1v1 / 2v2 (DuelService)
+		lobby = { rangeBest = 0, rangeRewarded = false, parkourBest = 0, parkourRewarded = false },
 	}
 end
 

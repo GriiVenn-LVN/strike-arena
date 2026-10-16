@@ -5,6 +5,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local DataService = require(script.Parent.DataService)
 local LoyaltyService = require(script.Parent.LoyaltyService)
+local LeaderboardService = require(script.Parent.LeaderboardService)
 
 local RewardService = {}
 
@@ -139,6 +140,7 @@ function RewardService.finishMatch(player: Player, summary)
 	local bm = s.byMode[summary.mode] or { m = 0, w = 0 }; bm.m += 1; if summary.won then bm.w += 1 end; s.byMode[summary.mode] = bm
 	local bp = s.byMap[summary.map] or { m = 0, w = 0 }; bp.m += 1; if summary.won then bp.w += 1 end; s.byMap[summary.map] = bp
 	for k, v in pairs(summary.weaponKills or {}) do s.byWeapon[k] = (s.byWeapon[k] or 0) + v end
+	LeaderboardService.addKills(player, summary.kills)    -- classement géant de la semaine (lobby)
 	table.insert(profile.history, 1, { t = os.time(), mode = summary.mode, map = summary.map, won = summary.won, k = summary.kills, d = summary.deaths })
 	while #profile.history > 25 do table.remove(profile.history) end
 	local xp = 40 + summary.kills * 10 + summary.hs * 5 + (summary.won and 120 or 0) + (summary.plants + summary.defuses) * 25

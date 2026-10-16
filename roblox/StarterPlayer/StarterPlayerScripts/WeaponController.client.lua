@@ -134,7 +134,9 @@ end
 
 local function tryFire()
 	local key = W.weapon
-	if not key or not alive() or not W.matchLive or W.menu then return end
+	-- la pause entre deux parties ne bloque que les joueurs du match (pas le lobby ni les duels)
+	local blocked = not W.matchLive and player:GetAttribute("Zone") == "tdm"
+	if not key or not alive() or blocked or W.menu or player:GetAttribute("UiOpen") == true then return end
 	local w = Config.WEAPONS[key]
 	if not w.auto and not W.fresh then return end
 	local t = os.clock()
@@ -240,7 +242,7 @@ RunService:BindToRenderStep("WeaponCamera", Enum.RenderPriority.Camera.Value + 1
 	-- le recul est un décalage visuel ajouté après la caméra Roblox, qui revient tout seul
 	W.recoilPitch *= math.exp(-dt * 9); W.recoilYaw *= math.exp(-dt * 9)
 	camera.CFrame = camera.CFrame * CFrame.Angles(math.rad(W.recoilPitch), math.rad(W.recoilYaw), 0)
-	UserInputService.MouseIconEnabled = W.menu
+	UserInputService.MouseIconEnabled = W.menu or player:GetAttribute("UiOpen") == true   -- panneaux Codes / Groupe du lobby
 end)
 
 player.CharacterAdded:Connect(function()

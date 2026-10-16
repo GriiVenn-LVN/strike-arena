@@ -105,6 +105,14 @@ local function actionFor(it: any): (string, Color3, (() -> ())?)
 			shopBuy:InvokeServer(it.id)
 		end
 	end
+	if it.kind == "killfx" and not owned and it.source ~= "coins" then   -- effet d'élimination exclusif, de code ou de groupe
+		if it.source == "code" then return "Code 🔑", MUTED, nil end
+		if it.source == "group" then return "Groupe 👥", MUTED, nil end
+		if it.productId <= 0 then return "Bientôt", MUTED, nil end
+		return "R$ " .. it.robux, Color3.fromRGB(0, 176, 111), function()
+			shopBuy:InvokeServer(it.id)
+		end
+	end
 	if not owned then
 		local price = it.price
 		for _, o in ipairs(state.offers) do if o.id == it.id then price = o.price end end
@@ -120,6 +128,7 @@ local function actionFor(it: any): (string, Color3, (() -> ())?)
 		or (it.kind == "trail" and eq.trail == it.trail) or (it.kind == "sight" and eq.sights[weapon] == it.sight)
 		or (it.kind == "skin" and state.equippedSkins[it.weapon] == it.skin)
 		or (it.kind == "exclusive" and it.camo ~= nil and (eq.animCamo or {})[weapon] == it.camo)
+		or (it.kind == "killfx" and (eq.killFx or "none") == it.fx)
 	if isEquipped then return "Équipé", MUTED, nil end
 	if it.kind == "weapon" or it.kind == "misc" or (it.kind == "exclusive" and not it.camo) then return "Possédé", MUTED, nil end
 	return "Équiper", Color3.fromRGB(74, 163, 255), function()
@@ -169,7 +178,7 @@ render = function()
 end
 
 for _, tab in ipairs(Catalog.TABS) do
-	local b = make("TextButton", { Name = tab.id, Size = UDim2.fromOffset(96, 36), BackgroundColor3 = PANEL, Text = tab.name, TextSize = 13 }, tabBar)
+	local b = make("TextButton", { Name = tab.id, Size = UDim2.fromOffset(82, 36), BackgroundColor3 = PANEL, Text = tab.name, TextSize = 12 }, tabBar)
 	corner(b, 6)
 	b.MouseButton1Click:Connect(function() currentTab = tab.id; render() end)
 end
