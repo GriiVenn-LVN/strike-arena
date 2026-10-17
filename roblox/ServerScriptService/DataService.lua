@@ -2,15 +2,16 @@
 -- ServerScriptService/DataService (ModuleScript)
 -- Sauvegarde du profil joueur : XP, pièces, inventaire (skins/danses), caisses, pitié, stats, défis, série quotidienne.
 -- Ne JAMAIS faire confiance au client : toutes les modifications passent par le serveur.
-local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
-local STORE = DataStoreService:GetDataStore("StrikeArenaProfile_v1")
+local Stores = require(script.Parent.Stores)
+local STORE = Stores.get("StrikeArenaProfile_v1")
 local AUTOSAVE_INTERVAL = 60
 
 local DataService = {}
 local profiles: { [Player]: any } = {}
+local loadFailed: { [Player]: boolean } = {}   -- lecture ratée : on ne sauvegarde pas, sinon on écraserait le vrai profil
 
 local function template()
 	return {
@@ -48,12 +49,16 @@ end
 
 function DataService.load(player: Player)
 	local key = "u_" .. player.UserId
-	local data
+	local data, loaded = nil, false
 	for attempt = 1, 4 do
 		local ok, res = pcall(function() return STORE:GetAsync(key) end)
-		if ok then data = res break end
+		if ok then data = res; loaded = true break end
 		warn("[DataService] lecture échouée (" .. attempt .. ")", res)
 		task.wait(1.5 * attempt)
+	end
+	if not loaded then
+		loadFailed[player] = true
+		warn("[DataService] profil de " .. player.Name .. " non chargé : partie jouable, mais rien ne sera sauvegardé")
 	end
 	data = data or template()
 	reconcile(data, template())
@@ -63,7 +68,7 @@ end
 
 function DataService.save(player: Player)
 	local data = profiles[player]
-	if not data then return end
+	if not data or loadFailed[player] then return end
 	local key = "u_" .. player.UserId
 	for attempt = 1, 4 do
 		local ok, err = pcall(function() STORE:SetAsync(key, data) end)
@@ -79,7 +84,7 @@ function DataService.get(player: Player)
 end
 
 Players.PlayerAdded:Connect(function(p) DataService.load(p) end)
-Players.PlayerRemoving:Connect(function(p) DataService.save(p); profiles[p] = nil end)
+Players.PlayerRemoving:Connect(function(p) DataService.save(p); profiles[p] = nil; loadFailed[p] = nil end)
 for _, p in ipairs(Players:GetPlayers()) do task.spawn(DataService.load, p) end
 
 task.spawn(function()

@@ -3,6 +3,24 @@
 Ce dossier contient tout ce qu'il faut pour transformer le prototype web (`strike-arena.html`) en jeu Roblox :
 code **Luau** prêt à coller / synchroniser avec **Rojo**, données de cartes exportées automatiquement, et la liste de ce qu'il reste à créer dans Studio.
 
+## 0. Publier le jeu sur Roblox (première fois)
+
+Le fichier `StrikeArena.rbxlx` contient tout le code, prêt à ouvrir. On le refabrique depuis ce dossier avec
+`rojo build default.project.json -o StrikeArena.rbxlx` (il n'est pas gardé dans le dépôt).
+
+1. Crée un compte sur roblox.com, puis installe **Roblox Studio** et connecte-toi.
+2. Ouvre `StrikeArena.rbxlx` dans Studio (*File → Open from File*).
+3. Appuie sur **Play** (F5) pour essayer. Si une ligne rouge apparaît dans la fenêtre *Output* (*View → Output*), envoie-la.
+   Tant que le jeu n'est pas publié, la sauvegarde est coupée (un avertissement jaune `[Stores]` le dit) : c'est normal.
+4. **File → Publish to Roblox** → *Create new experience* : nom « Strike Arena », genre *Shooter*, appareils PC, téléphone, tablette, console.
+5. **Home → Game Settings → Security** : coche *Enable Studio Access to API Services*, puis *Save*. La sauvegarde, les classements et les codes marchent alors aussi dans Studio.
+6. Sur **create.roblox.com** → ton expérience : remplis le **questionnaire de maturité** (obligatoire avant d'ouvrir le jeu), ajoute une icône et des images, puis **Settings → Privacy → Public** quand tu veux l'ouvrir à tous.
+7. Plus tard, pour les achats en Robux et le groupe : section 3 (`productId`) et section 1 ter (`GROUP.id`). En attendant, les boutons Robux affichent « Bientôt ».
+
+Pour les mises à jour suivantes : synchronise avec Rojo (section 1) ou rouvre un `.rbxlx` refabriqué, puis *File → Publish to Roblox* de nouveau (la même expérience est mise à jour).
+
+**Sécurités ajoutées pour le premier lancement** : `ServerScriptService/Stores.lua` remplace la sauvegarde par une mémoire temporaire quand Roblox la refuse (jeu pas encore publié), au lieu d'arrêter tout le serveur ; si la lecture d'un profil échoue, il n'est jamais écrasé ; `default.project.json` coupe l'apparition automatique (le lobby place le joueur) et le *streaming* (la carte est construite par script).
+
 ## 1. Mise en place (15 minutes)
 
 1. Installe **Roblox Studio** puis **Rojo** (extension VS Code `evaera.vscode-rojo` + plugin Studio).

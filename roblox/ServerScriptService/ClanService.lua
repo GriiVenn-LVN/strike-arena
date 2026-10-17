@@ -2,12 +2,11 @@
 -- ServerScriptService/ClanService (ModuleScript) — base pour les clans
 -- Un clan = tag de 3-4 lettres, couleur, membres (max 30), stats cumulées. Stocké dans un DataStore dédié.
 -- Version minimale : création, rejoindre, quitter, tag affiché dans le profil. À étendre (salon, classement, guerres).
-local DataStoreService = game:GetService("DataStoreService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TextService = game:GetService("TextService")
 
 local DataService = require(script.Parent.DataService)
-local STORE = DataStoreService:GetDataStore("StrikeArenaClans_v1")
+local STORE = require(script.Parent.Stores).get("StrikeArenaClans_v1")
 local MAX_MEMBERS = 30
 local CREATE_COST = 2000
 

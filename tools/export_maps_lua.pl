@@ -64,6 +64,10 @@ end
 
 LUA
 
+# constantes partagées par plusieurs cartes (ex. STD_CT / STD_T dans src/21_maps_extra.js)
+while($js=~/^const (STD_\w+)=(\[.*?\]);\s*$/mg){ print "local $1 = ".conv_val($2)."\n"; }
+print "\n";
+
 for my $id (@maps){
   $js=~/MAPS\.$id=\{(.*?)\n\};\s*\n/s or die "map $id";
   my $obj=$1;
