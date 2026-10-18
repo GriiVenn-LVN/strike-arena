@@ -240,11 +240,12 @@ RunService:BindToRenderStep("WeaponCamera", Enum.RenderPriority.Camera.Value + 1
 	if S.kc then return end                -- la kill-cam tient la caméra
 	local key = W.weapon
 	local w = key and Config.WEAPONS[key]
-	local targetFov = BASE_FOV
-	if W.aiming and w then targetFov = if (w.zoom or 0) > 0 then BASE_FOV / w.zoom else BASE_FOV * 0.8 end
+	local base = S.opt.fov                 -- champ de vision choisi dans les Réglages du menu
+	local targetFov = base
+	if W.aiming and w then targetFov = if (w.zoom or 0) > 0 then base / w.zoom else base * 0.8 end
 	W.fov += (targetFov - W.fov) * math.min(1, dt * 14)
 	camera.FieldOfView = W.fov
-	UserInputService.MouseDeltaSensitivity = baseSens * (W.fov / BASE_FOV)
+	UserInputService.MouseDeltaSensitivity = baseSens * S.opt.sens * S.opt.wsens * (W.fov / base) * (if W.aiming then S.opt.aimSens else 1)
 	-- le recul est un décalage visuel ajouté après la caméra Roblox, qui revient tout seul
 	W.recoilPitch *= math.exp(-dt * 9); W.recoilYaw *= math.exp(-dt * 9)
 	camera.CFrame = camera.CFrame * CFrame.Angles(math.rad(W.recoilPitch), math.rad(W.recoilYaw), 0)
