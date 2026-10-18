@@ -469,6 +469,22 @@ function WeaponService.throwGrenade(c: any, kind: string, free: boolean?, target
 	return GrenadeService.throw(c, kind, free, nil, target)
 end
 WeaponService.placeMine = GrenadeService.placeMine
+-- stock de grenades et de mines d'un combattant ({ frag, flash, smoke, mine }), nil s'il n'en a pas
+function WeaponService.grenadesOf(c: any): { frag: number, flash: number, smoke: number, mine: number }?
+	return GrenadeService.get(c)
+end
+-- recharge l'arme en main et les autres armes au maximum du chargeur (panneau admin : balles infinies)
+function WeaponService.fillMags(c: any)
+	local s = state[c]; if not s then return end
+	for _, k in ipairs(s.loadout) do
+		local a = s.ammo[k]
+		if a and not Config.WEAPONS[k].melee then
+			a.mag = math.max(a.mag, magSize(k, if k == s.weapon then s.attachments else readAttachments(c, k)))
+			a.reserve = math.max(a.reserve, Config.WEAPONS[k].reserve)
+		end
+	end
+	notify(c)
+end
 WeaponService.smokeBlocks = GrenadeService.smokeBlocks
 WeaponService.clearGrenades = GrenadeService.clear
 -- itère sur les combattants armés (joueurs et bots)

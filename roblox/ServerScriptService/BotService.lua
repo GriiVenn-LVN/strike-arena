@@ -18,9 +18,11 @@ type Brain = {
 	roam: { Vector3 }, waypoints: { PathWaypoint }, wpIndex: number, goal: Vector3?, repathAt: number,
 	target: Model?, seenAt: number, lastSeen: Vector3?, lastSeenAt: number, burstLeft: number, nextBurst: number, alive: boolean,
 	match: number?, diff: any, goalFn: ((Model) -> Vector3?)?,
+	nades: boolean, nadeT: number, mineT: number,
 }
 -- Réglages d'une apparition (MatchService) : partie, niveau (Modes.DIFFS), armes, but de déplacement imposé par le mode
-export type SpawnOpts = { match: number?, diff: any?, loadout: { string }?, goal: ((Model) -> Vector3?)? }
+-- nades = grenades et mines lancées par BotService lui-même (modes à mort ; les modes à manches ont les leurs)
+export type SpawnOpts = { match: number?, diff: any?, loadout: { string }?, goal: ((Model) -> Vector3?)?, nades: boolean? }
 local brains: { [Model]: Brain } = {}
 local usedNames: { [string]: boolean } = {}
 local folder: Folder? = nil
@@ -76,6 +78,7 @@ local function canSee(b: Brain, target: Model): (boolean, Vector3?)
 	params.FilterDescendantsInstances = { b.model }
 	local r = workspace:Raycast(myHead.Position, to, params)
 	if r and not r.Instance:IsDescendantOf(target) then return false, nil end
+	if WeaponService.smokeBlocks(myHead.Position, head.Position) then return false, nil end   -- la fumée coupe la vue (web : smokeBlocks)
 	-- vise le torse la plupart du temps, la tête de temps en temps
 	local torso = (target:FindFirstChild("UpperTorso") or target:FindFirstChild("HumanoidRootPart")) :: BasePart?
 	local headRate = if b.diff then 0.1 + b.diff.aimHead else 0.25
@@ -99,9 +102,52 @@ local function aimError(b: Brain, dir: Vector3): Vector3
 	return (CFrame.lookAlong(Vector3.zero, dir.Unit) * CFrame.Angles((math.random() - 0.5) * 2 * e, (math.random() - 0.5) * 2 * e, 0)).LookVector
 end
 
+-- Grenades et mines d'un bot, aux mêmes moments que le web (src/70_ai.js botUpdate, src/63_agents.js agentBot) et que
+-- Modes/rounds (botNades) : en combat, flash entre 9 et 24 m, fumigène quand il est blessé ; hors combat, frag sur la
+-- dernière position vue (moins de 4 s, entre 9 et 26 m) ; de temps en temps, une mine quand il ne se bat pas.
+-- timers = { nadeT, mineT } (prochain lancer, prochain essai de mine) ; mineChance : 0,12 (modes à mort), 0,18 (bombe)
+function BotService.nadeStep(bot: Model, dt: number, nadeSkill: number, mineChance: number, timers: { nadeT: number, mineT: number })
+	local b = brains[bot]
+	if not b or not b.alive or bot:GetAttribute("Frozen") then return end
+	local stock = WeaponService.grenadesOf(bot)
+	if not stock then return end
+	local t = os.clock()
+	local r = b.root
+	local target, seen, ago = b.target, b.lastSeen, t - b.lastSeenAt
+	local tr = target and target:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local function flat(a: Vector3, c: Vector3): number return Vector3.new(a.X - c.X, 0, a.Z - c.Z).Magnitude / Config.STUDS_PER_METER end
+	if t > timers.nadeT then
+		if tr then
+			local dist = flat(tr.Position, r.Position)
+			if stock.flash > 0 and dist > 9 and dist < 24 and math.random() < dt * 0.5 * nadeSkill then
+				timers.nadeT = t + 4; WeaponService.throwGrenade(bot, "flash", false, tr.Position)
+			elseif stock.smoke > 0 and b.hum.Health < 40 and dist > 6 and math.random() < dt * 1.2 * nadeSkill then
+				timers.nadeT = t + 6; WeaponService.throwGrenade(bot, "smoke", false, r.Position:Lerp(tr.Position, 0.35))
+			end
+		elseif stock.frag > 0 and seen and ago < 4 then
+			local dd = flat(seen, r.Position)
+			if dd > 9 and dd < 26 and math.random() < dt * 0.8 * nadeSkill then
+				timers.nadeT = t + 5; WeaponService.throwGrenade(bot, "frag", false, seen)
+			end
+		end
+	end
+	timers.mineT -= dt
+	if timers.mineT <= 0 then
+		timers.mineT = 1.5 + math.random() * 2
+		if not target and stock.mine > 0 and math.random() < mineChance then WeaponService.placeMine(bot) end
+	end
+end
+
 local function think(b: Brain)
 	if not b.alive or b.model:GetAttribute("Frozen") then return end
 	local t = os.clock()
+	-- aveuglé par une flash (GrenadeService : attribut BlindUntil) : il perd sa cible et ralentit
+	local blind = b.model:GetAttribute("BlindUntil")
+	if typeof(blind) == "number" and blind > workspace:GetServerTimeNow() then
+		b.target = nil
+		b.hum:Move(Vector3.zero)
+		return
+	end
 	b.team = (b.model:GetAttribute("Team") :: string?) or b.team    -- le mode peut changer l'équipe (Infecté)
 	-- 1) chercher l'ennemi visible le plus proche
 	local best, bestPos, bestD = nil, nil, math.huge
@@ -202,6 +248,7 @@ function BotService.spawn(team: string, at: Vector3, roam: { Vector3 }, name: st
 		model = model, hum = hum, root = root, team = team, roam = roam, waypoints = {}, wpIndex = 1, goal = nil, repathAt = 0,
 		target = nil, seenAt = 0, lastSeen = nil, lastSeenAt = -99, burstLeft = math.random(BOT.burst[1], BOT.burst[2]), nextBurst = 0, alive = true,
 		match = opts and opts.match, diff = opts and opts.diff, goalFn = opts and opts.goal,
+		nades = opts ~= nil and opts.nades == true, nadeT = 0, mineT = 1.5 + math.random() * 2,
 	}
 	brains[model] = b
 	local secondary = if team == "Attaquants" then "glock" else "usp"
@@ -272,6 +319,11 @@ task.spawn(function()
 		for _, b in pairs(brains) do
 			local ok, err = pcall(think, b)
 			if not ok then warn("[BotService]", err) end
+			if b.nades and b.alive then
+				if not pcall(BotService.nadeStep, b.model, BOT.thinkRate, if b.diff and b.diff.nade then b.diff.nade else 0.6, 0.12, b :: any) then
+					warn("[BotService] grenades : erreur pour", b.model.Name)
+				end
+			end
 		end
 	end
 end)

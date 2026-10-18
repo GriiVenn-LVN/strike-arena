@@ -333,12 +333,15 @@ function MatchService.respawn(m: Match, c: any)
 	task.spawn(spawnPlayer, m, c)
 end
 
+local BOT_NO_NADES = { inf = true, zombies = true, br = true, train = true }   -- Infecté (couteau), Zombies, BR, Entraînement
 local liveBots: (Match, string?) -> { Model }
 local spawnBot: (Match, string, string?) -> Model
 spawnBot = function(m: Match, team: string, name: string?): Model
 	local model = BotService.spawn(if m.teams then team else "Attaquants", Vector3.zero, m.roam, name, {
 		match = m.id, diff = Modes.DIFFS[m.settings.diff], loadout = { "knife" },
 		goal = function(b: Model): Vector3? return if m.mod.botGoal then m.mod.botGoal(m, b) else nil end,
+		-- grenades et mines des bots dans les modes à mort (les modes à manches les gèrent eux-mêmes, Modes/rounds)
+		nades = m.def.respawn ~= nil and not BOT_NO_NADES[m.mode],
 	})
 	model:SetAttribute("Team", if m.teams then team else soloTeam(model))
 	model:SetAttribute("Look", if m.teams then team else "ffa")
@@ -839,8 +842,19 @@ local function playOnce(m: Match)
 		end
 		sinceBroadcast += dt
 		if sinceBroadcast >= 0.5 then sinceBroadcast = 0; broadcast(m) end
-		-- fin : limite atteinte (ou règle du mode), chrono écoulé, plus personne
-		if m.mod.checkEnd then
+		-- fin : limite atteinte (ou règle du mode), chrono écoulé, plus personne ; ou décision de l'admin (MatchService.forceEnd)
+		if (m :: any).forced then
+			(m :: any).forced = nil
+			done = true
+			if m.teams then
+				local a, b = m.score[m.teams[1]] or 0, m.score[m.teams[2]] or 0
+				winner = if a > b then m.teams[1] elseif b > a then m.teams[2] else nil
+			else
+				local best, bv = nil, -1
+				for k, v in pairs(m.score) do if v > bv and m.stats[k] then best, bv = m.stats[k], v end end
+				winner = best
+			end
+		elseif m.mod.checkEnd then
 			local fin, w = m.mod.checkEnd(m)
 			if fin then done, winner = true, w end
 		elseif m.limit then
@@ -892,6 +906,11 @@ function MatchService.create(settings: any, host: Player?): Match?
 	}
 	matches[id] = m
 	return m
+end
+
+-- termine la partie tout de suite (panneau admin) : le meilleur score gagne, comme à la fin du chrono
+function MatchService.forceEnd(m: Match)
+	if m.state == "live" then (m :: any).forced = true end
 end
 
 function MatchService.start(m: Match)

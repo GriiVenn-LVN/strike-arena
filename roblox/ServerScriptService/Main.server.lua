@@ -8,6 +8,8 @@ local RewardService = require(script.Parent.RewardService)
 require(script.Parent.WeaponService)
 require(script.Parent.CodeService)        -- codes promo + récompense du groupe Roblox
 require(script.Parent.KillFxService)      -- effets d'élimination
+require(script.Parent.MedalService)       -- médailles, bilan perso et défis de fin de partie (src/8G_medals.js, src/8O_defis.js)
+require(script.Parent.AdminService)       -- panneau admin (propriétaire du jeu + code, src/8M_admin.js)
 local LeaderboardService = require(script.Parent.LeaderboardService)
 local ModeConfig = require(ReplicatedStorage.Shared.ModeConfig)
 local CommunityConfig = require(ReplicatedStorage.Shared.CommunityConfig)
@@ -37,6 +39,15 @@ claimMission.OnServerInvoke = function(player: Player, index: any)
 	if typeof(index) ~= "number" then return nil end
 	return RewardService.claimMission(player, index)
 end
+
+-- défis de la semaine (src/8O_defis.js) et liste complète des défis avec leurs textes (menu Progression)
+local claimWeekly = remoteFunction("ClaimWeekly")
+claimWeekly.OnServerInvoke = function(player: Player, index: any)
+	if typeof(index) ~= "number" then return nil end
+	return RewardService.claimWeekly(player, index)
+end
+local getChallenges = remoteFunction("GetChallenges")
+getChallenges.OnServerInvoke = function(player: Player) return RewardService.challenges(player) end
 
 local equipDance = remoteFunction("EquipDance")
 equipDance.OnServerInvoke = function(player: Player, id: any)
