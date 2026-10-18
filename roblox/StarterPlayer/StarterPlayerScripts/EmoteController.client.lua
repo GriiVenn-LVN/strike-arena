@@ -24,13 +24,20 @@ local function emote(_, state: Enum.UserInputState)
 	local data = getProfile:InvokeServer()
 	if not data then return Enum.ContextActionResult.Pass end
 	local def = Config.DANCES[data.profile.equippedDance]
-	if not def or def.animationId == "rbxassetid://0" then warn("[Emote] animationId manquant pour", data.profile.equippedDance) return Enum.ContextActionResult.Sink end
+	if not def then return Enum.ContextActionResult.Sink end
+	if def.animationId == "rbxassetid://0" then
+		-- pas d'animation importée : danse procédurale du jeu web, jouée par SoldierController chez tout le monde
+		local dr = ReplicatedStorage:FindFirstChild("SoldierDance") :: RemoteEvent?
+		if dr then dr:FireServer(true) end
+		return Enum.ContextActionResult.Sink
+	end
 	stop()
 	local anim = Instance.new("Animation"); anim.AnimationId = def.animationId
 	local animator = hum:FindFirstChildOfClass("Animator") or Instance.new("Animator", hum)
-	current = animator:LoadAnimation(anim)
-	current.Priority = Enum.AnimationPriority.Action
-	current:Play(0.2)
+	local track = animator:LoadAnimation(anim)
+	current = track
+	track.Priority = Enum.AnimationPriority.Action
+	track:Play(0.2)
 	task.delay(def.length, function() if current then stop() end end)
 	-- annule si le joueur bouge
 	local conn; conn = hum.Running:Connect(function(speed) if speed > 1 then stop(); conn:Disconnect() end end)
