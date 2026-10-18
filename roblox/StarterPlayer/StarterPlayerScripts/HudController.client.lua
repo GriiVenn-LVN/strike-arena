@@ -125,6 +125,21 @@ local function weaponIcon(parent: Instance, key: string, size: Vector2, props: {
 	end)
 	return vf
 end
+-- partie du joueur (MatchService) : équipe, carte (dossier dans workspace) et son décalage
+local function myTeam(): string?
+	local t = player:GetAttribute("Team")
+	if typeof(t) == "string" then return t end
+	return player.Team and player.Team.Name or nil
+end
+local function myMapFolder(): Instance?
+	local n = player:GetAttribute("MatchMap")
+	return if typeof(n) == "string" then workspace:FindFirstChild(n) else workspace:FindFirstChild("Map")
+end
+local function mapOrigin(): Vector3
+	local f = myMapFolder()
+	local o = f and f:GetAttribute("Origin")
+	return if typeof(o) == "Vector3" then o else Vector3.zero
+end
 local function mySkin(key: string): (number?, string?)
 	return player:GetAttribute("Skin_" .. key) :: number?, player:GetAttribute("Camo_" .. key) :: string?
 end
@@ -226,7 +241,8 @@ local function locName(pos: Vector3): string
 	local m = rmap
 	if not m then return "" end
 	local cs = Config.CELL * U
-	local cx, cz = math.floor(pos.X / cs), math.floor(pos.Z / cs)
+	local lp = pos - mapOrigin()
+	local cx, cz = math.floor(lp.X / cs), math.floor(lp.Z / cs)
 	for _, s in ipairs(m.sites) do
 		if Vector2.new(cx + 0.5 - s.cx, cz + 0.5 - s.cz).Magnitude < (s.r or 7) then return "Site " .. s.n end
 	end
@@ -255,20 +271,25 @@ tracerRemote.OnClientEvent:Connect(function(_o: Vector3, _e: Vector3, shooter: I
 	if shooter then spotted[shooter] = os.clock() + 2.2 end
 end)
 
+-- soldats de MA partie (plusieurs parties tournent en même temps sur le serveur)
 local function soldierList(): { { model: Model, team: string?, alive: boolean } }
 	local out = {}
+	local mid = player:GetAttribute("MatchId")
 	for _, p in ipairs(Players:GetPlayers()) do
 		local c = p.Character
 		local h = c and c:FindFirstChildOfClass("Humanoid")
-		if c and h and p:GetAttribute("Zone") ~= "lobby" and p:GetAttribute("Zone") ~= "duel" then
-			table.insert(out, { model = c, team = p.Team and p.Team.Name or nil, alive = h.Health > 0 })
+		if c and h and p:GetAttribute("MatchId") == mid and mid ~= nil then
+			local t = p:GetAttribute("Team")
+			table.insert(out, { model = c, team = if typeof(t) == "string" then t else nil, alive = h.Health > 0 })
 		end
 	end
 	local bots = workspace:FindFirstChild("Bots")
 	if bots then
 		for _, b in ipairs(bots:GetChildren()) do
 			local h = b:FindFirstChildOfClass("Humanoid")
-			if b:IsA("Model") and h then table.insert(out, { model = b, team = b:GetAttribute("Team") :: string?, alive = h.Health > 0 }) end
+			if b:IsA("Model") and h and b:GetAttribute("MatchId") == mid then
+				table.insert(out, { model = b, team = b:GetAttribute("Team") :: string?, alive = h.Health > 0 })
+			end
 		end
 	end
 	return out
@@ -282,6 +303,7 @@ local function drawRadar(dt: number)
 	local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
 	if not m or not root then return end
 	local pos = root.Position
+	local O = mapOrigin()
 	local look = camera.CFrame.LookVector
 	local fwd = Vector3.new(look.X, 0, look.Z)
 	if fwd.Magnitude < 1e-3 then fwd = Vector3.new(0, 0, -1) end
@@ -300,8 +322,8 @@ local function drawRadar(dt: number)
 		for py = 0, RIMG - 1 do
 			local dy = py - c0
 			-- monde = pos + right * dx * k - fwd * dy * k
-			local wx0 = pos.X - fwd.X * dy * k - right.X * c0 * k
-			local wz0 = pos.Z - fwd.Z * dy * k - right.Z * c0 * k
+			local wx0 = pos.X - O.X - fwd.X * dy * k - right.X * c0 * k
+			local wz0 = pos.Z - O.Z - fwd.Z * dy * k - right.Z * c0 * k
 			local sx, sz = right.X * k, right.Z * k
 			for px = 0, RIMG - 1 do
 				local o = (py * RIMG + px) * 4
@@ -329,7 +351,7 @@ local function drawRadar(dt: number)
 	end
 	-- coéquipiers, ennemis repérés, objets
 	local n = 0
-	local myTeam = player.Team and player.Team.Name
+	local mine = myTeam()
 	local now = os.clock()
 	local function place(at: Vector3, col: Color3, size: number, ring: boolean, dir: Vector3?)
 		local rel = at - pos
@@ -353,7 +375,7 @@ local function drawRadar(dt: number)
 	for _, s in ipairs(soldierList()) do
 		local r = s.model:FindFirstChild("HumanoidRootPart") :: BasePart?
 		if r and s.alive and s.model ~= char then
-			if myTeam and s.team == myTeam then
+			if mine and s.team == mine and (mine:sub(1, 5) ~= "solo:") then
 				local lv = r.CFrame.LookVector
 				place(r.Position, teamColor(s.team), 11, false, Vector3.new(lv.X, 0, lv.Z))
 			elseif (spotted[s.model] or 0) > now then
@@ -361,12 +383,15 @@ local function drawRadar(dt: number)
 			end
 		end
 	end
-	local folder = workspace:FindFirstChild("Map") or workspace
+	local folder = myMapFolder() or workspace
 	for _, p in ipairs(folder:GetDescendants()) do
 		if p:IsA("Model") and p:GetAttribute("Pickup") and p:GetAttribute("Ready") ~= false then
 			local kind = p:GetAttribute("Pickup")
 			local core = p.PrimaryPart
-			if core then place(core.Position, if kind == "shield" then rgb(0x31c8ff) elseif kind == "health" then rgb(0xff4a5a) else rgb(0xffd24a), 7, false, nil) end
+			if core then
+				local col = if kind == "shield" then rgb(0x31c8ff) elseif kind == "health" then rgb(0xff4a5a) elseif kind == "tag" then (if p:GetAttribute("TagTeam") == mine then rgb(0x7dd8ff) else rgb(0xffd23a)) else rgb(0xffd24a)
+				place(core.Position, col, 7, false, nil)
+			end
 		end
 	end
 	for i = n + 1, #dotPool do dotPool[i].Visible = false end
@@ -691,6 +716,7 @@ corner(board, 6); stroke(board, C.line, 1.5, 0.2)
 local boardScale = make("UIScale", { Scale = 1 }, board)
 label(board, { Position = UDim2.fromOffset(20, 12), Size = UDim2.new(1, -40, 0, 26), TextSize = 18, Font = FONT, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 21,
 	Text = spaced("MATCH À MORT PAR ÉQUIPE", 1) })
+local boardTitle = board:FindFirstChildOfClass("TextLabel") :: TextLabel
 local boardInfo = label(board, { Position = UDim2.fromOffset(20, 12), Size = UDim2.new(1, -40, 0, 26), TextSize = 14, TextColor3 = C.dim, TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 21 })
 local columns: { Frame } = {}
 for i = 1, 2 do
@@ -711,12 +737,27 @@ local function boardRow(parent: Instance, order: number, cells: { string }, colo
 	end
 end
 local lastState: any = nil
-local liveAt = -100
 local function renderBoard()
 	local st = lastState
 	if not st then return end
 	for _, col in ipairs(columns) do for _, c in ipairs(col:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end end
-	boardInfo.Text = st.mapName .. "   ·   " .. fmtTime(st.timeLeft) .. "   ·   premier à " .. st.killsToWin
+	boardTitle.Text = spaced(string.upper(st.modeName or "Match à mort par équipe"), 1)
+	boardInfo.Text = st.mapName .. (if st.timeLeft >= 0 then "   ·   " .. fmtTime(st.timeLeft) else "") .. (if st.killsToWin then "   ·   premier à " .. st.killsToWin else "")
+	if not st.team then
+		-- chacun pour soi : une seule liste, classée par points du mode (éliminations, niveau, points du Mastodonte…)
+		local list = table.clone(st.board)
+		table.sort(list, function(a: any, b: any) return (a.pts or 0) > (b.pts or 0) or ((a.pts or 0) == (b.pts or 0) and a.score > b.score) end)
+		for ci, col in ipairs(columns) do
+			boardRow(col, 0, { if ci == 1 then "JOUEUR" else "JOUEUR", "É", "M", "PTS", "SCORE" }, C.gold, rgb(0x1e2434), true)
+		end
+		for i, e in ipairs(list) do
+			local col = columns[if i <= math.ceil(#list / 2) then 1 else 2]
+			local isMe = e.userId == player.UserId
+			boardRow(col, i, { i .. ". " .. (if e.bot then "[BOT] " else "") .. e.name, tostring(e.k), tostring(e.d), tostring(e.pts or 0), tostring(e.score) },
+				if isMe then C.gold else C.text, if isMe then rgb(0x3c3418) else nil)
+		end
+		return
+	end
 	for i, team in ipairs(st.teams) do
 		local col = columns[i]
 		boardRow(col, 0, { string.upper(team) .. "   " .. (st.score[team] or 0), "É", "M", "A", "SCORE" }, teamColor(team), rgb(0x1e2434), true)
@@ -792,7 +833,11 @@ endRemote.OnClientEvent:Connect(function(r: any)
 	endTitleScale.Scale = 2.2; endTitle.TextTransparency = 1
 	tween(endTitleScale, 0.5, { Scale = 1 }, Enum.EasingStyle.Back); tween(endTitle, 0.3, { TextTransparency = 0 })
 	local t1, t2 = lastState and lastState.teams[1] or "", lastState and lastState.teams[2] or ""
-	endScore.Text = string.format("%s  %d  —  %d  %s", t1, r.score[t1] or 0, r.score[t2] or 0, t2)
+	if r.team then
+		endScore.Text = string.format("%s  %d  —  %d  %s", t1, r.score[t1] or 0, r.score[t2] or 0, t2)
+	else
+		endScore.Text = if r.winner then "Vainqueur : " .. tostring(r.winner) else (r.modeName or "")
+	end
 	if r.me then
 		card("Ta partie", { r.me.k .. " éliminations · " .. r.me.d .. " morts", r.me.a .. " assistances · " .. r.me.hs .. " à la tête", r.me.dmg .. " dégâts",
 			"Meilleure série : " .. r.me.bestStreak }, C.blue, 0.5)
@@ -810,7 +855,7 @@ endRemote.OnClientEvent:Connect(function(r: any)
 	task.spawn(function()
 		local left = r.next or 15
 		while left > 0 and endFrame.Visible do
-			endNext.Text = "Prochaine partie dans " .. left .. " s"
+			endNext.Text = "Prochaine partie dans " .. left .. " s — même mode, même carte"
 			task.wait(1); left -= 1
 		end
 	end)
@@ -819,26 +864,104 @@ end)
 -- ==========================================================================================
 -- Mise à jour continue
 -- ==========================================================================================
-local inMatch = true
+local inMatch = false
+-- ligne du mode (web : #shpHud, #jugHud, #kcHud… au-dessus du centre de l'écran)
+local modeLine = label(gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 104), Size = UDim2.fromOffset(700, 20), TextSize = 15,
+	Font = FONT, TextColor3 = C.gold, Text = "", TextStrokeTransparency = 0.5 })
+local modeSub = label(gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 124), Size = UDim2.fromOffset(700, 16), TextSize = 12,
+	Font = Enum.Font.GothamBold, TextColor3 = rgb(0xdfe6f2), Text = "", TextStrokeTransparency = 0.5 })
+-- grande bannière du mode (uiBanner du web : « NOUVELLE ARME », « TU ES LE MASTODONTE »…)
+local annTitle = label(gui, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.3), Size = UDim2.fromOffset(900, 50), TextSize = 40, Font = FONT,
+	Text = "", TextTransparency = 1, ZIndex = 8 })
+make("UIStroke", { Thickness = 3, Transparency = 0.35, Color = Color3.new(0, 0, 0) }, annTitle)
+local annSub = label(gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0.3, 28), Size = UDim2.fromOffset(900, 22), TextSize = 17, Font = Enum.Font.GothamBold,
+	Text = "", TextTransparency = 1, TextStrokeTransparency = 1, ZIndex = 8 })
+local annScale = make("UIScale", { Scale = 1 }, annTitle)
+local annToken = 0
+local annRemote = ReplicatedStorage:WaitForChild("MatchAnnounce", 20) :: RemoteEvent?
+if annRemote then
+	annRemote.OnClientEvent:Connect(function(title: string, sub: string?, color: Color3?)
+		annToken += 1
+		local my = annToken
+		annTitle.Text = spaced(title, 2); annTitle.TextColor3 = color or C.gold; annTitle.TextTransparency = 0
+		annSub.Text = sub or ""; annSub.TextTransparency = 0; annSub.TextStrokeTransparency = 0.5
+		annScale.Scale = 1.35; tween(annScale, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
+		playSound(ModeConfig.SOUNDS.streak)
+		task.delay(2.2, function()
+			if my ~= annToken then return end
+			tween(annTitle, 0.4, { TextTransparency = 1 }); tween(annSub, 0.4, { TextTransparency = 1, TextStrokeTransparency = 1 })
+		end)
+	end)
+end
+-- petit message de mode au centre (« ÉLIMINATION CONFIRMÉE +1 », « +150 »…)
+local popLabel = label(gui, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.6), Size = UDim2.fromOffset(600, 26), TextSize = 20, Font = FONT,
+	Text = "", TextTransparency = 1, TextStrokeTransparency = 1 })
+local popToken = 0
+local popRemote = ReplicatedStorage:WaitForChild("ModePop", 20) :: RemoteEvent?
+if popRemote then
+	popRemote.OnClientEvent:Connect(function(text: string, color: Color3?, sound: string?)
+		popToken += 1
+		local my = popToken
+		popLabel.Text = spaced(text, 1); popLabel.TextColor3 = color or C.gold
+		popLabel.TextTransparency = 0; popLabel.TextStrokeTransparency = 0.5; popLabel.Position = UDim2.fromScale(0.5, 0.6)
+		tween(popLabel, 1.1, { Position = UDim2.fromScale(0.5, 0.57) })
+		if sound then pcall(function() Sfx.play(sound) end) end
+		task.delay(1, function() if my == popToken then tween(popLabel, 0.3, { TextTransparency = 1, TextStrokeTransparency = 1 }) end end)
+	end)
+end
+player:GetAttributeChangedSignal("ModeLine"):Connect(function()
+	local v = player:GetAttribute("ModeLine")
+	if typeof(v) == "string" then modeLine.Text = v end
+end)
+player:GetAttributeChangedSignal("Zone"):Connect(function()
+	if player:GetAttribute("Zone") ~= "match" then
+		inMatch = false; top.Visible = false; radarWrap.Visible = false; phaseLabel.Text = ""; modeLine.Text = ""; modeSub.Text = ""
+		endFrame.Visible = false; deathFrame.Visible = false; showBoard(false)
+	end
+end)
 stateRemote.OnClientEvent:Connect(function(st: any)
 	-- avec le lobby, le score du match à mort ne s'affiche que pour ceux qui y jouent
-	inMatch = player:GetAttribute("Zone") == nil or player:GetAttribute("Zone") == "tdm"
+	inMatch = player:GetAttribute("Zone") == "match" and st.id == player:GetAttribute("MatchId")
 	top.Visible = inMatch; radarWrap.Visible = inMatch
-	if not inMatch then phaseLabel.Text = ""; return end
-	if st.state == "live" and (not lastState or lastState.state ~= "live") then liveAt = os.clock() end
+	if not inMatch then phaseLabel.Text = ""; modeLine.Text = ""; modeSub.Text = ""; return end
 	lastState = st
 	if typeof(st.mapId) == "string" and st.mapId ~= "" then buildRadar(st.mapId) end
-	-- à gauche l'équipe bleue (Défenseurs), à droite l'orange (Attaquants), comme #top du web
-	local l, r = st.teams[2], st.teams[1]
-	scoreL.Text = tostring(st.score[l] or 0); scoreR.Text = tostring(st.score[r] or 0)
-	borderL.BackgroundColor3 = teamColor(l); borderR.BackgroundColor3 = teamColor(r)
-	scoreL.TextColor3 = if player.Team and player.Team.Name == l then C.text else rgb(0xd5deec)
-	scoreR.TextColor3 = if player.Team and player.Team.Name == r then C.text else rgb(0xd5deec)
-	timerLabel.Text = fmtTime(st.timeLeft)
-	goalLabel.Text = if st.state == "live" then spaced("PREMIER À " .. st.killsToWin, 1) else (if st.state == "intermission" then spaced("PAUSE", 1) else "")
+	local mine = myTeam()
+	if st.team then
+		-- à gauche l'équipe bleue (Défenseurs), à droite l'orange (Attaquants), comme #top du web
+		local l, r = st.teams[2], st.teams[1]
+		scoreL.Text = tostring(st.score[l] or 0); scoreR.Text = tostring(st.score[r] or 0)
+		borderL.BackgroundColor3 = teamColor(l); borderR.BackgroundColor3 = teamColor(r)
+		scoreL.TextColor3 = if mine == l then C.text else rgb(0xd5deec)
+		scoreR.TextColor3 = if mine == r then C.text else rgb(0xd5deec)
+	else
+		-- chacun pour soi (comme le web) : à gauche mon score, à droite celui du premier
+		local me, best = 0, 0
+		for _, e in ipairs(st.board) do
+			if e.userId == player.UserId then me = e.pts or 0 end
+			best = math.max(best, e.pts or 0)
+		end
+		scoreL.Text = tostring(me); scoreR.Text = tostring(best)
+		aliveL.Text = "TOI"; aliveR.Text = "1ER"
+		borderL.BackgroundColor3 = C.gold; borderR.BackgroundColor3 = st.modeColor or C.red
+		scoreL.TextColor3 = C.text; scoreR.TextColor3 = rgb(0xd5deec)
+	end
+	timerLabel.Text = if st.timeLeft >= 0 then fmtTime(st.timeLeft) else "—"
+	goalLabel.Text = if st.state == "live" and st.killsToWin then spaced("PREMIER À " .. st.killsToWin, 1) elseif st.state == "intermission" then spaced("PAUSE", 1) else spaced(string.upper(st.modeName or ""), 1)
 	phaseLabel.Text = if st.state == "intermission" then spaced("NOUVELLE PARTIE DANS " .. st.timeLeft .. " S", 2)
-		elseif st.state == "live" and os.clock() - liveAt < 4 then spaced("PRÉPAREZ-VOUS…", 2)
+		elseif st.warmup then spaced("PRÉPAREZ-VOUS…", 2)
 		else ""
+	-- ligne du mode (arme tournante, Mastodonte, infectés, plaques, score de l'entraînement…) sous le chrono
+	local info = st.info
+	local personal = player:GetAttribute("ModeLine")
+	modeLine.Text = if typeof(personal) == "string" then personal elseif info and info.line then info.line else ""
+	modeLine.TextColor3 = if info and info.color then info.color else C.gold
+	modeSub.Text = if info and info.sub then info.sub else ""
+	modeSub.TextColor3 = if info and info.subWarn then rgb(0xff6b6b) else rgb(0xdfe6f2)
+	if info and info.kind == "kc" and st.data and st.data.tags and mine then
+		local other = if mine == st.teams[1] then st.teams[2] else st.teams[1]
+		modeSub.Text = "🏷 " .. (st.data.tags[other] or 0) .. " à confirmer     🏷 " .. (st.data.tags[mine] or 0) .. " à refuser"
+	end
 	if st.state == "live" and endFrame.Visible then endFrame.Visible = false end
 	if board.Visible then renderBoard() end
 end)

@@ -166,7 +166,7 @@ remote("PumpkinCollected", function(p, id: any)
 end)
 
 -- Décor d'événement : citrouilles posées sur les points de passage des bots (MapData.roam)
-function ProgressService.spawnPumpkins(map, cellToWorld: (number, number) -> Vector3)
+function ProgressService.spawnPumpkins(map, cellToWorld: (number, number) -> Vector3, parent: Instance?)
 	if not ProgressService.eventActive() then return end
 	local pts = table.clone(map.roam or {})
 	local rng = Random.new()
@@ -178,7 +178,7 @@ function ProgressService.spawnPumpkins(map, cellToWorld: (number, number) -> Vec
 		local light = Instance.new("PointLight"); light.Color = Color3.fromRGB(255, 120, 20); light.Range = 10; light.Parent = p
 		local prompt = Instance.new("ProximityPrompt"); prompt.ActionText = "Ramasser"; prompt.ObjectText = "Citrouille"; prompt.HoldDuration = 0; prompt.MaxActivationDistance = 8; prompt.Parent = p
 		prompt.Triggered:Connect(function(player) ProgressService.collectPumpkin(player); p:Destroy() end)
-		p.Parent = workspace
+		p.Parent = parent or workspace
 	end
 end
 

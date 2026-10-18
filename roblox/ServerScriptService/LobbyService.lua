@@ -9,7 +9,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CommunityConfig = require(ReplicatedStorage.Shared.CommunityConfig)
 local DataService = require(script.Parent.DataService)
 local WeaponService = require(script.Parent.WeaponService)
-local TDMService = require(script.Parent.TDMService)
+local MatchService = require(script.Parent.MatchService)
 
 local L = CommunityConfig.LOBBY
 local O = L.origin
@@ -93,7 +93,7 @@ local function build()
 	portalFrame.Transparency = 0
 	local portal = part("Portal", Vector3.new(22, 20, 1), at(0, 10, half - 16), RED, Enum.Material.Neon)
 	portal.Transparency = 0.35; portal.CanCollide = false
-	billboard(portal, "⚔️ MATCH À MORT PAR ÉQUIPE", Color3.new(1, 1, 1), 14)
+	billboard(portal, "⚡ PARTIE RAPIDE", Color3.new(1, 1, 1), 14)
 	local portalDebounce: { [Player]: boolean } = {}
 	portal.Touched:Connect(function(hit)
 		local p = Players:GetPlayerFromCharacter(hit.Parent)
@@ -206,17 +206,14 @@ end
 
 function LobbyService.joinMatch(p: Player)
 	if p:GetAttribute("Zone") ~= "lobby" or p:GetAttribute("DuelQueued") then return false end
-	TDMService.join(p)
-	if TDMService.state() ~= "live" then
-		LobbyService.toast(p, "Tu es inscrit : la partie commence dans quelques secondes", BLUE)
-	end
-	return true
+	local ok, err = MatchService.quick(p)
+	if not ok then LobbyService.toast(p, err or "Impossible de lancer une partie", RED) end
+	return ok
 end
 
 function LobbyService.leaveMatch(p: Player)
-	if p:GetAttribute("Zone") ~= "tdm" then return false end
-	TDMService.leave(p)
-	LobbyService.spawn(p)
+	if p:GetAttribute("Zone") ~= "match" then return false end
+	MatchService.leave(p)      -- MatchService rappelle LobbyService.spawn (setLobbyHooks)
 	return true
 end
 
@@ -352,6 +349,11 @@ function LobbyService.start()
 		p:SetAttribute("Zone", "lobby")
 		task.spawn(LobbyService.spawn, p)
 	end
+	-- sortie d'une partie (menu, fin de partie, « Retour au lobby ») : on revient au lobby
+	MatchService.setLobbyHooks(function(p: Player)
+		parkourRun[p] = nil
+		if challenge.player == p then endChallenge() end
+	end, function(p: Player) LobbyService.spawn(p) end)
 	Players.PlayerAdded:Connect(onJoin)
 	for _, p in ipairs(Players:GetPlayers()) do onJoin(p) end
 	Players.PlayerRemoving:Connect(function(p)

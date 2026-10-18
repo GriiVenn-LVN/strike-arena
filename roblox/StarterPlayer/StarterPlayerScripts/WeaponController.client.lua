@@ -128,7 +128,7 @@ end
 local function tryFire()
 	local key = W.weapon
 	-- la pause entre deux parties ne bloque que les joueurs du match (pas le lobby ni les duels)
-	local blocked = not W.matchLive and player:GetAttribute("Zone") == "tdm"
+	local blocked = not W.matchLive and player:GetAttribute("Zone") == "match"
 	if not key or not alive() or blocked or W.menu or player:GetAttribute("UiOpen") == true then return end
 	-- on ne tire pas en sprintant ni pendant une escalade ; à la sortie du sprint l'arme met un instant à revenir
 	if S.sprint or S.mantle or os.clock() < S.fireBlockedUntil then return end

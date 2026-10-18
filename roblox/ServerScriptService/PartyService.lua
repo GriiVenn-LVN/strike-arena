@@ -75,6 +75,18 @@ end
 Players.PlayerRemoving:Connect(leave)
 
 -- Équilibrage : les groupes arrivent dans la même équipe (utilisé par RoundService.assignTeams)
+-- Membres du groupe d'un joueur (lui compris) ; seul s'il n'a pas de groupe
+function PartyService.membersOf(player: Player): { Player }
+	local id = partyOf[player]
+	local party = id and parties[id]
+	return if party then table.clone(party.members) else { player }
+end
+function PartyService.isLeader(player: Player): boolean
+	local id = partyOf[player]
+	local party = id and parties[id]
+	return party == nil or party.leader == player
+end
+
 function PartyService.groupsOf(players: { Player }): { { Player } }
 	local seen: { [string]: { Player } } = {}
 	local solo: { { Player } } = {}

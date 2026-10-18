@@ -70,6 +70,8 @@ function WeaponService.teamOf(c: any): string?
 	if typeof(c) == "Instance" and c:IsA("Player") then
 		local duelTeam = c:GetAttribute("DuelTeam")          -- en duel, l'équipe du duel passe avant celle du match
 		if typeof(duelTeam) == "string" then return duelTeam end
+		local team = c:GetAttribute("Team")                  -- équipe dans sa partie (MatchService), « solo:… » en chacun pour soi
+		if typeof(team) == "string" then return team end
 		return c.Team and c.Team.Name or nil
 	end
 	if typeof(c) == "Instance" and c:IsA("Model") then return c:GetAttribute("Team") :: string? end
@@ -367,6 +369,8 @@ function WeaponService.fire(c: any, origin: Vector3, direction: Vector3): boolea
 						if s.attachments.sil then dmg *= X.ATTACHMENTS.sil.damageMult end
 						local dist = (result.Position - origin).Magnitude
 						if dist > 50 then dmg *= math.max(0.5, 1 - (dist - 50) * 0.004) end
+						local mult = char:GetAttribute("DmgMult")   -- niveau des bots (Modes.DIFFS.dmg)
+						if typeof(mult) == "number" then dmg *= mult end
 						WeaponService.applyDamage(c, victim, dmg, zone == "Head", s.weapon, w.armorPen)
 					end
 				end
@@ -400,6 +404,13 @@ end
 function WeaponService.setReduction(c: any, r: number)
 	local s = state[c]; if s then s.reduction = r end
 end
+-- Réserve d'une arme (Arme tournante, Mastodonte : 999 = illimitée)
+function WeaponService.setReserve(c: any, key: string, n: number)
+	local s = state[c]
+	local a = s and s.ammo[key]
+	if a then a.reserve = n; notify(c) end
+end
+
 function WeaponService.resupply(c: any)
 	local s = state[c]; if not s then return end
 	for _, k in ipairs(s.loadout) do

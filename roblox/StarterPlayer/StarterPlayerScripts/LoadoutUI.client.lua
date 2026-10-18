@@ -2,7 +2,7 @@
 -- StarterPlayerScripts/LoadoutUI (LocalScript)
 -- Menu de chargement (touche B ou bouton « 🔫 Armes ») : choisir son arme principale et son pistolet.
 -- Les armes non débloquées sont affichées avec un cadenas et leur prix en pièces (achat dans la Boutique).
--- Le serveur revérifie tout (SetLoadout dans TDMService) ; le choix est gardé dans le profil et appliqué à la prochaine apparition.
+-- Le serveur revérifie tout (SetLoadout dans MatchService) ; le choix est gardé dans le profil et appliqué à la prochaine apparition.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local ContextActionService = game:GetService("ContextActionService")
@@ -77,7 +77,8 @@ end
 local function current(slot: number): string
 	local attr = player:GetAttribute(if slot == 0 then "Primary" else "Secondary")
 	if typeof(attr) == "string" then return attr end
-	local team = player.Team and player.Team.Name
+	local t = player:GetAttribute("Team")
+	local team = if typeof(t) == "string" then t else nil
 	local base = team and ModeConfig.TDM.loadout[team]
 	if base then return if slot == 0 then base.primary else base.secondary end
 	return if slot == 0 then "galil" else "glock"

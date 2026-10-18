@@ -193,7 +193,7 @@ local function refreshZone()
 	local zone = player:GetAttribute("Zone")
 	local hasLobby = joinMatch ~= nil
 	playBtn.Visible = hasLobby and zone == "lobby"
-	lobbyBtn.Visible = hasLobby and zone == "tdm"
+	lobbyBtn.Visible = hasLobby and zone == "match"
 	side.Visible = zone ~= "duel"
 	local q = player:GetAttribute("DuelQueued")
 	queueLabel.Text = if zone == "lobby" and q then "⏳ En attente d'adversaires… reste sur la plateforme" else ""

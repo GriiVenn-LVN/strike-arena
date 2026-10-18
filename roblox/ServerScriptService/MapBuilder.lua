@@ -31,14 +31,17 @@ end
 -- Hauteur du sol d'une case (rampes comprises) en mètres
 local function cellX(cx: number) return (cx + 0.5) * CELL end
 
-function MapBuilder.build(mapId: string)
+function MapBuilder.build(mapId: string, origin: Vector3?, name: string?)
+	local O = origin or Vector3.zero
 	local g = MapData.buildGrid(mapId)
 	local m = g.map
 	local th = THEMES[m.theme]
 	local N, TY, TYH = MapData.N, MapData.TY, MapData.TYH
 
-	local old = workspace:FindFirstChild("Map"); if old then old:Destroy() end
-	local folder = Instance.new("Folder"); folder.Name = "Map"; folder.Parent = workspace
+	local folderName = name or "Map"
+	local old = workspace:FindFirstChild(folderName); if old then old:Destroy() end
+	local folder = Instance.new("Folder"); folder.Name = folderName
+	folder:SetAttribute("MapId", mapId)
 
 	-- sol
 	part(folder, "Floor", Vector3.new(N * CELL + 200, 2, N * CELL + 200), CFrame.new(N * CELL / 2, -1, N * CELL / 2), th.floor, th.mat)
@@ -88,14 +91,23 @@ function MapBuilder.build(mapId: string)
 	end
 
 	-- points d'apparition
-	local function toWorld(c) return Vector3.new(cellX(c[1]), 3, cellX(c[2])) end
+	-- tout est construit autour de (0, 0, 0) puis décalé à l'emplacement de la partie
+	if O.Magnitude > 0 then
+		for _, d in ipairs(folder:GetDescendants()) do if d:IsA("BasePart") then d.CFrame += O end end
+	end
+	folder.Parent = workspace
+	local function toWorld(c) return O + Vector3.new(cellX(c[1]), 3, cellX(c[2])) end
 	local spawns = { T = {}, CT = {}, DM = {} }
 	for _, c in ipairs(m.spawnT) do table.insert(spawns.T, toWorld(c)) end
 	for _, c in ipairs(m.spawnCT) do table.insert(spawns.CT, toWorld(c)) end
 	for _, c in ipairs(m.spawnDM) do table.insert(spawns.DM, toWorld(c)) end
 	local sites = {}
 	for _, s in ipairs(m.sites) do table.insert(sites, { name = s.n, pos = toWorld({ s.cx, s.cz }), radius = s.r * U }) end
-	return { folder = folder, spawns = spawns, sites = sites, data = m }
+	return { folder = folder, spawns = spawns, sites = sites, data = m, origin = O }
+end
+
+function MapBuilder.destroy(map: any)
+	if map and map.folder then map.folder:Destroy() end
 end
 
 return MapBuilder

@@ -62,33 +62,21 @@ equipSkin.OnServerInvoke = function(player: Player, weapon: any, skinIndex: any)
 	return true
 end
 
--- ---------- Lancement du mode de jeu (ModeConfig.MODE) ----------
-if ModeConfig.MODE == "tdm" then
-	-- match à mort par équipe sur Village : démarre dès qu'un joueur est là, les bots complètent les équipes
-	local TDMService = require(script.Parent.TDMService)
-	if CommunityConfig.LOBBY_ENABLED then
-		-- lobby jouable (stand de tir, parcours, classement géant, bornes) + duels 1v1 / 2v2 depuis ses plateformes
-		local LobbyService = require(script.Parent.LobbyService)
-		LobbyService.start()
-		LeaderboardService.start(LobbyService.board)
-		require(script.Parent.DuelService).start()
-	else
-		LeaderboardService.start(nil)
-	end
-	task.spawn(TDMService.run)
+-- ---------- Parties (MatchService) et lobby ----------
+-- Chaque joueur lance sa partie depuis le menu (mode, carte, bots, comme l'écran « Jouer » du web) ou passe par
+-- « Partie rapide » ; plusieurs parties tournent en même temps sur le serveur, chacune sur sa propre carte.
+local MatchService = require(script.Parent.MatchService)
+Players.CharacterAutoLoads = false
+if CommunityConfig.LOBBY_ENABLED then
+	-- lobby jouable (stand de tir, parcours, classement géant, bornes) + duels 1v1 / 2v2 depuis ses plateformes
+	local LobbyService = require(script.Parent.LobbyService)
+	LobbyService.start()
+	LeaderboardService.start(LobbyService.board)
+	require(script.Parent.DuelService).start()
 else
-	-- compétitif 5v5 avec bombe (pose/désamorçage pas encore branchés : voir README_ROBLOX.md)
+	-- sans lobby : on arrive directement dans une partie rapide
 	LeaderboardService.start(nil)
-	local RoundService = require(script.Parent.RoundService)
-	local MIN_PLAYERS = 2     -- mets 10 pour de vrais 5v5
-	local started = false
-	local function tryStart()
-		if started or #Players:GetPlayers() < MIN_PLAYERS then return end
-		started = true
-		task.spawn(function()
-			RoundService.startMatch("village")
-			started = false
-		end)
-	end
-	Players.PlayerAdded:Connect(function() task.wait(5); tryStart() end)
+	local function arrive(p: Player) task.delay(2, function() if p.Parent then MatchService.quick(p, ModeConfig.MODE) end end) end
+	Players.PlayerAdded:Connect(arrive)
+	for _, p in ipairs(Players:GetPlayers()) do arrive(p) end
 end

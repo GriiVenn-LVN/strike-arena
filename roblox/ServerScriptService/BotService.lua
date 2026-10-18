@@ -1,5 +1,5 @@
 --!strict
--- ServerScriptService/BotService (ModuleScript, requis par TDMService)
+-- ServerScriptService/BotService (ModuleScript, requis par MatchService)
 -- Bots R15 qui complètent les équipes : patrouille sur les points de passage de la carte (PathfindingService),
 -- repérage des ennemis (champ de vision + rayon), temps de réaction, rafales et imprécision réglables (ModeConfig.BOT).
 -- Ils tirent avec WeaponService.fire, exactement comme les joueurs.
@@ -17,7 +17,10 @@ type Brain = {
 	model: Model, hum: Humanoid, root: BasePart, team: string,
 	roam: { Vector3 }, waypoints: { PathWaypoint }, wpIndex: number, goal: Vector3?, repathAt: number,
 	target: Model?, seenAt: number, burstLeft: number, nextBurst: number, alive: boolean,
+	match: number?, diff: any, goalFn: ((Model) -> Vector3?)?,
 }
+-- Réglages d'une apparition (MatchService) : partie, niveau (Modes.DIFFS), armes, but de déplacement imposé par le mode
+export type SpawnOpts = { match: number?, diff: any?, loadout: { string }?, goal: ((Model) -> Vector3?)? }
 local brains: { [Model]: Brain } = {}
 local usedNames: { [string]: boolean } = {}
 local folder: Folder? = nil
@@ -46,15 +49,17 @@ local function getFolder(): Folder
 end
 
 -- Toutes les cibles possibles : joueurs vivants + autres bots vivants
-local function enemiesOf(team: string): { Model }
+-- (seulement ceux de la même partie : plusieurs parties tournent en même temps sur le serveur)
+local function enemiesOf(team: string, match: number?): { Model }
 	local list = {}
 	for _, p in ipairs(Players:GetPlayers()) do
 		local c = p.Character
 		local h = c and c:FindFirstChildOfClass("Humanoid")
-		if c and h and h.Health > 0 and p.Team and p.Team.Name ~= team then table.insert(list, c) end
+		local pt = WeaponService.teamOf(p)
+		if c and h and h.Health > 0 and pt and pt ~= team and p:GetAttribute("MatchId") == match then table.insert(list, c) end
 	end
 	for m, b in pairs(brains) do
-		if b.alive and b.team ~= team then table.insert(list, m) end
+		if b.alive and b.team ~= team and b.match == match then table.insert(list, m) end
 	end
 	return list
 end
@@ -64,7 +69,8 @@ local function canSee(b: Brain, target: Model): (boolean, Vector3?)
 	local myHead = b.model:FindFirstChild("Head") :: BasePart?
 	if not head or not myHead then return false, nil end
 	local to = head.Position - myHead.Position
-	if to.Magnitude > BOT.viewDistance then return false, nil end
+	local sight = if b.diff then b.diff.sight * Config.STUDS_PER_METER else BOT.viewDistance
+	if to.Magnitude > sight then return false, nil end
 	if b.root.CFrame.LookVector:Dot(to.Unit) < BOT.fov and to.Magnitude > 14 then return false, nil end
 	local params = RaycastParams.new(); params.FilterType = Enum.RaycastFilterType.Exclude
 	params.FilterDescendantsInstances = { b.model }
@@ -72,7 +78,8 @@ local function canSee(b: Brain, target: Model): (boolean, Vector3?)
 	if r and not r.Instance:IsDescendantOf(target) then return false, nil end
 	-- vise le torse la plupart du temps, la tête de temps en temps
 	local torso = (target:FindFirstChild("UpperTorso") or target:FindFirstChild("HumanoidRootPart")) :: BasePart?
-	return true, if math.random() < 0.25 or not torso then head.Position else torso.Position
+	local headRate = if b.diff then 0.1 + b.diff.aimHead else 0.25
+	return true, if math.random() < headRate or not torso then head.Position else torso.Position
 end
 
 local function pathTo(b: Brain, goal: Vector3)
@@ -87,17 +94,18 @@ local function pathTo(b: Brain, goal: Vector3)
 	end)
 end
 
-local function aimError(dir: Vector3): Vector3
-	local e = math.rad(BOT.aimErrorDeg)
+local function aimError(b: Brain, dir: Vector3): Vector3
+	local e = math.rad(if b.diff then b.diff.spread else BOT.aimErrorDeg)
 	return (CFrame.lookAlong(Vector3.zero, dir.Unit) * CFrame.Angles((math.random() - 0.5) * 2 * e, (math.random() - 0.5) * 2 * e, 0)).LookVector
 end
 
 local function think(b: Brain)
-	if not b.alive then return end
+	if not b.alive or b.model:GetAttribute("Frozen") then return end
 	local t = os.clock()
+	b.team = (b.model:GetAttribute("Team") :: string?) or b.team    -- le mode peut changer l'équipe (Infecté)
 	-- 1) chercher l'ennemi visible le plus proche
 	local best, bestPos, bestD = nil, nil, math.huge
-	for _, e in ipairs(enemiesOf(b.team)) do
+	for _, e in ipairs(enemiesOf(b.team, b.match)) do
 		local er = e:FindFirstChild("HumanoidRootPart") :: BasePart?
 		if er then
 			local d = (er.Position - b.root.Position).Magnitude
@@ -117,7 +125,7 @@ local function think(b: Brain)
 		local flat = Vector3.new(bestPos.X, b.root.Position.Y, bestPos.Z)
 		b.root.CFrame = CFrame.lookAt(b.root.Position, flat)
 		b.hum:Move(Vector3.zero)
-		if t - b.seenAt >= BOT.reaction and t >= b.nextBurst then
+		if t - b.seenAt >= (if b.diff then b.diff.react else BOT.reaction) and t >= b.nextBurst then
 			local head = b.model:FindFirstChild("Head") :: BasePart?
 			if head and key then
 				local w = Config.WEAPONS[key]
@@ -125,11 +133,11 @@ local function think(b: Brain)
 				b.model:SetAttribute("Pitch", math.asin(math.clamp((bestPos - head.Position).Unit.Y, -1, 1)))
 				if w.melee and bestD > 9 then
 					b.hum:MoveTo(bestPos)
-				elseif WeaponService.fire(b.model, head.Position, aimError(bestPos - head.Position)) then
+				elseif WeaponService.fire(b.model, head.Position, aimError(b, bestPos - head.Position)) then
 					if w.auto then
 						b.burstLeft -= 1
 						if b.burstLeft <= 0 then
-							b.burstLeft = math.random(BOT.burst[1], BOT.burst[2])
+							b.burstLeft = if b.diff then math.random(b.diff.bmin, b.diff.bmax) else math.random(BOT.burst[1], BOT.burst[2])
 							b.nextBurst = t + 0.25 + math.random() * 0.3
 						end
 					else
@@ -142,9 +150,14 @@ local function think(b: Brain)
 		return
 	end
 
-	-- 3) patrouille : point de passage au hasard, chemin calculé par PathfindingService
+	-- 3) objectif du mode (zone, drapeau, Mastodonte…) sinon patrouille : point de passage au hasard (PathfindingService)
+	local want = if b.goalFn then b.goalFn(b.model) else nil
+	if want and (not b.goal or (b.goal - want).Magnitude > 12) then
+		pathTo(b, want)
+		return
+	end
 	if not b.goal or t > b.repathAt + 8 then
-		pathTo(b, b.roam[math.random(#b.roam)])
+		if #b.roam > 0 then pathTo(b, b.roam[math.random(#b.roam)]) end
 		return
 	end
 	local wp = b.waypoints[b.wpIndex]
@@ -161,7 +174,7 @@ local function think(b: Brain)
 end
 
 -- Crée un bot de l'équipe donnée à la position donnée, armé. Renvoie son Model (= le « combattant »).
-function BotService.spawn(team: string, at: Vector3, roam: { Vector3 }, name: string?): Model
+function BotService.spawn(team: string, at: Vector3, roam: { Vector3 }, name: string?, opts: SpawnOpts?): Model
 	local desc = Instance.new("HumanoidDescription")
 	local col = TEAM_COLORS[team] or TEAM_COLORS.Attaquants
 	desc.HeadColor = Color3.fromRGB(234, 184, 146); desc.LeftArmColor = desc.HeadColor; desc.RightArmColor = desc.HeadColor
@@ -170,11 +183,13 @@ function BotService.spawn(team: string, at: Vector3, roam: { Vector3 }, name: st
 	model.Name = name or pickName()
 	model:SetAttribute("Team", team)
 	model:SetAttribute("Bot", true)
+	if opts and opts.match then model:SetAttribute("MatchId", opts.match) end
+	if opts and opts.diff then model:SetAttribute("DmgMult", opts.diff.dmg) end
 	local hum = model:FindFirstChildOfClass("Humanoid") :: Humanoid
 	hum.DisplayName = "[BOT] " .. model.Name
 	hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer
 	hum.NameDisplayDistance = 40
-	hum.WalkSpeed = 15
+	hum.WalkSpeed = 15 * (if opts and opts.diff then opts.diff.speed else 1)
 	local root = model:FindFirstChild("HumanoidRootPart") :: BasePart
 	model.Parent = getFolder()
 	model:PivotTo(CFrame.new(at + Vector3.new(0, 3, 0)))
@@ -183,10 +198,11 @@ function BotService.spawn(team: string, at: Vector3, roam: { Vector3 }, name: st
 	local b: Brain = {
 		model = model, hum = hum, root = root, team = team, roam = roam, waypoints = {}, wpIndex = 1, goal = nil, repathAt = 0,
 		target = nil, seenAt = 0, burstLeft = math.random(BOT.burst[1], BOT.burst[2]), nextBurst = 0, alive = true,
+		match = opts and opts.match, diff = opts and opts.diff, goalFn = opts and opts.goal,
 	}
 	brains[model] = b
 	local secondary = if team == "Attaquants" then "glock" else "usp"
-	WeaponService.giveLoadout(model, { BOT.primaries[math.random(#BOT.primaries)], secondary, "knife" })
+	WeaponService.giveLoadout(model, if opts and opts.loadout then opts.loadout else { BOT.primaries[math.random(#BOT.primaries)], secondary, "knife" })
 	hum.Died:Connect(function() b.alive = false end)
 	return model
 end
@@ -212,6 +228,27 @@ end
 function BotService.setPaused(on: boolean)
 	paused = on
 	for _, b in pairs(brains) do b.hum:Move(Vector3.zero); b.hum.WalkSpeed = if on then 0 else 15 end
+end
+
+-- Bots d'une partie ; pause d'une seule partie (fin de match) ; suppression de tous ses bots
+function BotService.ofMatch(id: number): { Model }
+	local l = {}
+	for m, b in pairs(brains) do if b.match == id then table.insert(l, m) end end
+	return l
+end
+function BotService.freezeMatch(id: number, on: boolean)
+	for m, b in pairs(brains) do
+		if b.match == id then
+			m:SetAttribute("Frozen", if on then true else nil)
+			b.hum:Move(Vector3.zero); b.hum.WalkSpeed = if on then 0 else 15 * (if b.diff then b.diff.speed else 1)
+		end
+	end
+end
+function BotService.removeMatch(id: number)
+	for m, b in pairs(brains) do if b.match == id then BotService.remove(m) end end
+end
+function BotService.setGoal(model: Model, fn: ((Model) -> Vector3?)?)
+	local b = brains[model]; if b then b.goalFn = fn end
 end
 
 function BotService.isBot(m: any): boolean

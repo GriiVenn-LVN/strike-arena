@@ -457,7 +457,8 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 		local hidden = camCF * CFrame.new(0, -3, 0)
 		arms.uL.CFrame = hidden; arms.fL.CFrame = hidden; arms.cL.CFrame = hidden; arms.hL.CFrame = hidden
 	end
-	local sleeve = if player.Team then player.TeamColor.Color else Color3.fromRGB(86, 96, 74)
+	local myTeam = player:GetAttribute("Team")   -- manches aux couleurs de l'équipe de la partie (orange T, bleu CT), kaki sinon
+	local sleeve = if myTeam == "Attaquants" then Color3.fromRGB(196, 110, 52) elseif myTeam == "Défenseurs" then Color3.fromRGB(58, 96, 168) else Color3.fromRGB(86, 96, 74)
 	arms.uR.Color = sleeve; arms.fR.Color = sleeve; arms.uL.Color = sleeve; arms.fL.Color = sleeve
 
 	-- éclair de bouche
