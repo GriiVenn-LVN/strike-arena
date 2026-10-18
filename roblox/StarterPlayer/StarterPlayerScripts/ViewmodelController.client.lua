@@ -13,6 +13,7 @@ local Debris = game:GetService("Debris")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local WeaponModels = require(ReplicatedStorage.Shared.WeaponModels)
+local SkinPaint = require(ReplicatedStorage.Shared.SkinPaint)
 local S = require(ReplicatedStorage.Shared.ClientState)
 
 local player = Players.LocalPlayer
@@ -82,6 +83,17 @@ local VM = {
 	lastLook = Vector3.new(0, 0, -1), prevGround = true, airVy = 0,
 }
 
+-- skin de l'arme en main : le nôtre, ou celui du tueur pendant la kill-cam
+local function applySkin()
+	if not VM.model or not VM.key then return end
+	if S.kc then SkinPaint.apply(VM.model, S.kc.skin, S.kc.camo) return end
+	SkinPaint.apply(VM.model, player:GetAttribute("Skin_" .. VM.key) :: number?, player:GetAttribute("Camo_" .. VM.key) :: string?)
+end
+player.AttributeChanged:Connect(function(name: string)
+	if VM.key and (name == "Skin_" .. VM.key or name == "Camo_" .. VM.key) then applySkin() end
+end)
+S.onSkin = applySkin
+
 -- la fabrication d'une arme attend Roblox (CreateMeshPartAsync) : elle se fait hors de la boucle d'affichage
 local building: string? = nil
 local function setGun(key: string)
@@ -96,6 +108,7 @@ local function setGun(key: string)
 	for _, c in ipairs(model:GetChildren()) do if c:IsA("BasePart") then c.CastShadow = false end end
 	model.Parent = rig
 	VM.model = model; VM.key = key
+	applySkin()
 	local w = Config.WEAPONS[key]
 	VM.pistol = w.cat == "pistol"
 	VM.twoHand = not w.melee
@@ -220,8 +233,9 @@ end
 RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, function(dt: number)
 	local char = player.Character
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
-	local key = S.weapon
-	local alive = hum ~= nil and hum.Health > 0 and key ~= nil and camera.CameraType == Enum.CameraType.Custom
+	local kc = S.kc                         -- kill-cam : l'arme du tueur, dans ses mains (KillcamController)
+	local key = if kc then kc.key else S.weapon
+	local alive = if kc then key ~= nil else hum ~= nil and hum.Health > 0 and key ~= nil and camera.CameraType == Enum.CameraType.Custom
 	if not alive or not key then setVisible(false); scopeGui.Enabled = false; S.muzzle = nil; return end
 	if key ~= VM.key then
 		if building ~= key then task.spawn(setGun, key) end
@@ -261,7 +275,7 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 	VM.airVy = if S.grounded then 0 else vyMs; VM.prevGround = S.grounded
 	VM.lv += (-VM.land * 220 - VM.lv * 19) * sd; VM.land += VM.lv * sd
 	local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
-	if root then
+	if root and not kc then
 		local lat = camera.CFrame.RightVector:Dot(root.AssemblyLinearVelocity) / STUDS_PER_M
 		VM.strafe += (clamp(lat / 5, -1, 1) - VM.strafe) * (1 - math.exp(-dt * 8))
 	end

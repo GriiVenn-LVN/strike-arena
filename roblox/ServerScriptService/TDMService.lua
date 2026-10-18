@@ -30,6 +30,11 @@ local feedEvent = remoteEvent("KillFeed")      -- serveur -> tous : une élimina
 local bannerEvent = remoteEvent("KillBanner")  -- serveur -> tueur : « +100 Élimination », séries
 local deathEvent = remoteEvent("DeathInfo")    -- serveur -> victime : par qui, réapparition dans…
 local endEvent = remoteEvent("MatchEnd")       -- serveur -> chaque joueur : victoire/défaite + récompenses
+local killcamEvent = remoteEvent("KillcamHold") -- victime -> serveur : kill-cam en cours (true) / finie ou passée (false)
+local KILLCAM_MAX = 9                          -- la réapparition n'attend jamais plus longtemps la kill-cam
+local kcHold: { [Player]: boolean? } = {}
+killcamEvent.OnServerEvent:Connect(function(p: Player, on: any) kcHold[p] = if on == true then true else nil end)
+Players.PlayerRemoving:Connect(function(p: Player) kcHold[p] = nil end)
 local loadoutFn = Instance.new("RemoteFunction"); loadoutFn.Name = "SetLoadout"; loadoutFn.Parent = ReplicatedStorage
 
 local TDMService = {}
@@ -162,6 +167,10 @@ spawnPlayer = function(p: Player)
 		WeaponService.reset(p)
 		if M.state ~= "live" then return end
 		task.delay(TDM.respawnDelay, function()
+			-- la réapparition attend la fin de la kill-cam (comme sur le web), sans jamais dépasser KILLCAM_MAX
+			local deadline = os.clock() + KILLCAM_MAX - TDM.respawnDelay
+			while kcHold[p] and os.clock() < deadline do task.wait(0.1) end
+			kcHold[p] = nil
 			if M.state == "live" and p.Parent and p.Character == char and p:GetAttribute("Zone") == "tdm" then spawnPlayer(p) end
 		end)
 	end)
@@ -220,39 +229,100 @@ local function smallestTeam(): string
 	return if a < b then TDM.teams[1] else TDM.teams[2]
 end
 
--- ---------- objets à ramasser (santé, bouclier, munitions) ----------
-local PICKUP_COLORS = { health = Color3.fromRGB(110, 255, 140), shield = Color3.fromRGB(90, 180, 255), ammo = Color3.fromRGB(255, 205, 90) }
+-- ---------- objets à ramasser (bouclier, santé, munitions), comme makePickup() du web ----------
+-- bouclier : cristal bleu (+25, jusqu'à 50) ; santé : cube rouge à croix blanche (+35) ; munitions : boîte jaune.
+-- Un soldat éliminé lâche parfois un bouclier (toujours s'il en avait encore) qui reste 25 s.
+-- Le client fait tourner et flotter les objets (ShieldController) ; le serveur gère la prise.
+local PICKUP_COLORS = { shield = Color3.fromRGB(49, 200, 255), health = Color3.fromRGB(255, 74, 90), ammo = Color3.fromRGB(255, 210, 74) }
+local pickupToast = remoteEvent("PickupToast")  -- serveur -> joueur : objet ramassé (sorte)
+local tempPickups: { Model } = {}
+
+local function pickupPart(name: string, size: Vector3, color: Color3, cf: CFrame, parent: Instance, transparency: number?): Part
+	local p = Instance.new("Part"); p.Name = name; p.Anchored = true; p.CanCollide = false; p.CanQuery = false; p.CanTouch = false
+	p.CastShadow = false; p.Size = size; p.Color = color; p.Material = Enum.Material.Neon; p.CFrame = cf
+	p.Transparency = transparency or 0.08; p.Parent = parent
+	return p
+end
+
+local function makePickup(kind: string, pos: Vector3, temp: boolean)
+	local col = PICKUP_COLORS[kind] or Color3.new(1, 1, 1)
+	local model = Instance.new("Model"); model.Name = "Pickup_" .. kind
+	model:SetAttribute("Pickup", kind)
+	local corePos = pos + Vector3.new(0, 0.9 * U, 0)
+	local core: Part
+	if kind == "shield" then       -- octaèdre du web : un cube posé sur une pointe
+		core = pickupPart("Core", Vector3.new(0.4, 0.4, 0.4) * U, col, CFrame.new(corePos) * CFrame.Angles(math.rad(45), 0, math.rad(35.26)), model)
+	elseif kind == "health" then
+		core = pickupPart("Core", Vector3.new(0.4, 0.4, 0.4) * U, col, CFrame.new(corePos), model)
+		pickupPart("CrossA", Vector3.new(0.5, 0.12, 0.12) * U, Color3.new(1, 1, 1), CFrame.new(corePos), model, 0)
+		pickupPart("CrossB", Vector3.new(0.12, 0.5, 0.12) * U, Color3.new(1, 1, 1), CFrame.new(corePos), model, 0)
+	else
+		core = pickupPart("Core", Vector3.new(0.5, 0.28, 0.32) * U, col, CFrame.new(corePos), model)
+	end
+	local light = Instance.new("PointLight"); light.Color = col; light.Range = 2.4 * U; light.Brightness = 1.6; light.Parent = core
+	-- anneau au sol
+	local ring = pickupPart("Ring", Vector3.new(0.04 * U, 1.3 * U, 1.3 * U), col, CFrame.new(pos + Vector3.new(0, 0.05, 0)) * CFrame.Angles(0, 0, math.rad(90)), model, 0.5)
+	ring.Shape = Enum.PartType.Cylinder
+	-- zone de prise (invisible) : 1,3 m autour, comme le web
+	local zone = pickupPart("Zone", Vector3.new(2.6, 3, 2.6) * U, col, CFrame.new(pos + Vector3.new(0, 1.5 * U, 0)), model, 1)
+	zone.CanTouch = true
+	model.PrimaryPart = core
+	model.Parent = M.map.folder
+	if temp then
+		table.insert(tempPickups, model)
+		if #tempPickups > 6 then local old = table.remove(tempPickups, 1); if old and old.Parent then old:Destroy() end end
+		task.delay(25, function() if model.Parent then model:Destroy() end end)
+	end
+	local ready = true
+	local function setShown(on: boolean)
+		for _, d in ipairs(model:GetDescendants()) do
+			if d:IsA("BasePart") and d.Name ~= "Zone" then d.LocalTransparencyModifier = 0; d.Transparency = if on then (if d.Name == "Ring" then 0.5 elseif d.Name:sub(1, 5) == "Cross" then 0 else 0.08) else 1 end
+		end
+		light.Enabled = on
+		model:SetAttribute("Ready", on)
+	end
+	model:SetAttribute("Ready", true)
+	zone.Touched:Connect(function(hit)
+		if not ready or M.state ~= "live" then return end
+		local m = hit:FindFirstAncestorOfClass("Model")
+		local hum = m and m:FindFirstChildOfClass("Humanoid")
+		if not m or not hum or hum.Health <= 0 then return end
+		local c = WeaponService.combatantOf(m)
+		if not WeaponService.teamOf(c) then return end
+		if kind == "health" then
+			if hum.Health >= hum.MaxHealth then return end
+			hum.Health = math.min(hum.MaxHealth, hum.Health + 35)
+		elseif kind == "shield" then
+			if WeaponService.shieldOf(c) >= Config.SHIELD_MAX then return end
+			WeaponService.addShield(c, 25)
+		else
+			WeaponService.resupply(c)
+		end
+		local pl = Players:GetPlayerFromCharacter(m)
+		if pl then pickupToast:FireClient(pl, kind) end
+		if temp then model:Destroy(); return end
+		ready = false; setShown(false)
+		task.delay(20, function()
+			if model.Parent then ready = true; setShown(true) end
+		end)
+	end)
+end
+
 local function spawnPickups()
 	for _, pk in ipairs(M.map.data.pickups or {}) do
-		local kind = pk[3]
-		local part = Instance.new("Part"); part.Name = "Pickup_" .. kind; part.Anchored = true; part.CanCollide = false; part.CanQuery = false
-		part.Size = Vector3.new(2, 2, 2); part.Shape = Enum.PartType.Ball; part.Material = Enum.Material.Neon
-		part.Color = PICKUP_COLORS[kind] or Color3.new(1, 1, 1)
-		part.Position = cellToWorld(pk[1], pk[2]) + Vector3.new(0, 2.2, 0)
-		local light = Instance.new("PointLight"); light.Color = part.Color; light.Range = 8; light.Parent = part
-		part.Parent = M.map.folder
-		local ready = true
-		part.Touched:Connect(function(hit)
-			if not ready or M.state ~= "live" then return end
-			local model = hit:FindFirstAncestorOfClass("Model")
-			local hum = model and model:FindFirstChildOfClass("Humanoid")
-			if not model or not hum or hum.Health <= 0 then return end
-			local c = WeaponService.combatantOf(model)
-			if not WeaponService.teamOf(c) then return end
-			if kind == "health" then
-				if hum.Health >= hum.MaxHealth then return end
-				hum.Health = math.min(hum.MaxHealth, hum.Health + 50)
-			elseif kind == "shield" then
-				if WeaponService.shieldOf(c) >= Config.SHIELD_MAX then return end
-				WeaponService.addShield(c, Config.SHIELD_MAX)
-			else
-				WeaponService.resupply(c)
-			end
-			ready = false; part.Transparency = 0.85; light.Enabled = false
-			task.delay(20, function()
-				if part.Parent then ready = true; part.Transparency = 0; light.Enabled = true end
-			end)
-		end)
+		makePickup(pk[3], cellToWorld(pk[1], pk[2]), false)
+	end
+end
+
+-- bouclier lâché par un soldat éliminé (web : s'il en avait encore, ou 18 % du temps)
+local function dropShield(victim: any)
+	local char = WeaponService.charOf(victim)
+	local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not root or not M.map then return end
+	if WeaponService.shieldOf(victim) > 0 or math.random() < 0.18 then
+		local rp = RaycastParams.new(); rp.FilterType = Enum.RaycastFilterType.Exclude; rp.FilterDescendantsInstances = { char :: Instance }
+		local hit = workspace:Raycast(root.Position, Vector3.new(0, -20, 0), rp)
+		makePickup("shield", if hit then hit.Position else root.Position - Vector3.new(0, 3, 0), true)
 	end
 end
 
@@ -283,6 +353,7 @@ WeaponService.Killed:Connect(function(killer, victim, key: string, headshot: boo
 	if M.state ~= "live" or not inTDM(killer) or not inTDM(victim) then return end
 	local ks, vs = statOf(killer), statOf(victim)
 	if not ks or not vs then return end
+	dropShield(victim)
 	vs.d += 1; vs.streak = 0
 	ks.k += 1; ks.streak += 1; ks.bestStreak = math.max(ks.bestStreak, ks.streak)
 	ks.score += TDM.scorePerKill + (if headshot then 25 else 0)
@@ -309,7 +380,8 @@ WeaponService.Killed:Connect(function(killer, victim, key: string, headshot: boo
 	end
 	local vp = vs.player
 	if vp then
-		deathEvent:FireClient(vp, { killer = ks.name, weapon = weaponName(key), headshot = headshot, respawn = TDM.respawnDelay })
+		deathEvent:FireClient(vp, { killer = ks.name, weapon = weaponName(key), headshot = headshot, respawn = TDM.respawnDelay,
+			killerChar = WeaponService.charOf(killer), victimName = vs.name, key = key, killcam = true })
 	end
 end)
 
@@ -327,7 +399,7 @@ end
 local function broadcast()
 	stateEvent:FireAllClients({
 		state = M.state, score = M.score, teams = TDM.teams, killsToWin = TDM.killsToWin,
-		timeLeft = math.max(0, math.floor(M.endsAt - os.clock())), mapName = M.map and M.map.data.name or "", board = board(),
+		timeLeft = math.max(0, math.floor(M.endsAt - os.clock())), mapName = M.map and M.map.data.name or "", mapId = M.map and M.map.data.id or "", board = board(),
 	})
 end
 

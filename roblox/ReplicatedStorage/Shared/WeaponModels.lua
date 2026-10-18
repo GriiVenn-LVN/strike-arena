@@ -26,26 +26,10 @@ local LOOK = {
 	wood = { color = Color3.fromRGB(122, 74, 42), material = Enum.Material.Wood },
 }
 
--- ---------- base64 -> buffer ----------
-local B64: { [number]: number } = {}
-do
-	local chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-	for i = 1, #chars do B64[string.byte(chars, i)] = i - 1 end
-end
-local function decode(s: string): buffer
-	local n = #s
-	local pad = (if string.sub(s, -2) == "==" then 2 elseif string.sub(s, -1) == "=" then 1 else 0)
-	local out = buffer.create(n // 4 * 3 - pad)
-	local o = 0
-	for i = 1, n, 4 do
-		local a, b, c, d = string.byte(s, i, i + 3)
-		local v = bit32.bor(bit32.lshift(B64[a], 18), bit32.lshift(B64[b], 12), bit32.lshift(B64[c] or 0, 6), B64[d] or 0)
-		buffer.writeu8(out, o, bit32.rshift(v, 16)); o += 1
-		if o < buffer.len(out) then buffer.writeu8(out, o, bit32.band(bit32.rshift(v, 8), 255)); o += 1 end
-		if o < buffer.len(out) then buffer.writeu8(out, o, bit32.band(v, 255)); o += 1 end
-	end
-	return out
-end
+local decode = require(ReplicatedStorage.Shared.Base64)
+
+-- répétitions de la peinture par mètre d'arme (web : 1/0,78 × 1,35)
+local UV_SCALE = 1.35 / 0.78
 
 local function plain(name: string, size: Vector3, color: Color3, material: Enum.Material, shape: Enum.PartType?): Part
 	local p = Instance.new("Part"); p.Name = name; p.Size = size; p.Color = color; p.Material = material
@@ -58,6 +42,7 @@ end
 local function meshPiece(g: any, scale: number): (MeshPart?, Vector3)
 	local raw = decode(g.data)
 	local k = scale / WeaponModels.Q
+	local uvK = UV_SCALE / scale                   -- studs -> mètres -> répétitions de la peinture
 	local pos = table.create(g.nv)
 	local lo, hi = Vector3.new(math.huge, math.huge, math.huge), Vector3.new(-math.huge, -math.huge, -math.huge)
 	for i = 0, g.nv - 1 do
@@ -79,6 +64,19 @@ local function meshPiece(g: any, scale: number): (MeshPart?, Vector3)
 			local nid = em:AddNormal(n.Unit)
 			em:SetFaceNormals(face, { nid, nid, nid })      -- normales par face : rendu « low-poly » net comme sur le web
 		end
+		-- coordonnées de texture pour les skins : projection continue sur toute l'arme, comme applyPlanarUV() du web
+		-- (côtés en z-y, dessus et dessous en z-x, avant et arrière en x-y)
+		local ax, ay, az = math.abs(n.X), math.abs(n.Y), math.abs(n.Z)
+		local uvs = table.create(3)
+		for j, v in ipairs({ pos[a], pos[b], pos[c] }) do
+			local m = v * uvK
+			local u, w
+			if ax >= ay and ax >= az then u, w = -m.Z, m.Y
+			elseif ay >= az then u, w = -m.Z, m.X + 0.37 * UV_SCALE
+			else u, w = m.X, m.Y end
+			uvs[j] = em:AddUV(Vector2.new(u + 0.5, 0.5 - w))
+		end
+		em:SetFaceUVs(face, uvs)
 	end
 	local mp = AssetService:CreateMeshPartAsync(Content.fromObject(em), { CollisionFidelity = Enum.CollisionFidelity.Box })
 	return mp, center
@@ -94,6 +92,7 @@ local function blockGun(model: Model, grip: BasePart, key: string, scale: number
 	local function add(name: string, piece: string, size: Vector3, at: Vector3, color: Color3?, shape: Enum.PartType?)
 		local p = plain(name, size, color or dark, Enum.Material.Metal, shape)
 		p:SetAttribute("Piece", piece); p:SetAttribute("Offset", CFrame.new(at))
+		p:SetAttribute("Role", if color == LOOK.steel.color then "steel" elseif color == LOOK.wood.color then "wood" else "body")
 		p.CFrame = grip.CFrame * CFrame.new(at); p.Parent = model
 	end
 	local recvLen = (back - front) * 0.55
@@ -111,17 +110,17 @@ local function blockGun(model: Model, grip: BasePart, key: string, scale: number
 end
 
 local function knife(model: Model, grip: BasePart, scale: number)
-	local function add(name: string, size: Vector3, at: CFrame, color: Color3, mat: Enum.Material)
-		local p = plain(name, size, color, mat); p:SetAttribute("Piece", "body"); p:SetAttribute("Offset", at)
+	local function add(name: string, size: Vector3, at: CFrame, color: Color3, mat: Enum.Material, role: string)
+		local p = plain(name, size, color, mat); p:SetAttribute("Piece", "body"); p:SetAttribute("Role", role); p:SetAttribute("Offset", at)
 		p.CFrame = grip.CFrame * at; p.Parent = model
 	end
-	add("Handle", Vector3.new(0.03, 0.035, 0.12) * scale, CFrame.new(0, 0, 0.03 * scale), Color3.fromRGB(30, 31, 34), Enum.Material.SmoothPlastic)
-	add("Guard", Vector3.new(0.035, 0.06, 0.012) * scale, CFrame.new(0, 0, -0.035 * scale), Color3.fromRGB(80, 82, 88), Enum.Material.Metal)
-	add("Blade", Vector3.new(0.006, 0.035, 0.16) * scale, CFrame.new(0, 0.004 * scale, -0.12 * scale), Color3.fromRGB(200, 205, 212), Enum.Material.Metal)
+	add("Handle", Vector3.new(0.03, 0.035, 0.12) * scale, CFrame.new(0, 0, 0.03 * scale), Color3.fromRGB(30, 31, 34), Enum.Material.SmoothPlastic, "acc")
+	add("Guard", Vector3.new(0.035, 0.06, 0.012) * scale, CFrame.new(0, 0, -0.035 * scale), Color3.fromRGB(80, 82, 88), Enum.Material.Metal, "steel")
+	add("Blade", Vector3.new(0.006, 0.035, 0.16) * scale, CFrame.new(0, 0.004 * scale, -0.12 * scale), Color3.fromRGB(200, 205, 212), Enum.Material.Metal, "body")   -- le skin couvre aussi la lame
 	local tip = plain("Tip", Vector3.new(0.006, 0.035, 0.03) * scale, Color3.fromRGB(200, 205, 212), Enum.Material.Metal)
 	local mesh = Instance.new("SpecialMesh"); mesh.MeshType = Enum.MeshType.Wedge; mesh.Parent = tip
 	local at = CFrame.new(0, 0.004 * scale, -0.215 * scale) * CFrame.Angles(0, math.rad(180), 0)
-	tip:SetAttribute("Piece", "body"); tip:SetAttribute("Offset", at); tip.CFrame = grip.CFrame * at; tip.Parent = model
+	tip:SetAttribute("Piece", "body"); tip:SetAttribute("Role", "body"); tip:SetAttribute("Offset", at); tip.CFrame = grip.CFrame * at; tip.Parent = model
 end
 
 -- ---------- fabrication + cache ----------

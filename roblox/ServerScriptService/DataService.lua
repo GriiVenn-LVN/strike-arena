@@ -68,7 +68,22 @@ function DataService.load(player: Player)
 		if typeof(data.loadout.primary) == "string" then player:SetAttribute("Primary", data.loadout.primary) end
 		if typeof(data.loadout.secondary) == "string" then player:SetAttribute("Secondary", data.loadout.secondary) end
 	end
+	DataService.syncSkins(player)
 	return data
+end
+
+-- Skins équipés recopiés en attributs du joueur (Skin_<arme> = numéro de Config.SKINS, Camo_<arme> = camo animé) :
+-- l'arme en main (vue subjective) et l'arme vue par les autres sont peintes d'après eux.
+function DataService.syncSkins(player: Player)
+	local data = profiles[player]
+	if not data then return end
+	local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
+	local camos = data.equipped and data.equipped.animCamo or {}
+	for key in pairs(Config.WEAPONS) do
+		local sk = data.equippedSkins and data.equippedSkins[key]
+		player:SetAttribute("Skin_" .. key, if typeof(sk) == "number" and sk > 1 then sk else nil)
+		player:SetAttribute("Camo_" .. key, if typeof(camos[key]) == "string" then camos[key] else nil)
+	end
 end
 
 function DataService.save(player: Player)

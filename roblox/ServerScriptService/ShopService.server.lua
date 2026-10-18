@@ -153,6 +153,7 @@ equip.OnServerInvoke = function(player: Player, id: any, weapon: any)
 		if typeof(weapon) ~= "string" or not Config.WEAPONS[weapon] or Config.WEAPONS[weapon].melee then return false end
 		eq.animCamo = eq.animCamo or {}
 		eq.animCamo[weapon] = it.camo
+		DataService.syncSkins(player)
 	elseif it.kind == "killfx" then
 		eq.killFx = it.fx
 	else

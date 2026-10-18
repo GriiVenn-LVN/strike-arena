@@ -104,6 +104,14 @@ Config.SKINS = {                                  -- rarity 1..4 ; rarity 1 = gr
 	{ name = "Néo-noir", rarity = 2, pattern = "cs_noir" },
 	{ name = "Volcan bleu", rarity = 3, pattern = "cs_vulcan" },
 	{ name = "Imprimé nacré", rarity = 2, pattern = "cs_print" },
+	-- Halloween (src/8H_halloween.js)
+	{ name = "Bonbon d'Halloween", rarity = 2, pattern = "hw_candy" },
+	{ name = "Citrouille", rarity = 3, pattern = "hw_pumpkin" },
+	{ name = "Toile maudite", rarity = 3, pattern = "hw_web" },
+	{ name = "Ossuaire", rarity = 3, pattern = "hw_bones" },
+	{ name = "Ectoplasme", rarity = 4, pattern = "hw_ecto" },
+	{ name = "Sang de vampire", rarity = 4, pattern = "hw_vampire" },
+	{ name = "Nuit des sorcières", rarity = 4, pattern = "hw_witch" },
 }
 
 -- Tenues de soldat (rarity 1 = gratuit)

@@ -6,6 +6,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local WeaponModels = require(ReplicatedStorage.Shared.WeaponModels)
+local SkinPaint = require(ReplicatedStorage.Shared.SkinPaint)
 local WORLD_SCALE = 2.9          -- même valeur que WeaponService
 
 local player = Players.LocalPlayer
@@ -21,6 +22,7 @@ local function dress(held: Instance)
 		local ok, model = pcall(WeaponModels.build, key, WORLD_SCALE)
 		if not ok or not model then warn("[WeaponVisuals]", key, model) return end
 		WeaponModels.weldTo(model, held :: BasePart, (held :: BasePart).CFrame)
+		SkinPaint.apply(model, held:GetAttribute("Skin") :: number?, held:GetAttribute("Camo") :: string?)
 		model.Parent = held
 	end)
 end
