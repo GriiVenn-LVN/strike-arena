@@ -20,6 +20,8 @@ local Modes = require(ReplicatedStorage.Shared.Modes)
 local WeaponService = require(script.Parent.Parent.WeaponService)
 local BotService = require(script.Parent.Parent.BotService)
 local O = require(script.Parent.objutil)
+local GrenadeService = require(script.Parent.Parent.GrenadeService)
+local Grenades = require(ReplicatedStorage.Shared.Grenades)
 
 local U = O.U
 local T, CT = O.T, O.CT
@@ -43,7 +45,7 @@ local PRIMARIES: { string } = {}
 for _, cat in ipairs(Modes.BUY_CATS) do for _, k in ipairs(cat.list) do if Config.WEAPONS[k].slot == 0 then table.insert(PRIMARIES, k) end end end
 
 type Inv = { money: number, primary: string?, secondary: string, armor: number, shield: number, kit: boolean,
-	frag: number, flash: number, smoke: number, keep: boolean }
+	frag: number, flash: number, smoke: number, mine: number, keep: boolean }
 
 local function MS(): any return O.MS() end
 local function now(): number return os.clock() end
@@ -58,7 +60,7 @@ end
 
 local Rounds = {}
 
--- ---------- remotes (boutique, touche E, grenades) ----------
+-- ---------- remotes (boutique, touche E) ; les grenades et les mines passent par GrenadeService ----------
 local function remote(class: string, name: string): Instance
 	local r = ReplicatedStorage:FindFirstChild(name)
 	if not r then r = Instance.new(class); r.Name = name; r.Parent = ReplicatedStorage end
@@ -66,7 +68,6 @@ local function remote(class: string, name: string): Instance
 end
 local buyFn = remote("RemoteFunction", "ModeBuy") :: RemoteFunction
 local useEv = remote("RemoteEvent", "ModeUse") :: RemoteEvent
-local throwEv = remote("RemoteEvent", "ModeThrow") :: RemoteEvent
 buyFn.OnServerInvoke = function(p: Player, key: any)
 	local m = MS().matchOf(p)
 	if m and m.mod and m.mod.buy then return m.mod.buy(m, p, if typeof(key) == "string" then key else nil) end
@@ -75,10 +76,6 @@ end
 useEv.OnServerEvent:Connect(function(p: Player, on: any)
 	local m = MS().matchOf(p)
 	if m and m.mod and m.mod.useKey then m.mod.useKey(m, p, on == true) end
-end)
-throwEv.OnServerEvent:Connect(function(p: Player, kind: any)
-	local m = MS().matchOf(p)
-	if m and m.mod and m.mod.throw and (kind == "frag" or kind == "flash" or kind == "smoke") then m.mod.throw(m, p, kind) end
 end)
 
 function Rounds.make(variant: string): any
@@ -96,7 +93,7 @@ function Rounds.make(variant: string): any
 		local inv = m.data.inv[key]
 		if not inv then
 			inv = { money = startMoney(m), primary = nil, secondary = pistolOf(team), armor = 0, shield = 0, kit = false,
-				frag = 0, flash = 0, smoke = 0, keep = false }
+				frag = 0, flash = 0, smoke = 0, mine = 0, keep = false }
 			m.data.inv[key] = inv
 		end
 		return inv
@@ -116,6 +113,14 @@ function Rounds.make(variant: string): any
 	local function applyGear(c: any, i: Inv)
 		WeaponService.setArmor(c, i.armor)
 		WeaponService.setShield(c, i.shield)
+	end
+	-- grenades et mines : le stock vit dans GrenadeService (lancers, compteur « Nades »), l'inventaire le garde entre deux manches
+	local function stockOf(c: any): { frag: number, flash: number, smoke: number, mine: number }
+		local s = GrenadeService.get(c)
+		return if s then s else { frag = 0, flash = 0, smoke = 0, mine = 0 }
+	end
+	local function applyNades(c: any, i: Inv)
+		WeaponService.giveGrenades(c, i.smoke, i.flash, i.frag, i.mine)    -- remplace l'équipement de départ du match à mort
 	end
 
 	-- membres de la partie (joueurs + bots de l'effectif, même morts) : { key, team, c? }
@@ -235,11 +240,15 @@ function Rounds.make(variant: string): any
 			if m.settings.eco == 1 then i.money = math.min(cap(m), i.money + bonus) end
 			-- les survivants gardent leur équipement (web : e.keep)
 			i.keep = e.c ~= nil and MS().aliveChar(e.c) ~= nil
-			if i.keep then i.armor = WeaponService.armorOf(e.c); i.shield = WeaponService.shieldOf(e.c) end
+			if i.keep then
+				i.armor = WeaponService.armorOf(e.c); i.shield = WeaponService.shieldOf(e.c)
+				local s = stockOf(e.c); i.frag, i.flash, i.smoke, i.mine = s.frag, s.flash, s.smoke, s.mine
+			end
 			if O.isPlayer(e.c) then syncMoney(m, e.c) end
 		end
 		d.loss[win] = 0; d.loss[lose] += 1
 		for _, b in ipairs(BotService.ofMatch(m.id)) do b:SetAttribute("Busy", nil) end
+		WeaponService.clearGrenades(m.id)     -- plus de mines au sol pour la manche suivante
 		for p in pairs(m.players) do
 			local mine = WeaponService.teamOf(p) == win
 			local r = reason
@@ -263,7 +272,7 @@ function Rounds.make(variant: string): any
 		local i = inv(m, p)
 		local d = m.data
 		return { money = i.money, free = free(m), pistol = d.pistol, phase = d.phase, team = WeaponService.teamOf(p), bombMode = V.bomb,
-			primary = i.primary, secondary = i.secondary, armor = i.armor, shield = i.shield, kit = i.kit, frag = i.frag, flash = i.flash, smoke = i.smoke,
+			primary = i.primary, secondary = i.secondary, armor = i.armor, shield = i.shield, kit = i.kit, frag = stockOf(p).frag, flash = stockOf(p).flash, smoke = stockOf(p).smoke, mine = stockOf(p).mine,
 			left = math.max(0, math.floor(d.phaseEnd - now())) }
 	end
 	local function doBuy(m: any, c: any, k: string): (boolean, string?)
@@ -289,15 +298,15 @@ function Rounds.make(variant: string): any
 		elseif k == "kit" then
 			if team ~= CT or i.kit or not V.bomb or not pay(ITEM_PRICE.kit) then return false, nil end
 			i.kit = true; return true, nil
-		elseif k == "frag" then
-			if i.frag >= 1 or not pay(ITEM_PRICE.frag) then return false, nil end
-			i.frag = 1; return true, nil
-		elseif k == "flash" then
-			if i.flash >= 2 or not pay(ITEM_PRICE.flash) then return false, nil end
-			i.flash += 1; return true, nil
-		elseif k == "smoke" then
-			if i.smoke >= 1 or not pay(ITEM_PRICE.smoke) then return false, nil end
-			i.smoke = 1; return true, nil
+		elseif k == "frag" or k == "flash" or k == "smoke" or k == "mine" then
+			-- limites du web : 1 frag, 2 flashs, 1 fumigène, 2 mines
+			local s = table.clone(stockOf(c)) :: any
+			local max = if k == "flash" then 2 elseif k == "mine" then Grenades.MINE.max else 1
+			if (s[k] or 0) >= max or not pay(ITEM_PRICE[k]) then return false, nil end
+			s[k] = (s[k] or 0) + 1
+			GrenadeService.set(c, s.frag, s.flash, s.smoke, s.mine)
+			local ii = i :: any; ii[k] = s[k]
+			return true, nil
 		end
 		local w = Config.WEAPONS[k]
 		if not w or not BUYABLE[k] then return false, nil end
@@ -343,6 +352,10 @@ function Rounds.make(variant: string): any
 		if i.armor < 100 and i.money >= 650 and math.random() < 0.85 then try("armor") end
 		if i.money >= 1000 and math.random() < 0.35 then try("shield2") elseif i.money >= 400 and math.random() < 0.4 then try("shield1") end
 		if WeaponService.teamOf(b) == CT and i.money >= 400 and math.random() < 0.6 then try("kit") end
+		if i.money >= 300 and math.random() < 0.55 then try("frag") end
+		if i.money >= 300 and math.random() < 0.3 then try("smoke") end
+		if i.money >= 200 and math.random() < 0.3 then try("flash") end
+		if i.money >= ITEM_PRICE.mine and math.random() < 0.25 then try("mine") end
 	end
 
 	-- ---------- début de manche ----------
@@ -415,7 +428,7 @@ function Rounds.make(variant: string): any
 		for _, e in ipairs(members(m)) do
 			local i = invOf(m, e.key, e.team)
 			if not i.keep then
-				i.armor = 0; i.shield = 0; i.kit = false; i.frag = 0; i.flash = 0; i.smoke = 0
+				i.armor = 0; i.shield = 0; i.kit = false; i.frag = 0; i.flash = 0; i.smoke = 0; i.mine = 0
 				i.primary = nil; i.secondary = pistolOf(e.team)
 				local p = if O.isPlayer(e.c) then e.c :: Player else nil
 				local prim = p and p:GetAttribute("Primary")
@@ -501,6 +514,7 @@ function Rounds.make(variant: string): any
 		local d = m.data
 		m.timed = true
 		d.phase = "pre"; d.phaseEnd = math.huge; d.round = 0; d.pistol = false; d.halfDone = false; d.halfPistol = false
+		d.nadeT = {}; d.mineT = {}
 		d.loss = { [T] = 0, [CT] = 0 }; d.inv = {}; d.roster = { [T] = {}, [CT] = {} }; d.use = {}; d.hold = {}; d.retake = {}; d.roam = {}
 		d.sites = O.sites(m); d.plan = 1; d.started = false; d.over = false
 		d.bomb = { state = "none", carrier = nil, prog = 0, defProg = {}, pos = nil, site = nil, explodeAt = nil, lastPos = nil }
@@ -534,7 +548,7 @@ function Rounds.make(variant: string): any
 	function M.onSpawn(m: any, c: any, char: Model)
 		if not m.data.inv then return end
 		char:SetAttribute("ProtectedUntil", 0)     -- pas de protection d'apparition dans une manche
-		applyGear(c, inv(m, c))
+		applyGear(c, inv(m, c)); applyNades(c, inv(m, c))
 		if m.data.phase == "freeze" or m.data.phase == "pre" then
 			freezeHum(c, true)
 			if not O.isPlayer(c) then BotService.freezeMatch(m.id, true) end
@@ -554,11 +568,44 @@ function Rounds.make(variant: string): any
 		return true     -- les éliminations ne marquent pas : on compte les manches
 	end
 	function M.useKey(m: any, p: Player, on: boolean) m.data.use[p] = if on then true else nil end
-	function M.throw(m: any, p: Player, kind: string)
-		if m.data.phase ~= "live" or not MS().aliveChar(p) then return end
-		local i = inv(m, p) :: any
-		if (i[kind] or 0) <= 0 then return end
-		if WeaponService.throwGrenade(p, kind, true) then i[kind] -= 1 end
+
+	-- grenades et mines des bots, aux mêmes moments que le web (src/70_ai.js botUpdate, src/63_agents.js agentBot) :
+	-- en combat, flash entre 9 et 24 m, fumigène quand il est blessé ; hors combat, frag sur la dernière position vue
+	-- (moins de 4 s, entre 9 et 26 m) ; mine de temps en temps quand il ne se bat pas
+	local function botNades(m: any, dt: number)
+		local d = m.data
+		local diff = Modes.DIFFS[m.settings.diff] or Modes.DIFFS[3]
+		local t = now()
+		for _, bot in ipairs(BotService.ofMatch(m.id)) do
+			local r = O.root(bot)
+			if not r or bot:GetAttribute("Frozen") then continue end
+			local s = GrenadeService.get(bot)
+			if not s then continue end
+			local key = bot.Name
+			local target, seen, ago = BotService.combatOf(bot)
+			local tr = target and target:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if t > (d.nadeT[key] or 0) then
+				if tr then
+					local dist = O.flat(tr.Position, r.Position) / U
+					local hum = bot:FindFirstChildOfClass("Humanoid")
+					if s.flash > 0 and dist > 9 and dist < 24 and math.random() < dt * 0.5 * diff.nade then
+						d.nadeT[key] = t + 4; WeaponService.throwGrenade(bot, "flash", false, tr.Position)
+					elseif s.smoke > 0 and hum and hum.Health < 40 and dist > 6 and math.random() < dt * 1.2 * diff.nade then
+						d.nadeT[key] = t + 6; WeaponService.throwGrenade(bot, "smoke", false, r.Position:Lerp(tr.Position, 0.35))
+					end
+				elseif s.frag > 0 and seen and ago < 4 then
+					local dd = O.flat(seen, r.Position) / U
+					if dd > 9 and dd < 26 and math.random() < dt * 0.8 * diff.nade then
+						d.nadeT[key] = t + 5; WeaponService.throwGrenade(bot, "frag", false, seen)
+					end
+				end
+			end
+			d.mineT[key] = (d.mineT[key] or (1.5 + math.random() * 2)) - dt
+			if d.mineT[key] <= 0 then
+				d.mineT[key] = 1.5 + math.random() * 2
+				if not target and s.mine > 0 and math.random() < 0.18 then WeaponService.placeMine(bot) end
+			end
+		end
 	end
 
 	function M.tick(m: any, dt: number)
@@ -569,6 +616,7 @@ function Rounds.make(variant: string): any
 			m.endsAt = d.phaseEnd
 			if t >= d.phaseEnd then goLive(m) end
 		elseif d.phase == "live" then
+			pcall(botNades, m, dt)
 			local b = d.bomb
 			-- la bombe va à son porteur dès qu'il est apparu
 			if V.bomb and b.state == "carried" and not b.carrier and d.bombFor then
@@ -837,6 +885,7 @@ function Rounds.make(variant: string): any
 	end
 	function M.cleanup(m: any)
 		for p in pairs(m.players) do clearPlayer(p) end
+		WeaponService.clearGrenades(m.id)
 		local model = m.data.bombModel
 		if model then model:Destroy() end
 		m.data.bombModel = nil

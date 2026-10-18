@@ -4,7 +4,7 @@
 -- carte de la partie.
 --   Compétitif / Désamorçage rapide / Duel (Modes/rounds) : boutique (touche B pendant la phase d'achat, #buy du web),
 --     argent, décompte 3-2-1, barre de pose / désamorçage (maintenir E), bombe portée / posée (chrono et bips),
---     marqueurs des sites A et B, grenades (G frag, F flash, H fumigène), positions révélées du Duel.
+--     marqueurs des sites A et B (grenades et mines : GrenadeController), positions révélées du Duel.
 --   Capture de zone : état de la zone pour ton équipe, marqueur de la zone.
 --   Domination : les trois drapeaux A B C (couleur, progression), texte du drapeau où tu te trouves (#domHud).
 --   Capture du drapeau : état des deux drapeaux, « RAMÈNE LE DRAPEAU À TA BASE » (#ctfHud), marqueurs.
@@ -81,11 +81,9 @@ for i, n in ipairs({ "A", "B", "C" }) do
 	domIcons[i] = { box = box, txt = txt, bar = bar, stroke = stroke }
 end
 
--- ---------- argent, grenades, barre d'action, décompte ----------
+-- ---------- argent, barre d'action, décompte ----------
 local moneyLabel = label(gui, { AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 16, 1, -132), Size = UDim2.fromOffset(220, 26), TextSize = 22,
 	Font = Enum.Font.GothamBlack, TextColor3 = rgb(0x7dff9f), TextXAlignment = Enum.TextXAlignment.Left, Visible = false })
-local nadeLabel = label(gui, { AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 16, 1, -110), Size = UDim2.fromOffset(320, 18), TextSize = 13,
-	TextColor3 = C.dim, TextXAlignment = Enum.TextXAlignment.Left, Visible = false })
 local useWrap = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.68), Size = UDim2.fromOffset(320, 44), BackgroundTransparency = 1, Visible = false }, gui)
 local useMsg = label(useWrap, { Size = UDim2.new(1, 0, 0, 20), TextSize = 15, Font = Enum.Font.GothamBlack, TextColor3 = C.bomb })
 local useBack = make("Frame", { Position = UDim2.fromOffset(0, 26), Size = UDim2.new(1, 0, 0, 10), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.4 }, useWrap)
@@ -173,7 +171,7 @@ local function owned(k: string): boolean
 	if k == "armor" then return (s.armor or 0) >= 100 elseif k == "shield1" then return (s.shield or 0) >= 25
 	elseif k == "shield2" then return (s.shield or 0) >= 50 elseif k == "kit" then return s.kit == true
 	elseif k == "frag" then return (s.frag or 0) >= 1 elseif k == "flash" then return (s.flash or 0) >= 2
-	elseif k == "smoke" then return (s.smoke or 0) >= 1 end
+	elseif k == "smoke" then return (s.smoke or 0) >= 1 elseif k == "mine" then return (s.mine or 0) >= 2 end
 	return s.primary == k or s.secondary == k
 end
 local function renderBuy()
@@ -223,7 +221,7 @@ local function toast(text: string)
 	task.delay(1.6, function() if my == toastToken then toastLabel.Text = "" end end)
 end
 
--- ---------- touches : B (boutique), E (poser / désamorcer), G F H (grenades) ----------
+-- ---------- touches : B (boutique), E (poser / désamorcer) ----------
 ContextActionService:BindActionAtPriority("ModeBuy", function(_, state)
 	if not inMatch or not ROUND_MODES[mode] then return Enum.ContextActionResult.Pass end
 	if state ~= Enum.UserInputState.Begin then return Enum.ContextActionResult.Sink end
@@ -256,16 +254,6 @@ end)
 useTouch.InputEnded:Connect(function(i)
 	if i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseButton1 then setUse(false) end
 end)
-ContextActionService:BindActionAtPriority("ModeNade", function(_, state, input)
-	if not inMatch or not ROUND_MODES[mode] then return Enum.ContextActionResult.Pass end
-	if state ~= Enum.UserInputState.Begin then return Enum.ContextActionResult.Sink end
-	if roundPhase() ~= "live" then return Enum.ContextActionResult.Sink end
-	local kind = if input.KeyCode == Enum.KeyCode.G then "frag" elseif input.KeyCode == Enum.KeyCode.F then "flash" else "smoke"
-	local ev = remote("ModeThrow") :: RemoteEvent?
-	if ev then ev:FireServer(kind) end
-	if buyState and (buyState[kind] or 0) > 0 then buyState[kind] -= 1 end
-	return Enum.ContextActionResult.Sink
-end, false, Enum.ContextActionPriority.High.Value, Enum.KeyCode.G, Enum.KeyCode.F, Enum.KeyCode.H)
 
 -- ---------- marqueurs dans le monde (sites, bombe, zone, drapeaux) ----------
 local markerFolder = Instance.new("Folder"); markerFolder.Name = "ModeMarkers"; markerFolder.Parent = workspace.CurrentCamera
@@ -350,14 +338,10 @@ local function drawRounds(d: any, dtSince: number)
 	local mine = myTeam()
 	local char = player.Character
 	local phase = d.phase
-	-- argent et grenades
+	-- argent
 	local money = player:GetAttribute("Money")
 	moneyLabel.Visible = typeof(money) == "number"
 	moneyLabel.Text = if typeof(money) == "number" then (if money >= 16000 and mode ~= "bomb" then "$16000" else "$" .. tostring(money)) else ""
-	if buyState then
-		nadeLabel.Visible = (buyState.frag or 0) + (buyState.flash or 0) + (buyState.smoke or 0) > 0
-		nadeLabel.Text = "G frag ×" .. (buyState.frag or 0) .. "   F flash ×" .. (buyState.flash or 0) .. "   H fumigène ×" .. (buyState.smoke or 0)
-	end
 	if buyOpen then renderBuy() end
 	buyTouch.Visible = touch and phase == "freeze"
 	-- décompte 3-2-1 avant « C'EST PARTI »
@@ -491,7 +475,7 @@ end
 RunService.RenderStepped:Connect(function()
 	objFrame.Visible = false; domRow.Visible = false; objFrame.Position = UDim2.new(0.5, 0, 0, 146)
 	objSub.TextColor3 = C.dim; objCall.TextTransparency = 0
-	moneyLabel.Visible = false; nadeLabel.Visible = false; useWrap.Visible = false; useHint.Visible = false; bombPanel.Visible = false
+	moneyLabel.Visible = false; useWrap.Visible = false; useHint.Visible = false; bombPanel.Visible = false
 	buyTouch.Visible = false; useTouch.Visible = false
 	local d = data
 	if inMatch and st and st.state == "live" and not st.warmup and d then
