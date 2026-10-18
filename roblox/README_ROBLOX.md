@@ -61,7 +61,7 @@ ServerScriptService/BotService.lua       bots R15 : patrouille (PathfindingServi
 ServerScriptService/TDMService.lua       match à mort par équipe : équipes, bots, réapparition, protection, objets, fil, séries, assistances, fin
 ServerScriptService/MapBuilder.lua       construit une carte : collision exacte du web (invisible) + décor du web ; plusieurs cartes à la fois
 StarterPlayerScripts/MapDetailController.client.lua  maillages détaillés, textures du web, halos, ciel / brouillard / lumière de la carte
-ServerScriptService/RoundService.lua     mode compétitif 5v5 : cinématique → achat → manche → fin, bombe (ProximityPrompt, pas encore branchée ; ModeConfig.MODE = "bomb")
+ServerScriptService/Modes/rounds.lua    modes à manches (Compétitif, Désamorçage rapide, Duel) : achat → manche → fin, bombe, économie, mi-temps ; koth / dom / ctf : zone, drapeaux ; HUD : ModeHud.client.lua
 ServerScriptService/Main.server.lua      point d'entrée + RemoteFunctions (profil, daily, défis, danses, skins)
 StarterPlayerScripts/CinematicController.client.lua   cinématique d'arrivée en hélicoptère (caméra scriptée, barres de cinéma)
 StarterPlayerScripts/EmoteController.client.lua       danses (touche T) via Animator

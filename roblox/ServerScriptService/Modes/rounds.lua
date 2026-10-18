@@ -243,7 +243,7 @@ function Rounds.make(variant: string): any
 		for p in pairs(m.players) do
 			local mine = WeaponService.teamOf(p) == win
 			local r = reason
-			if variant == "duel" and reason:sub(1, 12) ~= "Temps écoulé" then r = if mine then "Adversaire éliminé" else "Ton équipe est éliminée" end
+			if variant == "duel" and string.find(reason, "Temps écoulé", 1, true) ~= 1 then r = if mine then "Adversaire éliminé" else "Ton équipe est éliminée" end
 			MS().announce(m, if mine then "MANCHE GAGNÉE" else "MANCHE PERDUE", r, if mine then O.GOOD else O.BAD, p)
 			setAttr(p, "UseProg", nil); setAttr(p, "UseMsg", nil); setAttr(p, "UseHint", nil)
 		end
