@@ -84,6 +84,7 @@ end)
 function Rounds.make(variant: string): any
 	local V = VARIANTS[variant]
 	local M: any = {}
+	M.noPickups = true      -- web : pas d'objets à ramasser dans les modes à bombe (setupPickups seulement hors « bomb »)
 
 	local function ecoOn(m: any): boolean return m.settings.eco == 1 and variant ~= "rapid" and variant ~= "duel" end
 	local function cap(m: any): number return if ecoOn(m) then ECO.max else 16000 end

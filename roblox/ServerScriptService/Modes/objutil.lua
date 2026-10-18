@@ -42,6 +42,7 @@ function O.feet(r: BasePart): Vector3 return r.Position - Vector3.new(0, 3, 0) e
 
 -- hauteur du sol (toits, plateformes) sous un point de la carte de la partie
 function O.ground(m: any, pos: Vector3): Vector3
+	if m.map.groundAt then return Vector3.new(pos.X, m.map.groundAt(pos), pos.Z) end   -- hauteur de la grille (MapBuilder)
 	local rp = RaycastParams.new(); rp.FilterType = Enum.RaycastFilterType.Include
 	rp.FilterDescendantsInstances = { m.map.folder }
 	local hit = workspace:Raycast(Vector3.new(pos.X, m.origin.Y + 60, pos.Z), Vector3.new(0, -120, 0), rp)
@@ -58,6 +59,7 @@ end
 -- ---------- grille de la carte (cases libres), comme walkableCell / domSpot du web ----------
 local grids: { [string]: any } = {}
 function O.grid(m: any): any
+	if m.map and m.map.grid then return m.map.grid end
 	local id = m.settings.map
 	if grids[id] == nil then
 		local ok, g = pcall(MapData.buildGrid, id)
