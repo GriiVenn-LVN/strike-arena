@@ -195,3 +195,11 @@ closeBtn.MouseButton1Click:Connect(function() win.Visible = false end)
 game:GetService("MarketplaceService").PromptProductPurchaseFinished:Connect(function(userId: number, _productId: number, purchased: boolean)
 	if userId == player.UserId and purchased and win.Visible then task.wait(1); refresh() end
 end)
+
+-- ---------- menu principal (MainMenu) : bouton « BOUTIQUE » du menu à la place du bouton d'ici ----------
+openBtn.Visible = false
+gui.DisplayOrder = 30   -- au-dessus du menu
+require(ReplicatedStorage.Shared.ClientState).panels.shop = function()
+	win.Visible = not win.Visible
+	if win.Visible then refresh() end
+end

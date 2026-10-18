@@ -8,6 +8,8 @@ local RewardService = require(script.Parent.RewardService)
 require(script.Parent.WeaponService)
 require(script.Parent.CodeService)        -- codes promo + récompense du groupe Roblox
 require(script.Parent.KillFxService)      -- effets d'élimination
+local ProgressService = require(script.Parent.ProgressService)
+require(script.Parent.MenuService)        -- menu principal : défis de la semaine, réglages gardés, titre
 local LeaderboardService = require(script.Parent.LeaderboardService)
 local ModeConfig = require(ReplicatedStorage.Shared.ModeConfig)
 local CommunityConfig = require(ReplicatedStorage.Shared.CommunityConfig)
@@ -22,8 +24,11 @@ getProfile.OnServerInvoke = function(player: Player)
 	local profile = DataService.get(player)
 	if not profile then return nil end
 	RewardService.ensureMissions(profile)
+	RewardService.ensureWeekly(profile)
+	ProgressService.ensure(profile)              -- passe de saison, classement, événement (affichés par le menu)
 	local level, cur, need = RewardService.levelInfo(profile)
-	return { profile = profile, level = level, xp = cur, xpNeed = need, daily = RewardService.dailyStatus(profile) }
+	return { profile = profile, level = level, xp = cur, xpNeed = need, daily = RewardService.dailyStatus(profile),
+		eventActive = ProgressService.eventActive(), now = os.time() }
 end
 
 local claimDaily = remoteFunction("ClaimDaily")

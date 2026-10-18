@@ -3,6 +3,7 @@
 -- XP / niveaux, récompense quotidienne (série de 7 jours), défis du jour, récompenses de fin de partie.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
+local Modes = require(ReplicatedStorage.Shared.Modes)
 local DataService = require(script.Parent.DataService)
 local LoyaltyService = require(script.Parent.LoyaltyService)
 local LeaderboardService = require(script.Parent.LeaderboardService)
@@ -105,16 +106,52 @@ local function ensureMissions(profile)
 end
 RewardService.ensureMissions = ensureMissions
 
+-- ---------- défis de la semaine (src/8O_defis.js WPOOL : 3 défis tirés chaque lundi, plus longs et mieux payés) ----------
+local WEEKLY_POOL = {
+	{ id = "kills", target = 150, coins = 800, xp = 300 },
+	{ id = "hs", target = 40, coins = 700, xp = 280 },
+	{ id = "win", target = 8, coins = 900, xp = 350 },
+	{ id = "matches", target = 15, coins = 700, xp = 250 },
+	{ id = "knife", target = 5, coins = 900, xp = 350 },
+	{ id = "dmg", target = 15000, coins = 700, xp = 280 },
+}
+local function week(): number return math.floor((today() + 3) / 7) end   -- semaine commençant le lundi
+local function ensureWeekly(profile)
+	if typeof(profile.wmis) ~= "table" or profile.wmis.week ~= week() then
+		local pool = table.clone(WEEKLY_POOL)
+		local list = {}
+		for _ = 1, 3 do
+			local m = table.remove(pool, math.random(#pool))
+			table.insert(list, { id = m.id, target = m.target, coins = m.coins, xp = m.xp, progress = 0, done = false, claimed = false })
+		end
+		profile.wmis = { week = week(), list = list }
+	end
+end
+RewardService.ensureWeekly = ensureWeekly
+
 function RewardService.missionEvent(player: Player, id: string, n: number?)
 	local profile = DataService.get(player)
 	if not profile then return end
-	ensureMissions(profile)
-	for _, m in ipairs(profile.missions.list) do
-		if m.id == id and not m.done then
-			m.progress = math.min(m.target, m.progress + (n or 1))
-			if m.progress >= m.target then m.done = true end
+	ensureMissions(profile); ensureWeekly(profile)
+	for _, list in ipairs({ profile.missions.list, profile.wmis.list }) do
+		for _, m in ipairs(list) do
+			if m.id == id and not m.done then
+				m.progress = math.min(m.target, m.progress + (n or 1))
+				if m.progress >= m.target then m.done = true end
+			end
 		end
 	end
+end
+
+function RewardService.claimWeekly(player: Player, index: number)
+	local profile = DataService.get(player)
+	if not profile then return nil end
+	ensureWeekly(profile)
+	local m = profile.wmis.list[index]
+	if not m or not m.done or m.claimed then return nil end
+	m.claimed = true
+	profile.coins += m.coins
+	return RewardService.addXP(player, m.xp)
 end
 
 function RewardService.claimMission(player: Player, index: number)
@@ -144,6 +181,7 @@ function RewardService.finishMatch(player: Player, summary)
 	table.insert(profile.history, 1, { t = os.time(), mode = summary.mode, map = summary.map, won = summary.won, k = summary.kills, d = summary.deaths })
 	while #profile.history > 25 do table.remove(profile.history) end
 	local xp = 40 + summary.kills * 10 + summary.hs * 5 + (summary.won and 120 or 0) + (summary.plants + summary.defuses) * 25
+	if summary.mode == Modes.featured() then xp *= 2 end   -- mode de la semaine : XP ×2 (affiché sur l'accueil du menu)
 	local coins = math.floor(xp * 0.15)   -- ~35 pièces par partie : progression lente, comme sur le web
 	local bonusXp, bonusCoins, bonusLines = LoyaltyService.matchBonus(player, xp, coins, summary.won)   -- fidélité, Premium, boost, 1re victoire
 	xp += bonusXp; coins += bonusCoins

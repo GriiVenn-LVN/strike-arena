@@ -43,6 +43,13 @@ Modes.GROUPS = ({
 	{ "Spécial", { "zombies", "inf", "jug", "br", "train" } },
 } :: any) :: { { any } }
 
+-- Mode de la semaine (FEATURED_ROT du web, src/8D_matchflow.js) : XP ×2, change chaque lundi
+Modes.FEATURED_ROT = { "duel", "gg", "koth", "rapid", "ffa", "tdm", "br" }
+function Modes.featured(): string
+	local week = math.floor((math.floor(os.time() / 86400) + 3) / 7)
+	return Modes.FEATURED_ROT[week % #Modes.FEATURED_ROT + 1]
+end
+
 -- Partie rapide : modes tirés au hasard (QUICK_MODES du web)
 Modes.QUICK = { "tdm", "ffa", "gg", "koth", "duel", "rapid", "dom", "kc", "ctf", "shp" }
 

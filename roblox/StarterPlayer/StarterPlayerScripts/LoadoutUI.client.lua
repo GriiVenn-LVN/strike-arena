@@ -179,3 +179,8 @@ ContextActionService:BindAction("Loadout", function(_, st)
 	return Enum.ContextActionResult.Sink
 end, false, Enum.KeyCode.B, Enum.KeyCode.DPadLeft)
 player:GetAttributeChangedSignal("Primary"):Connect(function() if win.Visible then render() end end)
+
+-- ---------- menu principal (MainMenu) : bouton caché pendant que le menu est ouvert, fenêtre ouvrable depuis le menu ----------
+player:GetAttributeChangedSignal("MenuOpen"):Connect(function() openBtn.Visible = player:GetAttribute("MenuOpen") ~= true end)
+gui.DisplayOrder = 30   -- au-dessus du menu (19)
+require(ReplicatedStorage.Shared.ClientState).panels.loadout = function() setOpen(not win.Visible) end

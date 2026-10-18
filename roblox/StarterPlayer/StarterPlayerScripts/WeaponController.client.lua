@@ -247,17 +247,19 @@ RunService:BindToRenderStep("WeaponCamera", Enum.RenderPriority.Camera.Value + 1
 	local key = W.weapon
 	local w = key and Config.WEAPONS[key]
 	-- zoom du web : champ / lerp(1, zoom du viseur, visée) ; sensibilité 1/zoom à la lunette, −25 % en visée sinon,
-	-- × « sensibilité en visée » (attribut AdsSens, 1 par défaut) comme src/8Zf_confort.js
+	-- × « sensibilité en visée » (menu Réglages, ou attribut AdsSens) comme src/8Zf_confort.js ; champ choisi dans les Réglages
+	local base = S.opt.fov
 	local ads = if w and not w.melee then S.adsT else 0
 	local att = if key then A.activeOf(player, key) else {}
 	local zoom = if key and w and not w.melee then A.sightZoom(key, A.modsOf(att)) else 1
-	local targetFov = BASE_FOV / (1 + (zoom - 1) * ads)
+	local targetFov = base / (1 + (zoom - 1) * ads)
 	W.fov += (targetFov - W.fov) * math.min(1, dt * 18)
 	camera.FieldOfView = W.fov
 	local scoped = key ~= nil and ads > 0.92 and A.sightOv(key, att)
 	local adsSens = player:GetAttribute("AdsSens")
-	local am = if typeof(adsSens) == "number" then 1 + (adsSens - 1) * math.clamp(ads, 0, 1) else 1
-	UserInputService.MouseDeltaSensitivity = baseSens * (if scoped then 1 / zoom else 1 - .25 * ads) * am
+	local aimS = (if typeof(adsSens) == "number" then adsSens else 1) * S.opt.aimSens
+	local am = 1 + (aimS - 1) * math.clamp(ads, 0, 1)
+	UserInputService.MouseDeltaSensitivity = baseSens * S.opt.sens * S.opt.wsens * (if scoped then 1 / zoom else 1 - .25 * ads) * am
 	-- le recul est un décalage visuel ajouté après la caméra Roblox, qui revient tout seul
 	W.recoilPitch *= math.exp(-dt * 9); W.recoilYaw *= math.exp(-dt * 9)
 	camera.CFrame = camera.CFrame * CFrame.Angles(math.rad(W.recoilPitch), math.rad(W.recoilYaw), 0)
