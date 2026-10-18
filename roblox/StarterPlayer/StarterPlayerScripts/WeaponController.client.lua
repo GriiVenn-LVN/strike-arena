@@ -9,13 +9,13 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local ContextActionService = game:GetService("ContextActionService")
-local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local X = require(ReplicatedStorage.Shared.ConfigExtra)
 local ModeConfig = require(ReplicatedStorage.Shared.ModeConfig)
+local S = require(ReplicatedStorage.Shared.ClientState)      -- partagé avec MovementController et ViewmodelController
 
 local fireRemote = ReplicatedStorage:WaitForChild("FireWeapon") :: RemoteEvent
 local switchRemote = ReplicatedStorage:WaitForChild("SwitchWeapon") :: RemoteEvent
@@ -49,22 +49,13 @@ local function publish()
 	player:SetAttribute("Slot", W.slot)
 	player:SetAttribute("Loadout", table.concat(W.loadout, ","))
 	player:SetAttribute("Aiming", W.aiming)
+	S.weapon = W.weapon; S.mag = W.mag; S.reserve = W.reserve; S.aiming = W.aiming
+	S.reloading = W.reloading; S.reloadStart = W.reloadStart
 end
 
 -- ---------- sons ----------
-local function playSound(def: any, at: Vector3?)
-	if not def or not def.id or def.id == "" then return end
-	local s = Instance.new("Sound")
-	s.SoundId = def.id; s.Volume = def.volume or 0.6; s.PlaybackSpeed = (def.pitch or 1) * (0.95 + math.random() * 0.1)
-	if at then
-		local a = Instance.new("Attachment"); a.WorldPosition = at; a.Parent = workspace.Terrain
-		s.RollOffMaxDistance = 300; s.Parent = a; s:Play()
-		Debris:AddItem(a, 3)
-	else
-		s.Parent = SoundService; s:Play()
-		Debris:AddItem(s, 3)
-	end
-end
+local Sfx = require(ReplicatedStorage.Shared.Sfx)
+local function playSound(def: any, at: Vector3?) Sfx.play(def, at) end
 
 local function fireSound(key: string): any
 	local w = Config.WEAPONS[key]
@@ -103,12 +94,14 @@ ammoState.OnClientEvent:Connect(function(info: any)
 	local changedWeapon = info.weapon ~= W.weapon
 	if info.reloading and not W.reloading then
 		W.reloadStart = os.clock()
-		playSound(ModeConfig.SOUNDS.reload)
+		S.reloadEmpty = W.mag <= 0; S.inspectStart = -1
+		S.reload:Fire(info.weapon, S.reloadEmpty)       -- le viewmodel joue l'animation et ses sons (chargeur dehors / dedans)
 	end
 	W.weapon = info.weapon; W.mag = info.mag; W.reserve = info.reserve; W.reloading = info.reloading
 	W.slot = info.slot; W.loadout = info.loadout
 	if changedWeapon then W.aiming = false end
 	publish()
+	if changedWeapon and info.weapon then S.inspectStart = -1; S.draw:Fire(info.weapon) end
 end)
 
 tracerRemote.OnClientEvent:Connect(function(origin: Vector3, endPos: Vector3, shooter: Instance?)
@@ -137,6 +130,8 @@ local function tryFire()
 	-- la pause entre deux parties ne bloque que les joueurs du match (pas le lobby ni les duels)
 	local blocked = not W.matchLive and player:GetAttribute("Zone") == "tdm"
 	if not key or not alive() or blocked or W.menu or player:GetAttribute("UiOpen") == true then return end
+	-- on ne tire pas en sprintant ni pendant une escalade ; à la sortie du sprint l'arme met un instant à revenir
+	if S.sprint or S.mantle or os.clock() < S.fireBlockedUntil then return end
 	local w = Config.WEAPONS[key]
 	if not w.auto and not W.fresh then return end
 	local t = os.clock()
@@ -156,10 +151,11 @@ local function tryFire()
 		local params = RaycastParams.new(); params.FilterType = Enum.RaycastFilterType.Exclude
 		params.FilterDescendantsInstances = { player.Character :: Instance }
 		local r = workspace:Raycast(cf.Position, cf.LookVector * 400, params)
-		local muzzle = cf.Position + cf.LookVector * 1.5 - cf.UpVector * 0.4 + cf.RightVector * 0.5
+		local muzzle = S.muzzle or (cf.Position + cf.LookVector * 1.5 - cf.UpVector * 0.4 + cf.RightVector * 0.5)
 		tracer(muzzle, if r then r.Position else cf.Position + cf.LookVector * 400, true)
-		muzzleFlash(player.Character)
 	end
+	S.inspectStart = -1
+	S.shot:Fire(key)                                   -- recul de l'arme, éclair et douille dans le viewmodel
 	playSound(fireSound(key))
 	-- recul : plus fort à la hanche, réduit par la poignée verticale
 	local att = player:GetAttribute("Attachments_" .. key)
@@ -174,6 +170,7 @@ end
 local function onFire(_: string, st: Enum.UserInputState)
 	if st == Enum.UserInputState.Begin then W.firing = true; W.fresh = true
 	elseif st == Enum.UserInputState.End or st == Enum.UserInputState.Cancel then W.firing = false end
+	S.firing = W.firing                                -- coupe le sprint (MovementController), souris, manette ou tactile
 	return Enum.ContextActionResult.Sink
 end
 local function onAim(_: string, st: Enum.UserInputState)
@@ -181,6 +178,13 @@ local function onAim(_: string, st: Enum.UserInputState)
 	if not key or Config.WEAPONS[key].melee then return Enum.ContextActionResult.Pass end
 	W.aiming = st == Enum.UserInputState.Begin
 	publish()
+	return Enum.ContextActionResult.Sink
+end
+local function onInspect(_: string, st: Enum.UserInputState)
+	if st ~= Enum.UserInputState.Begin then return Enum.ContextActionResult.Pass end
+	if W.weapon and not W.reloading and not W.aiming and alive() then
+		S.inspectStart = if S.inspectStart > 0 then -1 else os.clock()     -- 2e appui : on arrête l'inspection
+	end
 	return Enum.ContextActionResult.Sink
 end
 local function onReload(_: string, st: Enum.UserInputState)
@@ -215,6 +219,7 @@ ContextActionService:BindAction("Menu", onMenu, false, Enum.KeyCode.M, Enum.KeyC
 ContextActionService:BindAction("Fire", onFire, true, Enum.UserInputType.MouseButton1, Enum.KeyCode.ButtonR2)
 ContextActionService:BindAction("Aim", onAim, true, Enum.UserInputType.MouseButton2, Enum.KeyCode.ButtonL2)
 ContextActionService:BindAction("Reload", onReload, true, Enum.KeyCode.R, Enum.KeyCode.ButtonX)
+ContextActionService:BindAction("Inspect", onInspect, false, Enum.KeyCode.V, Enum.KeyCode.DPadUp)
 ContextActionService:BindAction("Slot1", onSwitch, false, Enum.KeyCode.One)
 ContextActionService:BindAction("Slot2", onSwitch, false, Enum.KeyCode.Two)
 ContextActionService:BindAction("Slot3", onSwitch, false, Enum.KeyCode.Three)

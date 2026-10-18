@@ -43,27 +43,40 @@ ModeConfig.BOT = {
 	primaries = { "galil", "famas", "ak", "m4", "ump", "mac10", "nova" },
 }
 
--- Sons : remplace les identifiants par des sons de la boutique des créateurs (Creator Store → Audio)
--- ou par tes propres fichiers importés. Les sons rbxasset:// sont fournis avec Roblox : ils servent
--- de remplacement provisoire pour pouvoir tester tout de suite.
+-- Sons. Les vrais sons du jeu web sont dans UN fichier, « strike-arena-sons.ogg » (fait par tools/render_sounds.js) :
+-- importe-le dans le Creator Hub (Créations → Audio) et colle son numéro ici. Tant que SOUND_SHEET vaut 0,
+-- les sons rbxasset:// fournis avec Roblox (champ id) servent de remplacement.
+-- sheet = nom du son dans la planche (ReplicatedStorage/Shared/SoundSheet.lua).
+ModeConfig.SOUND_SHEET = 0
 ModeConfig.SOUNDS = {
 	fire = {
-		pistol = { id = "rbxasset://sounds/snap.wav", volume = 0.6, pitch = 1.25 },
-		smg = { id = "rbxasset://sounds/snap.wav", volume = 0.55, pitch = 1.4 },
-		rifle = { id = "rbxasset://sounds/snap.wav", volume = 0.7, pitch = 1.0 },
-		shotgun = { id = "rbxasset://sounds/Rocket shot.wav", volume = 0.6, pitch = 1.6 },
-		sniper = { id = "rbxasset://sounds/Rocket shot.wav", volume = 0.8, pitch = 1.2 },
-		lmg = { id = "rbxasset://sounds/snap.wav", volume = 0.65, pitch = 0.9 },
-		melee = { id = "rbxasset://sounds/swordlunge.wav", volume = 0.6, pitch = 1.0 },
+		pistol = { sheet = "pistol", id = "rbxasset://sounds/snap.wav", volume = 0.6, pitch = 1.25 },
+		smg = { sheet = "smg", id = "rbxasset://sounds/snap.wav", volume = 0.55, pitch = 1.4 },
+		rifle = { sheet = "rifle", id = "rbxasset://sounds/snap.wav", volume = 0.7, pitch = 1.0 },
+		shotgun = { sheet = "shotgun", id = "rbxasset://sounds/Rocket shot.wav", volume = 0.6, pitch = 1.6 },
+		sniper = { sheet = "sniper", id = "rbxasset://sounds/Rocket shot.wav", volume = 0.8, pitch = 1.2 },
+		lmg = { sheet = "lmg", id = "rbxasset://sounds/snap.wav", volume = 0.65, pitch = 0.9 },
+		melee = { sheet = "knife", id = "rbxasset://sounds/swordlunge.wav", volume = 0.6, pitch = 1.0 },
 	},
-	reload = { id = "rbxasset://sounds/clickfast.wav", volume = 0.5, pitch = 0.8 },
-	empty = { id = "rbxasset://sounds/clickfast.wav", volume = 0.4, pitch = 1.6 },
+	reload = { sheet = "reload", id = "rbxasset://sounds/clickfast.wav", volume = 0.5, pitch = 0.8 },
+	empty = { sheet = "click", id = "rbxasset://sounds/clickfast.wav", volume = 0.4, pitch = 1.6 },
 	-- touches : un « clac » sourd sur le corps, un « ding » métallique à la tête, un coup grave à l'élimination
-	hitBody = { id = "rbxasset://sounds/swordhit.wav", volume = 0.55, pitch = 1.5 },
-	hitHead = { id = "rbxasset://sounds/electronicpingshort.wav", volume = 0.7, pitch = 1.35 },
-	kill = { id = "rbxasset://sounds/electronicpingshort.wav", volume = 0.9, pitch = 0.75 },
-	hurt = { id = "rbxasset://sounds/swordhit.wav", volume = 0.6, pitch = 0.7 },
-	streak = { id = "rbxasset://sounds/victory.wav", volume = 0.5, pitch = 1.1 },
+	hitBody = { sheet = "hit", id = "rbxasset://sounds/swordhit.wav", volume = 0.55, pitch = 1.5 },
+	hitHead = { sheet = "hs", id = "rbxasset://sounds/electronicpingshort.wav", volume = 0.7, pitch = 1.35 },
+	kill = { sheet = "kill", id = "rbxasset://sounds/electronicpingshort.wav", volume = 0.9, pitch = 0.75 },
+	hurt = { sheet = "dmg", id = "rbxasset://sounds/swordhit.wav", volume = 0.6, pitch = 0.7 },
+	streak = { sheet = "round", id = "rbxasset://sounds/victory.wav", volume = 0.5, pitch = 1.1 },
+	-- animations d'arme et déplacements
+	magout = { sheet = "magout", id = "rbxasset://sounds/clickfast.wav", volume = 0.35, pitch = 0.7 },
+	magin = { sheet = "magin", id = "rbxasset://sounds/clickfast.wav", volume = 0.45, pitch = 0.9 },
+	rack = { sheet = "rack", id = "rbxasset://sounds/clickfast.wav", volume = 0.45, pitch = 1.2 },
+	bolt = { sheet = "bolt", id = "rbxasset://sounds/clickfast.wav", volume = 0.45, pitch = 1.0 },
+	pump = { sheet = "pump", id = "rbxasset://sounds/clickfast.wav", volume = 0.5, pitch = 0.75 },
+	shellin = { sheet = "shellin", id = "rbxasset://sounds/clickfast.wav", volume = 0.3, pitch = 1.3 },
+	draw = { sheet = "draw", id = "rbxasset://sounds/unsheath.wav", volume = 0.3, pitch = 1.2 },
+	knife = { sheet = "knife", id = "rbxasset://sounds/swordlunge.wav", volume = 0.5, pitch = 1.0 },
+	slide = { sheet = "slide" },
+	land = { sheet = "land" },
 }
 
 return ModeConfig

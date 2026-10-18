@@ -10,7 +10,6 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local StarterGui = game:GetService("StarterGui")
-local SoundService = game:GetService("SoundService")
 local Debris = game:GetService("Debris")
 
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -60,11 +59,8 @@ local function tween(o: Instance, t: number, props: { [string]: any }, style: En
 	tw:Play()
 	return tw
 end
-local function playSound(def: any)
-	if not def or not def.id or def.id == "" then return end
-	local s = make("Sound", { SoundId = def.id, Volume = def.volume or 0.6, PlaybackSpeed = def.pitch or 1 }, SoundService)
-	s:Play(); Debris:AddItem(s, 3)
-end
+local Sfx = require(ReplicatedStorage.Shared.Sfx)
+local function playSound(def: any) Sfx.play(def) end
 local function fmtTime(s: number): string return string.format("%d:%02d", s // 60, s % 60) end
 
 local gui = make("ScreenGui", { Name = "MatchHud", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 10, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, player:WaitForChild("PlayerGui"))

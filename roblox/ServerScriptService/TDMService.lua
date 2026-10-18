@@ -141,8 +141,10 @@ end
 
 local function loadoutFor(p: Player, team: string): { string }
 	local base = TDM.loadout[team]
-	local primary = M.chosen[p] or base.primary
-	return { primary, base.secondary, "knife" }
+	local chosen = p:GetAttribute("Primary")
+	local secondary = p:GetAttribute("Secondary")
+	local primary = M.chosen[p] or (if typeof(chosen) == "string" then chosen else base.primary)
+	return { primary, if typeof(secondary) == "string" then secondary else base.secondary, "knife" }
 end
 
 local spawnPlayer: (Player) -> ()
@@ -330,14 +332,23 @@ local function broadcast()
 end
 
 -- ---------- choix de l'arme principale (menu de chargement) ----------
+-- arme principale (slot 0) ou pistolet (slot 1) ; gardé dans le profil, appliqué à la prochaine apparition
 loadoutFn.OnServerInvoke = function(player: Player, key: any)
 	if typeof(key) ~= "string" then return false end
 	local w = Config.WEAPONS[key]
-	if not w or w.slot ~= 0 then return false end
+	if not w or (w.slot ~= 0 and w.slot ~= 1) then return false end
 	local profile = DataService.get(player)
 	if not ShopCatalog.STARTER_WEAPONS[key] and not (profile and ShopCatalog.ownsWeapon(profile, key)) then return false end
-	M.chosen[player] = key       -- appliquée à la prochaine apparition
-	player:SetAttribute("Primary", key)   -- reprise aussi par les duels et le stand de tir du lobby
+	if w.slot == 0 then
+		M.chosen[player] = key
+		player:SetAttribute("Primary", key)   -- reprise aussi par les duels et le stand de tir du lobby
+	else
+		player:SetAttribute("Secondary", key)
+	end
+	if profile then
+		profile.loadout = profile.loadout or {}
+		profile.loadout[if w.slot == 0 then "primary" else "secondary"] = key
+	end
 	return true
 end
 

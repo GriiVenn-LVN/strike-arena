@@ -83,18 +83,41 @@ end
 local function now(): number return workspace:GetServerTimeNow() end
 
 -- ---------- arme visible dans la main ----------
--- Si ReplicatedStorage/Assets/Weapons/<clé> existe (Model ou MeshPart), il est utilisé ; sinon un bloc provisoire.
-local PLACEHOLDER = {
-	pistol = Vector3.new(0.3, 0.7, 1.2), smg = Vector3.new(0.35, 0.8, 2.0), rifle = Vector3.new(0.35, 0.8, 3.0),
-	shotgun = Vector3.new(0.4, 0.8, 3.0), sniper = Vector3.new(0.35, 0.8, 3.8), lmg = Vector3.new(0.5, 1.0, 3.4), melee = Vector3.new(0.12, 0.3, 1.4),
-}
+-- Le serveur ne pose qu'une poignée invisible (« HeldWeapon ») avec l'attachment Muzzle au bout du vrai canon.
+-- Chaque client y soude la vraie arme du jeu web (WeaponVisuals + WeaponModels) : rien ne passe par le réseau.
+-- Si ReplicatedStorage/Assets/Weapons/<clé> existe (Model ou MeshPart fait dans Studio), il est utilisé à la place.
+local WeaponInfo = require(ReplicatedStorage.Shared.WeaponInfo)
+local WORLD_SCALE = 2.9                            -- studs par mètre pour l'arme tenue (proportions d'un avatar R15)
+
+-- bras levés « en position de tir » : on tourne l'épaule (C0), l'animation de marche reste par-dessus
+local function aimPose(char: Model, key: string)
+	local w = Config.WEAPONS[key]
+	local function pose(armName: string, jointName: string, cf: CFrame?)
+		local arm = char:FindFirstChild(armName)
+		local joint = arm and arm:FindFirstChild(jointName)
+		if not joint or not joint:IsA("Motor6D") then return end
+		local base = joint:GetAttribute("BaseC0")
+		if typeof(base) ~= "CFrame" then base = joint.C0; joint:SetAttribute("BaseC0", base) end
+		joint.C0 = if cf then (base :: CFrame) * cf else base :: CFrame
+	end
+	if w.melee then
+		pose("RightUpperArm", "RightShoulder", CFrame.Angles(math.rad(55), 0, 0))
+		pose("LeftUpperArm", "LeftShoulder", nil)
+	else
+		pose("RightUpperArm", "RightShoulder", CFrame.Angles(math.rad(90), 0, 0))
+		pose("LeftUpperArm", "LeftShoulder", CFrame.Angles(math.rad(85), 0, math.rad(-35)))
+	end
+end
+
 local function attachModel(c: any, key: string)
 	local char = WeaponService.charOf(c)
 	if not char then return end
 	local old = char:FindFirstChild("HeldWeapon"); if old then old:Destroy() end
 	local hand = (char:FindFirstChild("RightHand") or char:FindFirstChild("Right Arm")) :: BasePart?
 	if not hand then return end
+	aimPose(char, key)
 	local w = Config.WEAPONS[key]
+	local inf = WeaponInfo[key]
 	local assets = ReplicatedStorage:FindFirstChild("Assets")
 	local folder = assets and assets:FindFirstChild("Weapons")
 	local src = folder and folder:FindFirstChild(key)
@@ -104,9 +127,7 @@ local function attachModel(c: any, key: string)
 		model = src:Clone()
 		handle = (if model:IsA("Model") then (model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart", true)) else model) :: BasePart
 	else
-		local p = Instance.new("Part"); p.Name = "Handle"; p.Size = PLACEHOLDER[w.cat] or PLACEHOLDER.rifle
-		p.Color = if w.melee then Color3.fromRGB(200, 205, 212) else Color3.fromRGB(45, 48, 54)
-		p.Material = Enum.Material.Metal
+		local p = Instance.new("Part"); p.Name = "Handle"; p.Size = Vector3.new(0.2, 0.2, 0.2); p.Transparency = 1
 		model = p; handle = p
 	end
 	model.Name = "HeldWeapon"
@@ -117,11 +138,17 @@ local function attachModel(c: any, key: string)
 		b.Anchored = false; b.CanCollide = false; b.CanQuery = false; b.CanTouch = false; b.Massless = true
 	end
 	if not handle:FindFirstChild("Muzzle") then
-		local a = Instance.new("Attachment"); a.Name = "Muzzle"; a.Position = Vector3.new(0, 0.1, -handle.Size.Z / 2); a.Parent = handle
+		local a = Instance.new("Attachment"); a.Name = "Muzzle"
+		a.Position = if inf then Vector3.new(0, inf.sight * 0.6, inf.muzzle) * WORLD_SCALE elseif w.melee then Vector3.new(0, 0, -0.7) else Vector3.new(0, 0.1, -1.5)
+		a.Parent = handle
 	end
-	local target = hand.CFrame * CFrame.new(0, -0.2, -handle.Size.Z / 2 + 0.3)
-	if model:IsA("Model") then model:PivotTo(target * handle.CFrame:ToObjectSpace(model:GetPivot())) else handle.CFrame = target end
-	local weld = Instance.new("WeldConstraint"); weld.Part0 = hand; weld.Part1 = handle; weld.Parent = handle
+	-- l'épaule levée fait pointer -Y de la main vers l'avant : l'arme (-Z = canon) est tournée pour suivre
+	-- (Weld avec C0 fixe, et non WeldConstraint : la pose de l'épaule n'est appliquée qu'au pas physique suivant)
+	local gripOffset = CFrame.new(0, -0.1, 0) * CFrame.Angles(math.rad(-90), 0, 0)
+	if model:IsA("Model") then model:PivotTo(hand.CFrame * gripOffset * handle.CFrame:ToObjectSpace(model:GetPivot())) else handle.CFrame = hand.CFrame * gripOffset end
+	local weld = Instance.new("Weld"); weld.Part0 = hand; weld.Part1 = handle; weld.C0 = gripOffset; weld.Parent = handle
+	model:SetAttribute("Custom", src ~= nil)
+	model:SetAttribute("Key", key)
 	model.Parent = char
 	char:SetAttribute("Weapon", key)
 end
