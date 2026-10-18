@@ -6,7 +6,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
 local HttpService = game:GetService("HttpService")
-local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -72,10 +71,11 @@ local function currentWeapon(): string?
 	local c = player.Character; local tool = c and c:FindFirstChildOfClass("Tool")
 	return tool and tool.Name or nil
 end
-local base = UserInputService.MouseDeltaSensitivity
+-- (le multiplicateur passe par ClientState : WeaponController calcule la sensibilité finale avec celle du menu)
+local S = require(ReplicatedStorage.Shared.ClientState)
 game:GetService("RunService").RenderStepped:Connect(function()
 	local w = currentWeapon()
-	UserInputService.MouseDeltaSensitivity = base * ((w and settings.weaponSens[w]) or 1)
+	S.opt.wsens = (w and settings.weaponSens[w]) or 1
 end)
 
 -- API pour l'interface de réglages

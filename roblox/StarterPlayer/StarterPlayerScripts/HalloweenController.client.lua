@@ -10,11 +10,11 @@ local RunService = game:GetService("RunService")
 local camera = workspace.CurrentCamera
 local BAT = Color3.fromRGB(11, 7, 16)
 
-type Bat = { body: BasePart, wl: BasePart, wr: BasePart, r: number, h: number, sp: number, ph: number, fl: number, sz: number }
+type Bat = { body: Part, wl: Part, wr: Part, r: number, h: number, sp: number, ph: number, fl: number, sz: number }
 type Flock = { anchor: BasePart, bats: { Bat }, folder: Folder }
 local flocks: { [Instance]: Flock } = {}
 
-local function part(size: Vector3, parent: Instance): BasePart
+local function part(size: Vector3, parent: Instance): Part
 	local p = Instance.new("Part")
 	p.Size = size; p.Color = BAT; p.Material = Enum.Material.SmoothPlastic
 	p.Anchored = true; p.CanCollide = false; p.CanQuery = false; p.CanTouch = false; p.CastShadow = false

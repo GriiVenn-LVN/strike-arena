@@ -8,8 +8,13 @@ local RewardService = require(script.Parent.RewardService)
 require(script.Parent.WeaponService)
 require(script.Parent.CodeService)        -- codes promo + récompense du groupe Roblox
 require(script.Parent.KillFxService)      -- effets d'élimination
+local ProgressService = require(script.Parent.ProgressService)
+require(script.Parent.MenuService)        -- menu principal : défis de la semaine, réglages gardés, titre
 require(script.Parent.MedalService)       -- médailles, bilan perso et défis de fin de partie (src/8G_medals.js, src/8O_defis.js)
 require(script.Parent.AdminService)       -- panneau admin (propriétaire du jeu + code, src/8M_admin.js)
+require(script.Parent.HalloweenService)   -- décor d'Halloween du lobby et des cartes, citrouilles lâchées (src/8W_halloween.js)
+require(script.Parent.SprayService)       -- sprays sur les murs (touche J, src/64_extras.js)
+require(script.Parent.PerkDrinkService)   -- boisson d'atout (src/8U_perkdrink.js), appelée quand on prend un atout en Zombies
 local LeaderboardService = require(script.Parent.LeaderboardService)
 local ModeConfig = require(ReplicatedStorage.Shared.ModeConfig)
 local CommunityConfig = require(ReplicatedStorage.Shared.CommunityConfig)
@@ -24,8 +29,11 @@ getProfile.OnServerInvoke = function(player: Player)
 	local profile = DataService.get(player)
 	if not profile then return nil end
 	RewardService.ensureMissions(profile)
+	RewardService.ensureWeekly(profile)
+	ProgressService.ensure(profile)              -- passe de saison, classement, événement (affichés par le menu)
 	local level, cur, need = RewardService.levelInfo(profile)
-	return { profile = profile, level = level, xp = cur, xpNeed = need, daily = RewardService.dailyStatus(profile) }
+	return { profile = profile, level = level, xp = cur, xpNeed = need, daily = RewardService.dailyStatus(profile),
+		eventActive = ProgressService.eventActive(), now = os.time() }
 end
 
 local claimDaily = remoteFunction("ClaimDaily")
@@ -40,12 +48,7 @@ claimMission.OnServerInvoke = function(player: Player, index: any)
 	return RewardService.claimMission(player, index)
 end
 
--- défis de la semaine (src/8O_defis.js) et liste complète des défis avec leurs textes (menu Progression)
-local claimWeekly = remoteFunction("ClaimWeekly")
-claimWeekly.OnServerInvoke = function(player: Player, index: any)
-	if typeof(index) ~= "number" then return nil end
-	return RewardService.claimWeekly(player, index)
-end
+-- liste complète des défis du jour et de la semaine avec leurs textes (ClaimWeekly est dans MenuService)
 local getChallenges = remoteFunction("GetChallenges")
 getChallenges.OnServerInvoke = function(player: Player) return RewardService.challenges(player) end
 

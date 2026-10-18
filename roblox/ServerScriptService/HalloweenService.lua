@@ -90,7 +90,7 @@ function HalloweenService.decorate(m: any)
 		return o + Vector3.new((cx + 0.5) * CELL, h * U, (cz + 0.5) * CELL)
 	end
 	-- haut des murs qui bordent une zone ouverte
-	local cand = {}
+	local cand: { { number } } = {}
 	for cz = 1, N - 2 do
 		for cx = 1, N - 2 do
 			local i = cz * N + cx
@@ -105,7 +105,7 @@ function HalloweenService.decorate(m: any)
 		end
 	end
 	shuffle(cand, rng)
-	local used = {}
+	local used: { { number } } = {}
 	for _, c in ipairs(cand) do
 		if #used >= 16 then break end
 		local near = false
@@ -116,7 +116,7 @@ function HalloweenService.decorate(m: any)
 		end
 	end
 	-- groupes au pied des murs, caisses et maisons (collés à l'obstacle)
-	local foot = {}
+	local foot: { { number } } = {}
 	for cz = 1, N - 2 do
 		for cx = 1, N - 2 do
 			local i = cz * N + cx
@@ -129,7 +129,7 @@ function HalloweenService.decorate(m: any)
 		end
 	end
 	shuffle(foot, rng)
-	local fu = {}
+	local fu: { { number } } = {}
 	for _, f in ipairs(foot) do
 		if #fu >= 14 then break end
 		local near = false

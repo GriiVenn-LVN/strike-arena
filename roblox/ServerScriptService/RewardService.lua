@@ -3,6 +3,7 @@
 -- XP / niveaux, récompense quotidienne (série de 7 jours), défis du jour, récompenses de fin de partie.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
+local Modes = require(ReplicatedStorage.Shared.Modes)
 local DataService = require(script.Parent.DataService)
 local LoyaltyService = require(script.Parent.LoyaltyService)
 local LeaderboardService = require(script.Parent.LeaderboardService)
@@ -247,6 +248,7 @@ function RewardService.finishMatch(player: Player, summary)
 	table.insert(profile.history, 1, { t = os.time(), mode = summary.mode, map = summary.map, won = summary.won, k = summary.kills, d = summary.deaths })
 	while #profile.history > 25 do table.remove(profile.history) end
 	local xp = 40 + summary.kills * 10 + summary.hs * 5 + (summary.won and 120 or 0) + (summary.plants + summary.defuses) * 25
+	if summary.mode == Modes.featured() then xp *= 2 end   -- mode de la semaine : XP ×2 (affiché sur l'accueil du menu)
 	local coins = math.floor(xp * 0.15)   -- ~35 pièces par partie : progression lente, comme sur le web
 	local bonusXp, bonusCoins, bonusLines = LoyaltyService.matchBonus(player, xp, coins, summary.won)   -- fidélité, Premium, boost, 1re victoire
 	xp += bonusXp; coins += bonusCoins

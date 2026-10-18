@@ -171,6 +171,18 @@ local function explode(n: G.Nade)
 				end
 			end
 		end
+		-- zombies (pas des combattants de WeaponService)
+		if WS.extraVictims then
+			for _, z in ipairs(WS.extraVictims()) do
+				local zr = z:FindFirstChild("HumanoidRootPart") :: BasePart?
+				if zr and z:IsDescendantOf(workspace) then
+					local d = (zr.Position - n.p).Magnitude / M
+					if d < G.FRAG_R and not wallBetween(n.p + Vector3.new(0, .4 * M, 0), zr.Position, characters()) then
+						WS.applyDamage(owner, z, math.floor(140 * (1 - d / G.FRAG_R) + .5), false, "frag", .5)
+					end
+				end
+			end
+		end
 	elseif n.kind == "flash" then
 		for c in WS.eachCombatant() do
 			local char = WS.charOf(c)

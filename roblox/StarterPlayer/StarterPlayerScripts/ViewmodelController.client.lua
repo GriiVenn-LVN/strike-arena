@@ -260,6 +260,7 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 	local key = if kc then kc.key else S.weapon
 	local alive = if kc then key ~= nil else hum ~= nil and hum.Health > 0 and key ~= nil and camera.CameraType == Enum.CameraType.Custom
 	if not alive or not key then setVisible(false); scopeGui.Enabled = false; S.muzzle = nil; return end
+	if not kc and os.clock() < S.drinkHideUntil then setVisible(false); scopeGui.Enabled = false; S.muzzle = nil; return end   -- boisson d'atout : arme rangée
 	if key ~= VM.key then
 		if building ~= sigOf(key) then task.spawn(setGun, key) end
 		setVisible(false); return

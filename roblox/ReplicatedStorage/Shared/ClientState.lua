@@ -18,9 +18,14 @@ return {
 	-- déplacements (écrit par MovementController)
 	sprint = false, tactical = false, slide = false, crouch = false, mantle = false,
 	fireBlockedUntil = 0,                    -- sortie de sprint : on ne tire pas tout de suite (comme sur le web)
+	drinkUntil = 0, drinkHideUntil = 0,      -- boisson d'atout (PerkDrinkController) : ni tir ni visée / arme rangée jusqu'à ces os.clock()
 	speed = 0, grounded = true, vy = 0,
 	muzzle = nil :: Vector3?,                -- bout du canon du viewmodel (point de départ des traceurs)
 	-- kill-cam (écrit par KillcamController) : { key, skin, camo } de l'arme du tueur, nil hors kill-cam
 	kc = nil :: any,
 	onSkin = nil :: (() -> ())?,             -- repeint l'arme du viewmodel (ViewmodelController)
+	-- menu principal (MainMenu) : réglages lus par WeaponController, fenêtres des autres interfaces
+	opt = { fov = 70, sens = 1, aimSens = 1, wsens = 1 },  -- champ de vision, sensibilité, multiplicateur en visée, réglage par arme
+	menuOpen = false,
+	panels = {} :: { [string]: () -> () },   -- ouvre la fenêtre d'une autre interface (shop, gifts, vip, codes, group, loadout)
 }

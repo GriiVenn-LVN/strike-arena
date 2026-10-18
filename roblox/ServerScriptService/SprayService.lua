@@ -96,7 +96,7 @@ sprayEv.OnServerEvent:Connect(function(p: Player, dir: any)
 	if math.abs(dir.Y) > 0.8 then toast:FireClient(p, "Vise un mur"); return end
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
-	local ex: { Instance } = { ch }
+	local ex: { Instance } = { ch :: Model }
 	local bots = workspace:FindFirstChild("Bots"); if bots then table.insert(ex, bots) end
 	for _, q in ipairs(Players:GetPlayers()) do if q.Character then table.insert(ex, q.Character) end end
 	params.FilterDescendantsInstances = ex
