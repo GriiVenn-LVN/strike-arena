@@ -703,6 +703,7 @@ local function freeSlot(): number?
 end
 
 -- fonctions appelées pour chaque joueur à la fin d'une partie : (m, joueur, stat, gagné, résumé MatchEnd modifiable)
+MatchService.buildHooks = {} :: { (Match) -> () }   -- appelées après chaque construction de carte (HalloweenService.decorate)
 MatchService.finishHooks = {} :: { (Match, Player, Stat?, boolean, { [string]: any }) -> () }
 local function finish(m: Match, winner: any)
 	m.state = "over"
@@ -779,6 +780,9 @@ local function playOnce(m: Match)
 		for _, pk in ipairs(m.map.data.pickups or {}) do MatchService.makePickup(m, pk[3], MatchService.cellToWorld(m, pk[1], pk[2]), false) end
 	end
 	pcall(ProgressService.spawnPumpkins, m.map.data, function(cx: number, cz: number) return MatchService.cellToWorld(m, cx, cz) end, m.map.folder)
+	for _, hook in ipairs(MatchService.buildHooks) do   -- décor ajouté après la construction de la carte (HalloweenService)
+		if not pcall(hook, m) then warn("[MatchService] décor de carte : erreur") end
+	end
 	if m.mod.setup then m.mod.setup(m) end
 
 	-- équipes : on rebat les cartes à chaque partie, les groupes d'amis restent ensemble
