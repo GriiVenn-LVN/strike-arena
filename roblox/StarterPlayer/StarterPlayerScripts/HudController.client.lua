@@ -183,7 +183,7 @@ local RADAR = 184                 -- taille à l'écran
 local RIMG = 128                  -- résolution de l'image de la carte
 local RANGE = 31 * U              -- rayon couvert (31 m comme le web)
 local radarWrap = make("Frame", { Position = UDim2.fromOffset(13, 13), Size = UDim2.fromOffset(RADAR, RADAR + 24), BackgroundTransparency = 1 }, gui)
-local radar = make("Frame", { Size = UDim2.fromOffset(RADAR, RADAR), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.5, ClipsDescendants = true }, radarWrap)
+local radar = make("Frame", { Name = "Radar", Size = UDim2.fromOffset(RADAR, RADAR), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.5, ClipsDescendants = true }, radarWrap)
 make("UICorner", { CornerRadius = UDim.new(1, 0) }, radar)
 make("UIStroke", { Color = rgb(0x36476a), Thickness = 2 }, radar)
 local radarImg = make("ImageLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ResampleMode = Enum.ResamplerMode.Default }, radar)

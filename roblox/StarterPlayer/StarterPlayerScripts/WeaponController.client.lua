@@ -149,7 +149,8 @@ local function tryFire()
 		return
 	end
 	W.fresh = false
-	W.nextShot = t + 60 / w.rpm
+	local rateMult = player.Character and player.Character:GetAttribute("RateMult")    -- Zombies : Double Détente
+	W.nextShot = t + 60 / (w.rpm * (if typeof(rateMult) == "number" then rateMult else 1))
 	local cf = camera.CFrame
 	fireRemote:FireServer(cf.Position, cf.LookVector, W.aiming)
 	if not w.melee then

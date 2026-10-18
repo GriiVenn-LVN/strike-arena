@@ -38,7 +38,16 @@ local DRAW_TIME = 0.35                             -- temps pour sortir une arme
 
 local WeaponService = {}
 WeaponService.damageFilter = nil :: ((any, Model, number, boolean, string) -> number?)?
+WeaponService.extraVictims = nil :: (() -> { Model })?   -- cibles non combattantes touchées par les grenades (zombies)
 WeaponService.throwBlocked = nil :: ((any) -> boolean)?   -- posé par MatchService : pas de grenade pendant l'attente
+-- multiplicateurs posés par un mode (Zombies : atouts, Forge Arcane) : what = "rate" (cadence), "reload" (durée), "mag" (chargeur)
+WeaponService.modFn = nil :: ((any, string, string) -> number)?
+local function modOf(c: any, key: string, what: string): number
+	local f = WeaponService.modFn
+	if not f then return 1 end
+	local ok, v = pcall(f, c, key, what)
+	return if ok and typeof(v) == "number" and v > 0 then v else 1
+end
 
 -- Événements serveur pour le mode de jeu (score, statistiques, assistances)
 local killedEvent = Instance.new("BindableEvent")
@@ -195,8 +204,8 @@ local function readAttachments(c: any, key: string): { string }
 	return A.activeOf(c, key)
 end
 
-local function magSize(key: string, att: { string }): number
-	return math.ceil(Config.WEAPONS[key].mag * A.modsOf(att).mag)
+local function magSize(key: string, att: { string }, c: any?): number
+	return math.ceil(Config.WEAPONS[key].mag * A.modsOf(att).mag * (if c ~= nil then modOf(c, key, "mag") else 1))
 end
 
 -- Donne un jeu d'armes complet (ex. { "galil", "glock", "knife" }) et sort la première.
@@ -209,7 +218,7 @@ function WeaponService.giveLoadout(c: any, keys: { string })
 	for _, k in ipairs(keys) do
 		if Config.WEAPONS[k] then
 			table.insert(s.loadout, k)
-			s.ammo[k] = { mag = magSize(k, readAttachments(c, k)), reserve = Config.WEAPONS[k].reserve }
+			s.ammo[k] = { mag = magSize(k, readAttachments(c, k), c), reserve = Config.WEAPONS[k].reserve }
 		end
 	end
 	if #s.loadout == 0 then return end
@@ -244,14 +253,14 @@ function WeaponService.reload(c: any)
 	if not s or s.reloading then return end
 	local w = Config.WEAPONS[s.weapon]
 	local a = current(s)
-	if w.melee or a.reserve <= 0 or a.mag >= magSize(s.weapon, s.attachments) then return end
+	if w.melee or a.reserve <= 0 or a.mag >= magSize(s.weapon, s.attachments, c) then return end
 	s.reloading = true; s.reloadToken += 1
 	local token, key = s.reloadToken, s.weapon
 	notify(c)
-	task.delay(w.reload * s.mods.rel, function()
+	task.delay(w.reload * s.mods.rel * modOf(c, key, "reload"), function()
 		local s2 = state[c]
 		if s2 ~= s or s.reloadToken ~= token or s.weapon ~= key then return end
-		local need = magSize(key, s.attachments) - a.mag
+		local need = magSize(key, s.attachments, c) - a.mag
 		local take = math.min(need, a.reserve)
 		a.mag += take; a.reserve -= take
 		s.reloading = false
@@ -346,7 +355,7 @@ function WeaponService.fire(c: any, origin: Vector3, direction: Vector3, aiming:
 	if not w.melee and a.mag <= 0 then return false end
 	local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
 	if not root or (origin - root.Position).Magnitude > 8 then return false end -- l'origine doit rester près du tireur
-	s.nextShot = t + 60 / w.rpm
+	s.nextShot = t + 60 / (w.rpm * modOf(c, s.weapon, "rate"))
 	if not w.melee then a.mag -= 1 end
 	char:SetAttribute("ProtectedUntil", 0)             -- tirer annule la protection d'apparition
 	shotEvent:Fire(c, s.weapon)
@@ -453,6 +462,53 @@ end
 function WeaponService.hearingRange(c: any): number
 	local s = state[c]
 	return if s and s.mods.sil then X.ATTACHMENTS.sil.hearingRange else 42
+end
+
+-- ---------- armes changées en cours de partie (Zombies, Bataille royale) ----------
+function WeaponService.loadoutOf(c: any): { string }
+	local s = state[c]
+	return if s then table.clone(s.loadout) else {}
+end
+-- remplace le jeu d'armes en gardant les munitions de celles déjà tenues ; sort `select` (ou la première)
+function WeaponService.setLoadoutKeep(c: any, keys: { string }, select: string?)
+	local old = state[c]
+	if not old then WeaponService.giveLoadout(c, keys); return end
+	local list, ammo = {}, {}
+	for _, k in ipairs(keys) do
+		if Config.WEAPONS[k] and not table.find(list, k) then
+			table.insert(list, k)
+			ammo[k] = old.ammo[k] or { mag = magSize(k, readAttachments(c, k), c), reserve = Config.WEAPONS[k].reserve }
+		end
+	end
+	if #list == 0 then return end
+	old.loadout = list; old.ammo = ammo
+	local want = if select and table.find(list, select) then select elseif table.find(list, old.weapon) then old.weapon else list[1]
+	old.slot = table.find(list, want) :: number
+	if want ~= old.weapon then
+		old.weapon = want; old.reloading = false; old.reloadToken += 1
+		old.attachments = readAttachments(c, want); old.mods = A.modsOf(old.attachments); old.nextShot = now() + DRAW_TIME
+		attachModel(c, want)
+	end
+	notify(c)
+end
+function WeaponService.ammoOf(c: any, key: string): (number, number)
+	local s = state[c]
+	local a = s and s.ammo[key]
+	if not a then return 0, 0 end
+	return a.mag, a.reserve
+end
+function WeaponService.setAmmo(c: any, key: string, mag: number?, reserve: number?)
+	local s = state[c]
+	local a = s and s.ammo[key]
+	if not s or not a then return end
+	if mag then a.mag = mag end
+	if reserve then a.reserve = reserve end
+	notify(c)
+end
+-- taille du chargeur de ce combattant pour cette arme (accessoires et multiplicateurs du mode compris)
+function WeaponService.magOf(c: any, key: string): number
+	if not Config.WEAPONS[key] then return 0 end
+	return magSize(key, readAttachments(c, key), c)
 end
 
 -- ---------- grenades et mines : GrenadeService (trajectoire, rebonds, mèches, dégâts, flash, fumée) ----------

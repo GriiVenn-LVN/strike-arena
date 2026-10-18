@@ -12,6 +12,7 @@ local WeaponService = require(script.Parent.WeaponService)
 
 local BOT = ModeConfig.BOT
 local BotService = {}
+BotService.extraTargets = nil :: ((string, number) -> { Model })?
 
 type Brain = {
 	model: Model, hum: Humanoid, root: BasePart, team: string,
@@ -60,6 +61,11 @@ local function enemiesOf(team: string, match: number?): { Model }
 	end
 	for m, b in pairs(brains) do
 		if b.alive and b.team ~= team and b.match == match then table.insert(list, m) end
+	end
+	-- cibles en plus fournies par un mode (Zombies : les zombies de la partie)
+	if BotService.extraTargets and match then
+		local ok, more = pcall(BotService.extraTargets :: any, team, match)
+		if ok and typeof(more) == "table" then for _, e in ipairs(more) do table.insert(list, e) end end
 	end
 	return list
 end
@@ -249,6 +255,10 @@ function BotService.freezeMatch(id: number, on: boolean)
 end
 function BotService.removeMatch(id: number)
 	for m, b in pairs(brains) do if b.match == id then BotService.remove(m) end end
+end
+-- niveau d'un bot déjà en jeu (Zombies : les alliés visent au moins comme en Normal)
+function BotService.setDiff(model: Model, diff: any)
+	local b = brains[model]; if b then b.diff = diff; model:SetAttribute("DmgMult", diff.dmg) end
 end
 function BotService.setGoal(model: Model, fn: ((Model) -> Vector3?)?)
 	local b = brains[model]; if b then b.goalFn = fn end
