@@ -38,6 +38,7 @@ local DRAW_TIME = 0.35                             -- temps pour sortir une arme
 
 local WeaponService = {}
 WeaponService.damageFilter = nil :: ((any, Model, number, boolean, string) -> number?)?
+WeaponService.throwBlocked = nil :: ((any) -> boolean)?   -- posé par MatchService : pas de grenade pendant l'attente
 
 -- Événements serveur pour le mode de jeu (score, statistiques, assistances)
 local killedEvent = Instance.new("BindableEvent")

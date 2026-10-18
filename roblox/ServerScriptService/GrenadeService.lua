@@ -127,6 +127,7 @@ function GrenadeService.minesNear(pos: Vector3, r: number, by: any)
 	end
 end
 function GrenadeService.placeMine(c: any): boolean
+	if WS.throwBlocked and WS.throwBlocked(c) then return false end
 	local s = stocks[c]
 	local r = rootOf(c)
 	if not s or s.mine <= 0 or not r or not alive(c) then return false end
@@ -196,6 +197,7 @@ end
 -- target : point visé (bots) ; sinon le regard look (joueur) ; free : ne consomme pas le stock
 function GrenadeService.throw(c: any, kind: string, free: boolean?, look: Vector3?, target: Vector3?): boolean
 	if not G.KINDS[kind] then return false end
+	if WS.throwBlocked and WS.throwBlocked(c) then return false end   -- début de manche, « PRÉPAREZ-VOUS »
 	local char = WS.charOf(c)
 	local r = rootOf(c)
 	if not char or not r or not alive(c) then return false end

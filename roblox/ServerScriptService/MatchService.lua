@@ -241,6 +241,11 @@ local function applyMut(m: Match, char: Model)
 		end
 	end
 end
+-- grenades et mines bloquées pendant « PRÉPAREZ-VOUS » et le début de manche (comme le web)
+;(WeaponService :: any).throwBlocked = function(c: any): boolean
+	local m = MatchService.matchOf(c)
+	return m ~= nil and (m.state ~= "live" or (m.data :: any).phase == "freeze")
+end
 -- têtes seulement / une balle : filtre des dégâts de WeaponService (pas sur le couteau ni les grenades)
 local NADES = { frag = true, flash = true, smoke = true, molotov = true, mine = true }
 ;(WeaponService :: any).damageFilter = function(attacker: any, victimChar: Model, raw: number, headshot: boolean, key: string): number?
