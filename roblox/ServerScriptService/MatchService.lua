@@ -732,6 +732,7 @@ local function close(m: Match)
 	for p in pairs(m.players) do MatchService.leave(p) end
 	BotService.removeMatch(m.id)
 	if m.map then
+		pcall(WeaponService.clearGrenades, m.id)
 		if MapBuilder.destroy then pcall(MapBuilder.destroy, m.map) elseif m.map.folder then m.map.folder:Destroy() end
 	end
 	matches[m.id] = nil
@@ -740,6 +741,7 @@ end
 local function playOnce(m: Match)
 	-- carte, points de passage des bots, objets
 	if m.map then
+		pcall(WeaponService.clearGrenades, m.id)
 		if MapBuilder.destroy then pcall(MapBuilder.destroy, m.map) elseif m.map.folder then m.map.folder:Destroy() end
 	end
 	BotService.removeMatch(m.id)

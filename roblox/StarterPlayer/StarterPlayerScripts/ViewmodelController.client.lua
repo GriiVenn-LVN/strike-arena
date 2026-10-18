@@ -15,6 +15,8 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local WeaponModels = require(ReplicatedStorage.Shared.WeaponModels)
 local SkinPaint = require(ReplicatedStorage.Shared.SkinPaint)
 local S = require(ReplicatedStorage.Shared.ClientState)
+local A = require(ReplicatedStorage.Shared.Attachments)
+local ReticleGui = require(ReplicatedStorage.Shared.ReticleGui)
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -66,10 +68,20 @@ do
 	local ar = Instance.new("UIAspectRatioConstraint"); ar.Parent = ring
 	local corner = Instance.new("UICorner"); corner.CornerRadius = UDim.new(0.5, 0); corner.Parent = ring
 	local stroke = Instance.new("UIStroke"); stroke.Thickness = 2000; stroke.Color = Color3.new(); stroke.Parent = ring
-	for _, v in ipairs({ { UDim2.fromScale(1, 0), UDim2.new(1, 0, 0, 2) }, { UDim2.fromScale(0, 1), UDim2.new(0, 2, 1, 0) } }) do
-		local l = Instance.new("Frame"); l.AnchorPoint = Vector2.new(0.5, 0.5); l.Position = UDim2.fromScale(0.5, 0.5)
-		l.Size = v[2]; l.BackgroundColor3 = Color3.new(); l.BorderSizePixel = 0; l.Parent = ring
-	end
+end
+-- réticule de la lunette : forme + couleur choisies dans Arsenal › Viseurs (scopeRetUpdate du web)
+local scopeRet = Instance.new("Frame"); scopeRet.Name = "Ret"; scopeRet.Size = UDim2.fromScale(1, 1); scopeRet.BackgroundTransparency = 1
+scopeRet.Parent = scopeGui
+local scopeKey = ""
+local function scopeRetUpdate(optic: string?)
+	local o = optic or "scope"
+	local sh, col = A.retOf(o, player)
+	local vs = camera.ViewportSize
+	local k = sh .. col .. vs.X .. "x" .. vs.Y
+	if k == scopeKey then return end
+	scopeKey = k
+	for _, c in ipairs(scopeRet:GetChildren()) do c:Destroy() end
+	ReticleGui.draw(scopeRet, vs.X / 2, vs.Y / 2, vs.Y * .335, sh, col, true)
 end
 
 -- ---------- état ----------
@@ -80,6 +92,7 @@ local VM = {
 	spr = 0, tac = 0, sld = 0, mnt = 0,
 	drawT = 0, drawMax = 0.35, flashT = 0, swingT = 0, boltT = 0, pumpT = 0,
 	relKey = 0, relSnd = 0, relDrop = false, relEmpty = false, inspSnd = 0,
+	sig = "", att = {} :: { string }, mods = A.neutral(), noFlash = false,
 	lastLook = Vector3.new(0, 0, -1), prevGround = true, airVy = 0,
 }
 
@@ -95,19 +108,29 @@ end)
 S.onSkin = applySkin
 
 -- la fabrication d'une arme attend Roblox (CreateMeshPartAsync) : elle se fait hors de la boucle d'affichage
+-- signature : arme + accessoires de l'armurier + réticules (une nouvelle combinaison reconstruit l'arme en main)
+local function sigOf(key: string): string
+	if S.kc then return key end
+	local s = key .. "|" .. tostring(player:GetAttribute("Att_" .. key))
+	for o in pairs(A.RET_DEF) do s ..= tostring(player:GetAttribute("Ret_" .. o)) end
+	return s
+end
 local building: string? = nil
 local function setGun(key: string)
-	if building == key then return end
-	building = key
-	local ok, m = pcall(WeaponModels.build, key, VM_SCALE)
-	if building ~= key then if ok and m then (m :: Model):Destroy() end return end   -- une autre arme a été demandée entre-temps
+	local sig = sigOf(key)
+	if building == sig then return end
+	building = sig
+	local att = if S.kc then {} else A.activeOf(player, key)
+	local ok, m = pcall(WeaponModels.build, key, VM_SCALE, att, { ret = function(o: string) return A.retOf(o, player) end })
+	if building ~= sig then if ok and m then (m :: Model):Destroy() end return end   -- une autre arme a été demandée entre-temps
 	building = nil
 	if not ok then warn("[Viewmodel]", m) return end
 	if VM.model then VM.model:Destroy() end
 	local model = m :: Model
 	for _, c in ipairs(model:GetChildren()) do if c:IsA("BasePart") then c.CastShadow = false end end
 	model.Parent = rig
-	VM.model = model; VM.key = key
+	VM.model = model; VM.key = key; VM.sig = sig
+	VM.att = att; VM.mods = A.modsOf(att); VM.noFlash = model:GetAttribute("NoFlash") == true
 	applySkin()
 	local w = Config.WEAPONS[key]
 	VM.pistol = w.cat == "pistol"
@@ -238,16 +261,19 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 	local alive = if kc then key ~= nil else hum ~= nil and hum.Health > 0 and key ~= nil and camera.CameraType == Enum.CameraType.Custom
 	if not alive or not key then setVisible(false); scopeGui.Enabled = false; S.muzzle = nil; return end
 	if key ~= VM.key then
-		if building ~= key then task.spawn(setGun, key) end
+		if building ~= sigOf(key) then task.spawn(setGun, key) end
 		setVisible(false); return
 	end
+	if VM.sig ~= sigOf(key) and building ~= sigOf(key) then task.spawn(setGun, key) end   -- accessoires changés : on garde l'ancienne le temps de reconstruire
 	local model = VM.model
 	if not model then return end
 	local w = Config.WEAPONS[key]
 	local t = os.clock()
 
 	-- visée (lissée), poids des postures de déplacement
-	VM.ads += ((if S.aiming and not w.melee then 1 else 0) - VM.ads) * math.min(1, dt * 14)
+	-- vitesse de visée du web : ×7 à la lunette, ×12 sinon, multipliée par les accessoires (mods.ads)
+	VM.ads += ((if S.aiming and not w.melee then 1 else 0) - VM.ads) * math.min(1, dt * (if A.sightOv(key, VM.att) then 7 else 12) * VM.mods.ads)
+	S.adsT = VM.ads
 	local ads = VM.ads
 	local function follow(cur: number, on: boolean): number return cur + ((if on then 1 else 0) - cur) * math.min(1, dt * 12) end
 	VM.spr = follow(VM.spr, S.sprint and not S.tactical); VM.tac = follow(VM.tac, S.tactical)
@@ -306,6 +332,9 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 		local d = smooth01(VM.drawT / VM.drawMax)
 		py -= d * 0.25; rx -= d * 0.7; rz += d * 0.3
 	end
+	-- lancer de grenade / pose de mine (vmThrow du web)
+	local thr = t - S.throwStart
+	if thr >= 0 and thr < 0.7 then local a = math.sin(thr / 0.7 * math.pi); py -= a * .32; rx -= a * .4 end
 	-- couteau
 	if VM.swingT > 0 then
 		local a = 1 - VM.swingT / 0.38
@@ -356,7 +385,7 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 	-- rechargement en phases
 	local rl = -1
 	local leftOff = 0
-	local reloadDur = w.reload
+	local reloadDur = w.reload * VM.mods.rel
 	if S.reloading and reloadDur > 0 then
 		rl = clamp((t - S.reloadStart) / reloadDur, 0, 1)
 		local tilt = smooth01(rl / 0.16) * (1 - smooth01((rl - 0.84) / 0.16))
@@ -428,8 +457,9 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 	end
 
 	-- lunette : en visée avec un fusil de précision, l'arme disparaît derrière l'oculaire
-	local scoped = ads > 0.85 and (w.zoom or 0) >= 2.5
+	local scoped = ads > 0.92 and not w.melee and A.sightOv(key, VM.att)
 	scopeGui.Enabled = scoped
+	if scoped then scopeRetUpdate(A.optOf(VM.att)) end
 	setVisible(not scoped)
 
 	-- placement dans le monde
@@ -449,7 +479,9 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 	local leftL = gunCF:PointToWorldSpace(leftLocal)
 	local handRot = gunCF.Rotation
 	arms.hR.CFrame = camCF * (CFrame.new(rightL) * handRot)
-	arms.hL.CFrame = camCF * (CFrame.new(leftL) * handRot)
+	-- poignée verticale : la main gauche se referme autour, paume tournée vers l'arrière
+	local leftRot = if model:GetAttribute("LeftV") == true and rl < 0 then CFrame.Angles(math.rad(-75), 0, 0) else CFrame.identity
+	arms.hL.CFrame = camCF * (CFrame.new(leftL) * handRot * leftRot)
 	placeArm(arms.uR, arms.fR, arms.cR, rightL + handRot:VectorToWorldSpace(Vector3.new(0, 0, 0.05)), 1, ads, camCF)
 	if VM.twoHand then
 		placeArm(arms.uL, arms.fL, arms.cL, leftL + handRot:VectorToWorldSpace(Vector3.new(0, 0, 0.05)), -1, ads, camCF)
@@ -465,7 +497,7 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 	local muzzleW = world:PointToWorldSpace(VM.muzzle)
 	S.muzzle = muzzleW
 	flash.CFrame = CFrame.new(muzzleW)
-	local on = VM.flashT > 0 and not w.melee
+	local on = VM.flashT > 0 and not w.melee and not VM.noFlash      -- silencieux / cache-flamme : pas de flamme
 	flash.Size = Vector3.one * (0.08 + math.random() * 0.06)
 	flashLight.Brightness = if on then 4 else 0
 	flash.LocalTransparencyModifier = if on and not scoped then 0.1 else 1

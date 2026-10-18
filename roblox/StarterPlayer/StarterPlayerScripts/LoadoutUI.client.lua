@@ -94,7 +94,28 @@ local function choose(key: string)
 	render()
 end
 
+-- onglets Armurier / Viseurs (panneaux de l'Arsenal du web)
+local host = make("Frame", { Size = UDim2.new(1, -48, 1, -160), Position = UDim2.fromOffset(24, 134), BackgroundTransparency = 1, ClipsDescendants = true,
+	Visible = false, ZIndex = 51 }, win)
+local panel: { destroy: () -> (), refresh: () -> () }? = nil
+local panelTab: string? = nil
+local Panels: any = nil
+pcall(function() Panels = require(ReplicatedStorage.Shared.ArsenalPanels) end)
+
 render = function()
+	local isPanel = state.tab == "arms" or state.tab == "sights"
+	list.Visible = not isPanel; host.Visible = isPanel
+	if panel and panelTab ~= state.tab then pcall(panel.destroy); panel = nil; panelTab = nil end
+	if isPanel then
+		if not panel and Panels then
+			local ok, p = pcall(Panels[state.tab], host)
+			if ok then panel = p; panelTab = state.tab else warn("ArsenalPanels:", p) end
+		end
+		for _, b in ipairs(tabs:GetChildren()) do
+			if b:IsA("TextButton") then b.BackgroundColor3 = if b.Name == state.tab then C.accent else C.panel end
+		end
+		return
+	end
 	for _, c in ipairs(list:GetChildren()) do if c:IsA("GuiObject") then c:Destroy() end end
 	local slot = if state.tab == "primary" then 0 else 1
 	local selected = current(slot)
@@ -131,7 +152,7 @@ render = function()
 	end
 end
 
-for _, t in ipairs({ { "primary", "Arme principale" }, { "secondary", "Pistolet" } }) do
+for _, t in ipairs({ { "primary", "Arme principale" }, { "secondary", "Pistolet" }, { "arms", "Armurier" }, { "sights", "Viseurs" } }) do
 	local b = make("TextButton", { Name = t[1], Size = UDim2.fromOffset(180, 40), BackgroundColor3 = C.panel, Text = t[2], TextSize = 16, ZIndex = 52 }, tabs)
 	corner(b)
 	b.MouseButton1Click:Connect(function() state.tab = t[1]; render() end)
@@ -145,6 +166,7 @@ local function setOpen(on: boolean)
 		task.spawn(function()
 			local data = getProfile:InvokeServer()
 			state.profile = data and data.profile
+			if Panels then Panels.reload() end
 			render()
 		end)
 		render()

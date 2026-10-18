@@ -14,6 +14,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local ModeConfig = require(ReplicatedStorage.Shared.ModeConfig)
 local S = require(ReplicatedStorage.Shared.ClientState)
+local A = require(ReplicatedStorage.Shared.Attachments)    -- mobilité des accessoires de l'armurier
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -180,7 +181,7 @@ RunService.RenderStepped:Connect(function(dt: number)
 	-- vitesse : le serveur met WalkSpeed à 0 pour figer un joueur (fin de partie, décompte d'un duel) : on n'y touche pas
 	if hum.WalkSpeed > 0 then
 		local w = S.weapon and Config.WEAPONS[S.weapon]
-		local mult = (if w then w.speed else 1)
+		local mult = (if w and S.weapon then w.speed * A.modsOf(A.activeOf(player, S.weapon)).mob else 1)
 		if S.sprint then mult *= if S.tactical then MV.TAC else MV.SPR
 		elseif S.crouch then mult *= MV.CROUCH
 		elseif S.aiming then mult *= 0.75 end

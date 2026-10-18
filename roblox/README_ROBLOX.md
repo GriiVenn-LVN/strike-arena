@@ -139,6 +139,19 @@ Tout se règle dans `ReplicatedStorage/Shared/CommunityConfig.lua` (sauf les cod
 
 **Pour tester dans Studio** : active *Game Settings → Security → Enable Studio Access to API Services* (sinon les classements et la sauvegarde ne marchent pas). Pour un duel 1v1, lance *Test → Clients and Servers* avec 2 joueurs et mets-les sur la même plateforme. La souris se libère avec **M** pour cliquer sur les boutons de gauche.
 
+## 1 quater. Armurier, viseurs, grenades et mines (comme sur le web)
+
+- **Armurier** (`Attachments.lua` pour les données et les règles, `AttachmentModels.lua` pour la 3D, `ArmoryService` côté serveur). Ce sont les 21 accessoires du web : bouche, viseur, poignée, chargeur, laser et lampe. On en met 5 au maximum, ils se débloquent par niveau et par éliminations, et ils changent les mêmes stats que sur le web : dégâts, portée et chute des dégâts, recul, précision, mobilité, temps de visée, rechargement, chargeur et bruit. Les accessoires se voient en 3D sur l'arme, à la 1re et à la 3e personne. Avec une poignée verticale, la main gauche se place sur la poignée.
+- **Viseurs** : les 5 modèles Blender du web (`OpticMeshes/*.lua`, ~222 Ko au total) sont reconstruits en EditableMesh sur le client. Si ça ne marche pas, des pièces simples les remplacent. On choisit la forme et la couleur du réticule pour chaque viseur. Le zoom en visée (ADS) et la sensibilité sont ceux du web. Les lunettes de sniper ont un réticule plein écran.
+- **Panneaux** : `ArsenalPanels.arms(frame)` et `ArsenalPanels.sights(frame)`. Pour l'instant, on les ouvre depuis le menu **B**, onglets « Armurier » et « Viseurs ».
+- **Grenades et mines** (`Grenades.lua` partagé, `GrenadeService` sur le serveur, `GrenadeController` sur le client) :
+  - touches **G** pour la frag, **F** pour la flash, **H** pour la fumigène, **X** pour poser une mine ;
+  - même trajectoire, mêmes rebonds, mêmes minuteries et mêmes dégâts que sur le web ;
+  - alerte quand une grenade est proche, et le nombre de grenades est affiché en bas à droite.
+- **Remotes** : `Armory` (RemoteFunction : get, set, ret, all), `ThrowGrenade`, `PlaceMine`, `GrenadeFx`, `GrenadeToast`.
+- **Attributs du joueur** : `Att_<arme>` (« muzzle=sil,optic=reddot »), `Ret_<viseur>` (« forme|#couleur »), `Nades` (« frag,flash,fumi,mine ») et `BlindUntil` pour les bots aveuglés.
+- **Régénérer les viseurs** : `python3 tools/export_optics_lua.py` (lit `models/optics/*.glb`).
+
 ## 2. Correspondance prototype web → Roblox
 
 | Prototype web | Roblox |

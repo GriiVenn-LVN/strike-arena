@@ -42,7 +42,7 @@ end
 
 function M.setup(m: any) m.data.last = {}; roll(m, true) end
 function M.loadout(m: any, _c: any): { string } return { m.data.key, "knife" } end
-function M.onSpawn(m: any, c: any) task.defer(function() WeaponService.setReserve(c, m.data.key, 999) end) end
+function M.onSpawn(m: any, c: any) task.defer(function() WeaponService.setReserve(c, m.data.key, 999); WeaponService.giveGrenades(c, 0, 0, 0, 0) end) end
 function M.tick(m: any, dt: number)
 	m.data.t -= dt
 	if m.data.t <= 0 then roll(m, false) end
