@@ -2,6 +2,14 @@
   "name": "StrikeArena",
   "tree": {
     "$className": "DataModel",
+    "Workspace": {
+      "$className": "Workspace",
+      "$properties": { "StreamingEnabled": false }
+    },
+    "Players": {
+      "$className": "Players",
+      "$properties": { "CharacterAutoLoads": false }
+    },
     "ReplicatedStorage": {
       "$className": "ReplicatedStorage",
       "Shared": { "$path": "ReplicatedStorage/Shared" }

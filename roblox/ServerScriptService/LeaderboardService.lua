@@ -4,20 +4,20 @@
 -- Les scores vivent dans des OrderedDataStore (partagés par tous les serveurs du jeu) ; le panneau se met à jour
 -- toutes les CommunityConfig.LEADERBOARD.refresh secondes. Les éliminations sont regroupées avant l'envoi
 -- pour respecter les limites de requêtes de Roblox.
-local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
+local Stores = require(script.Parent.Stores)
 local CommunityConfig = require(ReplicatedStorage.Shared.CommunityConfig)
 local LB = CommunityConfig.LEADERBOARD
 
 local LeaderboardService = {}
 
 local function weeklyStore(week: number): OrderedDataStore
-	return DataStoreService:GetOrderedDataStore("WeeklyKills_" .. week)
+	return Stores.ordered("WeeklyKills_" .. week)
 end
-local duelStore = DataStoreService:GetOrderedDataStore("DuelElo_v1")
+local duelStore = Stores.ordered("DuelElo_v1")
 
 -- ---------- écriture ----------
 local pendingKills: { [number]: number } = {}      -- userId -> éliminations pas encore envoyées

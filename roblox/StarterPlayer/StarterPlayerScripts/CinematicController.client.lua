@@ -10,7 +10,7 @@ local Players = game:GetService("Players")
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
-local cineEvent = ReplicatedStorage:WaitForChild("PlayCinematic") :: RemoteEvent
+local cineEvent = ReplicatedStorage:WaitForChild("PlayCinematic", math.huge) :: RemoteEvent   -- créé seulement en mode « bomb »
 
 local function buildFallbackHeli(): Model
 	local m = Instance.new("Model"); m.Name = "Helicopter"

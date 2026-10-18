@@ -5,7 +5,6 @@
 -- C'est le SEUL ProcessReceipt du jeu (Roblox n'en accepte qu'un) : pièces, caisses, passe de combat et abonnement Premium passent tous par ici.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MarketplaceService = game:GetService("MarketplaceService")
-local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -17,7 +16,7 @@ local LoyaltyService = require(script.Parent.LoyaltyService)
 local LoyaltyConfig = require(ReplicatedStorage.Shared.LoyaltyConfig)
 local KillFxConfig = require(ReplicatedStorage.Shared.KillFxConfig)
 
-local receipts = DataStoreService:GetDataStore("StrikeArenaReceipts_v1")
+local receipts = require(script.Parent.Stores).get("StrikeArenaReceipts_v1")
 
 local function remoteFunction(name: string): RemoteFunction
 	local r = Instance.new("RemoteFunction"); r.Name = name; r.Parent = ReplicatedStorage; return r

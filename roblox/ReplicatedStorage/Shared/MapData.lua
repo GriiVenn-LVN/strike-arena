@@ -32,6 +32,9 @@ local function newGrid()
 	return g, GB
 end
 
+local STD_CT = {{15,2},{17,2},{19,2},{21,2},{23,2},{24,3},{16,4},{18,4},{20,4},{22,4}}
+local STD_T = {{15,37},{17,37},{19,37},{21,37},{23,37},{24,36},{16,36},{20,36},{22,36},{18,36}}
+
 MapData.village = {
 	id = "village", name = "Village", theme = "sand",
 	sites = {{n="A",cx=6,cz=5,r=7},{n="B",cx=33,cz=6,r=7}},
