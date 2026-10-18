@@ -210,6 +210,50 @@ function MatchService.spawnPoint(m: Match, c: any): Vector3
 	return best
 end
 
+-- ---------- modificateurs de partie (web : src/8Y_mutators.js) ----------
+local popEvent = ReplicatedStorage:FindFirstChild("ModePop") :: RemoteEvent?
+if not popEvent then
+	local e = Instance.new("RemoteEvent"); e.Name = "ModePop"; e.Parent = ReplicatedStorage; popEvent = e
+end
+local function mutOn(m: Match, k: string): boolean return m.settings.mut[k] == true end
+local LUNE = 0.5     -- part de la gravité gardée en gravité lunaire
+local TURBO = 1.3
+-- appliqué à chaque apparition : gravité lunaire (force vers le haut sur le corps) et turbo (attribut lu par le mouvement)
+local function applyMut(m: Match, char: Model)
+	if mutOn(m, "turbo") then
+		char:SetAttribute("SpeedMult", TURBO)
+		local h = char:FindFirstChildOfClass("Humanoid")
+		if h and isBot(char) then h.WalkSpeed *= TURBO end   -- le joueur, lui, applique le multiplicateur dans son mouvement
+	end
+	if mutOn(m, "lune") then
+		char:SetAttribute("MutLune", true)
+		local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if root and not root:FindFirstChild("MutLune") then
+			local att = Instance.new("Attachment"); att.Name = "MutLuneAtt"; att.Parent = root
+			local vf = Instance.new("VectorForce"); vf.Name = "MutLune"; vf.Attachment0 = att
+			vf.RelativeTo = Enum.ActuatorRelativeTo.World; vf.ApplyAtCenterOfMass = true
+			vf.Force = Vector3.new(0, root.AssemblyMass * workspace.Gravity * (1 - LUNE), 0)
+			vf.Parent = root
+			-- la masse change quand l'arme et les accessoires arrivent : on recalcule un peu plus tard
+			task.delay(0.5, function() if vf.Parent then vf.Force = Vector3.new(0, root.AssemblyMass * workspace.Gravity * (1 - LUNE), 0) end end)
+		end
+	end
+end
+-- têtes seulement / une balle : filtre des dégâts de WeaponService (pas sur le couteau ni les grenades)
+local NADES = { frag = true, flash = true, smoke = true, molotov = true, mine = true }
+;(WeaponService :: any).damageFilter = function(attacker: any, victimChar: Model, raw: number, headshot: boolean, key: string): number?
+	local m = MatchService.matchOf(attacker)
+	if not m or m.state ~= "live" or MatchService.matchOf(victimChar) ~= m then return raw end
+	local w = Config.WEAPONS[key]
+	if (w and w.melee) or NADES[key] then return raw end
+	if mutOn(m, "tetes") and not headshot then
+		if typeof(attacker) == "Instance" and attacker:IsA("Player") and popEvent then popEvent:FireClient(attacker, "🎯 À LA TÊTE SEULEMENT", Color3.fromRGB(150, 200, 255), "shield") end
+		return nil
+	end
+	if mutOn(m, "balle") then return 9999 end
+	return raw
+end
+
 local function protect(char: Model)
 	char:SetAttribute("ProtectedUntil", workspace:GetServerTimeNow() + TDM.spawnProtection)
 	local h = Instance.new("Highlight"); h.Name = "SpawnShield"; h.FillColor = Color3.fromRGB(255, 255, 255)
@@ -258,6 +302,7 @@ spawnPlayer = function(m: Match, p: Player)
 	protect(char)
 	WeaponService.giveLoadout(p, loadoutOf(m, p))
 	statOf(m, p)
+	applyMut(m, char)
 	if m.mod.onSpawn then m.mod.onSpawn(m, p, char) end
 	if m.state ~= "live" then
 		local h = char:FindFirstChildOfClass("Humanoid"); if h and m.state == "warmup" then h.WalkSpeed = 0 end
@@ -294,6 +339,7 @@ spawnBot = function(m: Match, team: string, name: string?): Model
 	WeaponService.giveLoadout(model, loadoutOf(m, model))
 	protect(model)
 	statOf(m, model)
+	applyMut(m, model)
 	if m.mod.onSpawn then m.mod.onSpawn(m, model, model) end
 	local hum = model:FindFirstChildOfClass("Humanoid") :: Humanoid
 	local botName = model.Name
@@ -491,6 +537,15 @@ WeaponService.Killed:Connect(function(killer, victim, key: string, headshot: boo
 		if ak ~= kk and as and amount >= 30 then as.a += 1; as.score += TDM.scorePerAssist end
 	end
 	m.dmgBy[vk] = nil
+	-- vampire : chaque élimination rend 50 PV au tueur
+	if mutOn(m, "vamp") and ks and not selfKill and ks.team ~= vs.team then
+		local kc = aliveChar(killer)
+		local h = kc and kc:FindFirstChildOfClass("Humanoid")
+		if h then
+			h.Health = math.min(math.max(100, h.MaxHealth), h.Health + 50)
+			if typeof(killer) == "Instance" and killer:IsA("Player") and popEvent then popEvent:FireClient(killer, "🩸 +50 PV", Color3.fromRGB(255, 70, 80), "heal") end
+		end
+	end
 
 	local kName = if ks then ks.name else vs.name
 	fireMatch(m, feedEvent, { killer = kName, killerTeam = if ks then ks.team else vs.team, victim = vs.name, victimTeam = vs.team,
@@ -531,6 +586,13 @@ MatchService.board = board
 
 local function broadcast(m: Match)
 	local info = if m.mod.info then m.mod.info(m) else nil
+	-- modificateurs actifs ajoutés à la sous-ligne du mode, comme le web (« · 🌙 Gravité lunaire »)
+	local muts = {}
+	for _, mu in ipairs(Modes.MUTATORS) do if mutOn(m, mu.k) then table.insert(muts, mu.ic .. " " .. mu.n) end end
+	if #muts > 0 then
+		info = table.clone(info or {})
+		info.sub = (if info.sub and info.sub ~= "" then info.sub .. "  ·  " else "") .. table.concat(muts, "  ")
+	end
 	local payload = {
 		state = if m.state == "warmup" then "live" else m.state, warmup = m.state == "warmup", id = m.id, mode = m.mode, modeName = m.def.n,
 		modeColor = m.def.c, team = m.teams ~= nil, score = if m.teams then m.score else {}, teams = m.teams or TEAMS, killsToWin = m.limit, limitLabel = m.def.limitLabel,
@@ -738,6 +800,18 @@ local function playOnce(m: Match)
 		if m.closed then return end
 		local now = os.clock()
 		local dt = now - last; last = now
+		-- grenades à volonté : une frag revient toutes les 5 s
+		if mutOn(m, "nades") then
+			m.data._nadeT = (m.data._nadeT or 0) + dt
+			if m.data._nadeT >= 5 then
+				m.data._nadeT = 0
+				for _, c in ipairs(MatchService.combatants(m)) do
+					if aliveChar(c) and WeaponService.refillGrenade(c, "frag") and typeof(c) == "Instance" and c:IsA("Player") and popEvent then
+						popEvent:FireClient(c, "💣 GRENADE RECHARGÉE", Color3.fromRGB(255, 210, 58))
+					end
+				end
+			end
+		end
 		if m.mod.tick then
 			local ok, err = pcall(m.mod.tick, m, dt)
 			if not ok then warn("[MatchService] tick", m.mode, err) end

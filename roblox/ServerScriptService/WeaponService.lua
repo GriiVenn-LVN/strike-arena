@@ -35,6 +35,7 @@ local MELEE_RANGE = 2.6 * Config.STUDS_PER_METER
 local DRAW_TIME = 0.35                             -- temps pour sortir une arme
 
 local WeaponService = {}
+WeaponService.damageFilter = nil :: ((any, Model, number, boolean, string) -> number?)?
 
 -- Événements serveur pour le mode de jeu (score, statistiques, assistances)
 local killedEvent = Instance.new("BindableEvent")
@@ -276,6 +277,12 @@ end
 function WeaponService.applyDamage(attacker: any, victimChar: Model, raw: number, headshot: boolean, weaponKey: string, armorPen: number)
 	local hum = victimChar:FindFirstChildOfClass("Humanoid")
 	if not hum or hum.Health <= 0 or dead[victimChar] then return end
+	-- filtre posé par MatchService (modificateurs « Têtes seulement », « Une balle ») ; nil = aucun dégât
+	if WeaponService.damageFilter then
+		local r = WeaponService.damageFilter(attacker, victimChar, raw, headshot, weaponKey)
+		if not r then return end
+		raw = r
+	end
 	local protectedUntil = victimChar:GetAttribute("ProtectedUntil")
 	if typeof(protectedUntil) == "number" and protectedUntil > now() then return end
 	local victim = WeaponService.combatantOf(victimChar)
@@ -428,6 +435,14 @@ end
 local grenades: { [any]: { [string]: number } } = {}
 function WeaponService.giveGrenades(c: any, smoke: number, flash: number, frag: number)
 	grenades[c] = { smoke = smoke, flash = flash, frag = frag }
+end
+-- rend une grenade de ce type si le combattant n'en a plus (modificateur « Grenades à volonté ») ; true si rendue
+function WeaponService.refillGrenade(c: any, kind: string): boolean
+	local stock = grenades[c]
+	if not stock then stock = { smoke = 0, flash = 0, frag = 0 }; grenades[c] = stock end
+	if (stock[kind] or 0) > 0 then return false end
+	stock[kind] = 1
+	return true
 end
 function WeaponService.throwGrenade(c: any, kind: string, free: boolean?): boolean
 	local char = WeaponService.charOf(c)
