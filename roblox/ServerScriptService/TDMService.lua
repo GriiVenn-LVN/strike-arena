@@ -101,6 +101,7 @@ local function statOf(c: any): Stat?
 end
 
 local function cellToWorld(cx: number, cz: number): Vector3
+	if M.map and M.map.cellToWorld then return M.map.cellToWorld(cx, cz) end   -- origine de la carte + hauteur du sol (toits, plateformes)
 	return Vector3.new((cx + 0.5) * CELL, 0, (cz + 0.5) * CELL)
 end
 
