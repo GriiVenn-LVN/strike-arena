@@ -197,6 +197,12 @@ table.insert(MatchService.finishHooks, function(m: any, p: Player, s: any, won: 
 		if m.mode == "inf" and won and s.team == "Défenseurs" then RewardService.missionEvent(p, "inf_surv") end    -- survivant jusqu'au bout
 		if m.mode == "kc" and (s.pts or 0) > 0 then RewardService.missionEvent(p, "kcTag", s.pts) end
 	end
+	-- Zombies : manches survécues (m.data.zs du mode, lu sans le modifier)
+	local zs = m.mode == "zombies" and m.data and (m.data :: any).zs
+	if zs and typeof(zs.wave) == "number" then
+		local survived = zs.wave - (if zs.result == "win" then 0 else 1)
+		if survived > 0 then RewardService.missionEvent(p, "z_wave", survived) end
+	end
 end)
 
 -- partie suivante (même salon) ou fermée : les compteurs repartent à zéro
