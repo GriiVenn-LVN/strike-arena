@@ -157,6 +157,8 @@ function MatchService.setTeam(m: Match, c: any, team: string)
 end
 
 function MatchService.cellToWorld(m: Match, cx: number, cz: number): Vector3
+	-- hauteur du sol comprise (MapBuilder) ; repli : sol plat
+	if m.map and m.map.cellToWorld then return m.map.cellToWorld(cx, cz) end
 	return m.origin + Vector3.new((cx + 0.5) * CELL, 0, (cz + 0.5) * CELL)
 end
 
