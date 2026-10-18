@@ -173,10 +173,24 @@ local function make(key: string, scale: number): Model
 	return model
 end
 
-function WeaponModels.build(key: string, scale: number): Model
+-- att : accessoires de l'armurier (liste d'Attachments) ; opts.ret(optique) -> (forme, couleur) du réticule, opts.preview
+function WeaponModels.build(key: string, scale: number, att: { string }?, opts: any?): Model
 	local id = key .. "@" .. scale
 	if not cache[id] then cache[id] = make(key, scale) end
-	return cache[id]:Clone()
+	if not att or #att == 0 then return cache[id]:Clone() end
+	local rk = ""
+	if opts and opts.ret then
+		for _, a in ipairs(att) do local s2, c2 = opts.ret(a); rk ..= s2 .. c2 end
+	end
+	local aid = id .. "|" .. table.concat(att, ",") .. "|" .. rk .. (if opts and opts.preview then "p" else "")
+	if not cache[aid] then
+		local m = cache[id]:Clone()
+		local AttachmentModels = require(script.Parent.AttachmentModels) :: any
+		local ok, err = pcall(AttachmentModels.apply, m, key, att, scale, opts)
+		if not ok then warn("[WeaponModels] accessoires", key, err) end
+		cache[aid] = m
+	end
+	return cache[aid]:Clone()
 end
 
 -- Recalcule la position de chaque pièce d'après Grip ; pieceCF[piece] = décalage d'animation (chargeur, culasse).

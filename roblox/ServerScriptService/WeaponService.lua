@@ -7,10 +7,12 @@
 -- mêmes fonctions, ce qui garantit que les dégâts sont identiques pour tout le monde.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
-local HttpService = game:GetService("HttpService")
 local Config = require(ReplicatedStorage.Shared.Config)
 local X = require(ReplicatedStorage.Shared.ConfigExtra)
 local NetService = require(script.Parent.NetService)
+local A = require(ReplicatedStorage.Shared.Attachments)       -- armurier (effets des accessoires)
+require(script.Parent.ArmoryService)                           -- choix des accessoires / réticules (profil -> attributs Att_, Ret_)
+local GrenadeService = require(script.Parent.GrenadeService)
 
 local function remoteEvent(name: string): RemoteEvent
 	local r = Instance.new("RemoteEvent"); r.Name = name; r.Parent = ReplicatedStorage; return r
@@ -22,7 +24,7 @@ local ammoFx = remoteEvent("AmmoState")           -- serveur -> client : état d
 local hitFx = remoteEvent("HitFeedback")          -- serveur -> tireur : (tête, élimination, dégâts, position)
 local damagedFx = remoteEvent("Damaged")          -- serveur -> victime : (position du tireur, dégâts, tête)
 local tracerFx = remoteEvent("Tracer")            -- serveur -> tous : (origine, impact, personnage du tireur)
-local flashFx = remoteEvent("FlashFeedback")
+local _flashFx = remoteEvent("FlashFeedback")      -- serveur -> joueur aveuglé (GrenadeService)
 -- client -> serveur : inclinaison du regard (radians), recopiée en attribut « Pitch » du personnage pour la kill-cam
 local pitchFx = Instance.new("UnreliableRemoteEvent"); pitchFx.Name = "AimPitch"; pitchFx.Parent = ReplicatedStorage
 pitchFx.OnServerEvent:Connect(function(player: Player, pitch: any)
@@ -50,7 +52,7 @@ type Ammo = { mag: number, reserve: number }
 type WState = {
 	loadout: { string }, slot: number, weapon: string, ammo: { [string]: Ammo },
 	nextShot: number, reloading: boolean, reloadToken: number,
-	shield: number, armor: number, reduction: number, attachments: { [string]: boolean },
+	shield: number, armor: number, reduction: number, attachments: { string }, mods: A.Mods,
 }
 local state: { [any]: WState } = {}
 local dead: { [Model]: boolean } = {}
@@ -158,6 +160,7 @@ local function attachModel(c: any, key: string)
 	-- skin de l'arme (attributs Skin_<arme> / Camo_<arme> du joueur, posés par DataService.syncSkins)
 	model:SetAttribute("Skin", c:GetAttribute("Skin_" .. key))
 	model:SetAttribute("Camo", c:GetAttribute("Camo_" .. key))
+	model:SetAttribute("Att", c:GetAttribute("Att_" .. key))        -- accessoires de l'armurier, vus par tout le monde
 	model.Parent = char
 	char:SetAttribute("Weapon", key)
 end
@@ -182,19 +185,14 @@ local function syncShield(c: any)
 	if s and char then char:SetAttribute("Shield", math.floor(s.shield + 0.5)) end
 end
 
-local function readAttachments(c: any, key: string): { [string]: boolean }
-	local att: { [string]: boolean } = {}
-	if not isPlayer(c) then return att end
-	local raw = c:GetAttribute("Attachments_" .. key)
-	if typeof(raw) == "string" then
-		local ok, data = pcall(HttpService.JSONDecode, HttpService, raw)
-		if ok and typeof(data) == "table" then for a, on in pairs(data) do att[a] = on == true end end
-	end
-	return att
+-- accessoires actifs : attribut Att_<arme> posé par ArmoryService (déjà filtré : catégorie, niveau, éliminations)
+local function readAttachments(c: any, key: string): { string }
+	if not isPlayer(c) then return {} end
+	return A.activeOf(c, key)
 end
 
-local function magSize(key: string, att: { [string]: boolean }): number
-	return math.ceil(Config.WEAPONS[key].mag * (if att.ext then X.ATTACHMENTS.ext.magMult else 1))
+local function magSize(key: string, att: { string }): number
+	return math.ceil(Config.WEAPONS[key].mag * A.modsOf(att).mag)
 end
 
 -- Donne un jeu d'armes complet (ex. { "galil", "glock", "knife" }) et sort la première.
@@ -202,7 +200,7 @@ function WeaponService.giveLoadout(c: any, keys: { string })
 	local old = state[c]
 	local s: WState = {
 		loadout = {}, slot = 1, weapon = keys[1], ammo = {}, nextShot = 0, reloading = false, reloadToken = 0,
-		shield = old and old.shield or 0, armor = old and old.armor or 0, reduction = 0, attachments = {},
+		shield = old and old.shield or 0, armor = old and old.armor or 0, reduction = 0, attachments = {}, mods = A.neutral(),
 	}
 	for _, k in ipairs(keys) do
 		if Config.WEAPONS[k] then
@@ -212,9 +210,10 @@ function WeaponService.giveLoadout(c: any, keys: { string })
 	end
 	if #s.loadout == 0 then return end
 	s.weapon = s.loadout[1]
-	s.attachments = readAttachments(c, s.weapon)
+	s.attachments = readAttachments(c, s.weapon); s.mods = A.modsOf(s.attachments)
 	s.nextShot = now() + DRAW_TIME
 	state[c] = s
+	if not old then GrenadeService.defaultKit(c) end        -- équipement du web (dmLoadout) ; giveGrenades le remplace
 	attachModel(c, s.weapon)
 	syncShield(c)
 	notify(c)
@@ -230,7 +229,7 @@ function WeaponService.switchTo(c: any, slot: number)
 	if not s or not s.loadout[slot] or s.slot == slot then return end
 	s.slot = slot; s.weapon = s.loadout[slot]
 	s.reloading = false; s.reloadToken += 1
-	s.attachments = readAttachments(c, s.weapon)
+	s.attachments = readAttachments(c, s.weapon); s.mods = A.modsOf(s.attachments)
 	s.nextShot = now() + DRAW_TIME
 	attachModel(c, s.weapon)
 	notify(c)
@@ -245,7 +244,7 @@ function WeaponService.reload(c: any)
 	s.reloading = true; s.reloadToken += 1
 	local token, key = s.reloadToken, s.weapon
 	notify(c)
-	task.delay(w.reload, function()
+	task.delay(w.reload * s.mods.rel, function()
 		local s2 = state[c]
 		if s2 ~= s or s.reloadToken ~= token or s.weapon ~= key then return end
 		local need = magSize(key, s.attachments) - a.mag
@@ -265,6 +264,7 @@ end
 
 function WeaponService.reset(c: any)
 	state[c] = nil
+	GrenadeService.reset(c)
 	local char = WeaponService.charOf(c)
 	if char then dead[char] = nil end
 end
@@ -323,7 +323,7 @@ end
 
 -- ---------- tir ----------
 -- Utilisé par le client (via FireWeapon) et par les bots : mêmes règles pour tout le monde.
-function WeaponService.fire(c: any, origin: Vector3, direction: Vector3): boolean
+function WeaponService.fire(c: any, origin: Vector3, direction: Vector3, aiming: boolean?): boolean
 	local s = state[c]
 	local char = WeaponService.charOf(c)
 	if not s or not char or direction.Magnitude < 1e-3 then return false end
@@ -346,16 +346,23 @@ function WeaponService.fire(c: any, origin: Vector3, direction: Vector3): boolea
 	params.FilterDescendantsInstances = { char }
 	local myTeam = WeaponService.teamOf(c)
 
+	local m = s.mods
+	if w.melee then          -- coup de couteau : casse les mines ennemies juste devant (minesNear du web)
+		GrenadeService.minesNear(origin + direction.Unit * 1.4 * Config.STUDS_PER_METER, 1.1, c)
+	end
 	local function shoot()
 		for _ = 1, (if w.melee then 1 else (w.pellets or 1)) do
-			local spread = math.rad(w.spread)
+			-- dispersion du web : réduite de 40 % en visée, puis accessoires (visée / hanche)
+			local spread = math.rad(w.spread * (if aiming then .6 * m.adsSpr else m.hip))
 			local dir = (CFrame.lookAlong(Vector3.zero, direction.Unit) * CFrame.Angles(
 				(math.random() - 0.5) * spread, (math.random() - 0.5) * spread, 0)).LookVector
 			local range = if w.melee then MELEE_RANGE else MAX_RANGE
 			local result = workspace:Raycast(origin, dir * range, params)
 			local endPos = result and result.Position or origin + dir * range
 			if not w.melee then tracerFx:FireAllClients(origin, endPos, char) end
-			if result and result.Instance and result.Instance:GetAttribute("RangeTarget") then
+			if result and result.Instance and result.Instance:GetAttribute("MineId") ~= nil then
+				GrenadeService.bulletHit(c, result.Instance)            -- balle sur une mine : elle est cassée
+			elseif result and result.Instance and result.Instance:GetAttribute("RangeTarget") then
 				targetEvent:Fire(c, result.Instance)
 			elseif result and result.Instance then
 				local victim = result.Instance:FindFirstAncestorOfClass("Model")
@@ -364,9 +371,12 @@ function WeaponService.fire(c: any, origin: Vector3, direction: Vector3): boolea
 					if WeaponService.teamOf(vc) ~= myTeam then          -- pas de tir ami
 						local zone = zoneOf(result.Instance)
 						local dmg = w.dmg * (if zone == "Head" then w.hs elseif zone == "Leg" then 0.75 else 1)
-						if s.attachments.sil then dmg *= X.ATTACHMENTS.sil.damageMult end
-						local dist = (result.Position - origin).Magnitude
-						if dist > 50 then dmg *= math.max(0.5, 1 - (dist - 50) * 0.004) end
+						dmg *= m.dmg
+						-- chute des dégâts du web : au-delà de fo × portée (m), −fr par mètre, plancher fmin (0,5)
+						local fall = A.FALLOFF[s.weapon]
+						local dist = (result.Position - origin).Magnitude / Config.STUDS_PER_METER
+						local fo = (if fall then fall[1] else 40) * m.rng
+						if not w.melee and dist > fo then dmg *= math.max(fall and fall[3] or .5, 1 - (dist - fo) * (if fall then fall[2] else .004)) end
 						WeaponService.applyDamage(c, victim, dmg, zone == "Head", s.weapon, w.armorPen)
 					end
 				end
@@ -378,9 +388,9 @@ function WeaponService.fire(c: any, origin: Vector3, direction: Vector3): boolea
 	return true
 end
 
-fireEvent.OnServerEvent:Connect(function(player: Player, origin: any, direction: any)
+fireEvent.OnServerEvent:Connect(function(player: Player, origin: any, direction: any, aiming: any)
 	if typeof(origin) ~= "Vector3" or typeof(direction) ~= "Vector3" then return end
-	if not WeaponService.fire(player, origin, direction) then notify(player) end -- tir refusé : on resynchronise le client
+	if not WeaponService.fire(player, origin, direction, aiming == true) then notify(player) end -- tir refusé : on resynchronise le client
 end)
 switchEvent.OnServerEvent:Connect(function(player: Player, slot: any)
 	if typeof(slot) == "number" then WeaponService.switchTo(player, math.floor(slot)) end
@@ -410,68 +420,33 @@ function WeaponService.resupply(c: any)
 end
 function WeaponService.hearingRange(c: any): number
 	local s = state[c]
-	return if s and s.attachments.sil then X.ATTACHMENTS.sil.hearingRange else 42
+	return if s and s.mods.sil then X.ATTACHMENTS.sil.hearingRange else 42
 end
 
--- ---------- grenades : fumigène (nuage opaque 15 s), flash (aveuglement côté client), frag ----------
-local grenades: { [any]: { [string]: number } } = {}
-function WeaponService.giveGrenades(c: any, smoke: number, flash: number, frag: number)
-	grenades[c] = { smoke = smoke, flash = flash, frag = frag }
+-- ---------- grenades et mines : GrenadeService (trajectoire, rebonds, mèches, dégâts, flash, fumée) ----------
+-- compatibilité : (fumigènes, flashs, frags[, mines])
+function WeaponService.giveGrenades(c: any, smoke: number, flash: number, frag: number, mine: number?)
+	GrenadeService.set(c, frag, flash, smoke, mine or 0)
 end
-function WeaponService.throwGrenade(c: any, kind: string, free: boolean?): boolean
-	local char = WeaponService.charOf(c)
-	local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
-	if not root then return false end
-	if not free then
-		local stock = grenades[c]
-		if not stock or (stock[kind] or 0) <= 0 then return false end
-		stock[kind] -= 1
-	end
-	local M = Config.STUDS_PER_METER
-	local g = Instance.new("Part"); g.Shape = Enum.PartType.Ball; g.Size = Vector3.new(0.8, 0.8, 0.8)
-	g.Color = if kind == "smoke" then Color3.fromRGB(170, 175, 185) elseif kind == "flash" then Color3.fromRGB(250, 250, 250) else Color3.fromRGB(60, 80, 55)
-	g.Material = Enum.Material.Metal; g.CFrame = root.CFrame * CFrame.new(0, 1.2, -2)
-	g.AssemblyLinearVelocity = root.CFrame.LookVector * 55 + Vector3.new(0, 18, 0)
-	g.Parent = workspace
-	task.delay(if kind == "flash" then 1.5 else 1.3, function()
-		local pos = g.Position; g:Destroy()
-		if kind == "smoke" then
-			local cloud = Instance.new("Part"); cloud.Anchored = true; cloud.CanCollide = false; cloud.Transparency = 1; cloud.Size = Vector3.new(1, 1, 1); cloud.Position = pos; cloud.Parent = workspace
-			local pe = Instance.new("ParticleEmitter"); pe.Texture = "rbxasset://textures/particles/smoke_main.dds"; pe.Rate = 60; pe.Lifetime = NumberRange.new(6, 9)
-			pe.Speed = NumberRange.new(2, 5); pe.SpreadAngle = Vector2.new(180, 180); pe.Size = NumberSequence.new(14, 20)
-			pe.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1) })
-			pe.Color = ColorSequence.new(Color3.fromRGB(200, 205, 212)); pe.Parent = cloud
-			task.delay(15, function() pe.Enabled = false; task.wait(9); cloud:Destroy() end)
-		elseif kind == "flash" then
-			for _, other in ipairs(Players:GetPlayers()) do
-				local oc = other.Character
-				local r = oc and oc:FindFirstChild("HumanoidRootPart") :: BasePart?
-				if oc and r then
-					local d = (r.Position - pos).Magnitude
-					if d < 34 * M then
-						local rp = RaycastParams.new(); rp.FilterDescendantsInstances = { oc }; rp.FilterType = Enum.RaycastFilterType.Exclude
-						if not workspace:Raycast(r.Position, pos - r.Position, rp) then
-							local facing = r.CFrame.LookVector:Dot((pos - r.Position).Unit)
-							flashFx:FireClient(other, (if facing > 0.1 then 3.4 else 1.1) * math.clamp(1.25 - d / (30 * M), 0.2, 1))
-						end
-					end
-				end
-			end
-		else
-			local ex = Instance.new("Explosion"); ex.Position = pos; ex.BlastRadius = 9 * M; ex.BlastPressure = 0; ex.DestroyJointRadiusPercent = 0; ex.Parent = workspace
-			local myTeam = WeaponService.teamOf(c)
-			for other in pairs(state) do
-				local oc = WeaponService.charOf(other)
-				local r = oc and oc:FindFirstChild("HumanoidRootPart") :: BasePart?
-				if oc and r and WeaponService.teamOf(other) ~= myTeam then
-					local d = (r.Position - pos).Magnitude / M
-					if d < 9 then WeaponService.applyDamage(c, oc, 140 * (1 - d / 9), false, "frag", 0.6) end
-				end
-			end
-		end
-	end)
-	return true
+-- rend une grenade de ce type si le combattant n'en a plus (modificateur « Grenades à volonté ») ; true si rendue
+function WeaponService.refillGrenade(c: any, kind: string): boolean
+	return GrenadeService.refill(c, kind)
 end
+-- target : point visé (bots, trajectoire en cloche du web) ; sinon le regard du personnage
+function WeaponService.throwGrenade(c: any, kind: string, free: boolean?, target: Vector3?): boolean
+	return GrenadeService.throw(c, kind, free, nil, target)
+end
+WeaponService.placeMine = GrenadeService.placeMine
+WeaponService.smokeBlocks = GrenadeService.smokeBlocks
+WeaponService.clearGrenades = GrenadeService.clear
+-- itère sur les combattants armés (joueurs et bots)
+function WeaponService.eachCombatant(): () -> any
+	local list = {}
+	for c in pairs(state) do table.insert(list, c) end
+	local i = 0
+	return function() i += 1; return list[i] end
+end
+GrenadeService.init(WeaponService)
 
-Players.PlayerRemoving:Connect(function(p) WeaponService.reset(p); grenades[p] = nil end)
+Players.PlayerRemoving:Connect(function(p) WeaponService.reset(p) end)
 return WeaponService
