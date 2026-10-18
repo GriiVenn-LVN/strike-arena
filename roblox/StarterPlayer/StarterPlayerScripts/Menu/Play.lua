@@ -241,7 +241,7 @@ return function(ctx: any, body: Frame, _sub: string?)
 	matchToken += 1
 	local myToken = matchToken
 	task.spawn(function()
-		while listBox.Parent and myToken == matchToken do
+		while listBox.Parent and myToken == matchToken and ctx.isOpen() do
 			local list = ctx.call("MatchList")
 			if not listBox.Parent or myToken ~= matchToken then return end
 			K.clear(listBox)

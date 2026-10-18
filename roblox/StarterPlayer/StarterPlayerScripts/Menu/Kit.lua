@@ -3,6 +3,7 @@
 -- Petits outils d'interface du menu principal, avec la présentation du jeu web (src/00_head.html, src/87d_lobby.js) :
 -- palette, cartes « lcard », boutons rouges en dégradé, pastilles, jauges, curseurs, lettres espacées (letter-spacing).
 local TweenService = game:GetService("TweenService")
+local MenuConfig = require(game:GetService("ReplicatedStorage").Shared.MenuConfig)
 
 local K = {}
 
@@ -168,11 +169,12 @@ function K.btn(parent: Instance?, text: string, kind: BtnKind?, cb: (() -> ())?,
 	K.corner(b, 8)
 	if kind == "ghost" or kind == "alt" or kind == "dark" then K.stroke(b, C.white, 1, 0.9) end
 	if props then for key, v in pairs(props) do (b :: any)[key] = v end end
-	-- survol : éclaircit un peu (filter:brightness du web)
-	b.MouseEnter:Connect(function() g.Transparency = NumberSequence.new(-0.15) ; b.BackgroundTransparency = math.max(0, (k[3] :: number) - 0.15) end)
-	b.MouseLeave:Connect(function() g.Transparency = NumberSequence.new(0); b.BackgroundTransparency = k[3] :: number end)
-	b.SelectionGained:Connect(function() b.BackgroundTransparency = math.max(0, (k[3] :: number) - 0.15) end)
-	b.SelectionLost:Connect(function() b.BackgroundTransparency = k[3] :: number end)
+	-- survol / sélection manette : éclaircit un peu (filter:brightness du web) — le fond blanc transparaît sous le dégradé
+	local function hi(on: boolean) g.Transparency = NumberSequence.new(if on then 0.12 else 0) end
+	b.MouseEnter:Connect(function() hi(true) end)
+	b.MouseLeave:Connect(function() hi(false) end)
+	b.SelectionGained:Connect(function() hi(true) end)
+	b.SelectionLost:Connect(function() hi(false) end)
 	if cb then b.Activated:Connect(cb) end
 	return b
 end
@@ -269,5 +271,34 @@ end
 function K.rarityColor(r: number): Color3
 	return ({ rgb(0x9aa6b8), rgb(0x4aa3ff), rgb(0xb36bff), rgb(0xffb938), rgb(0xff3df0) })[r] or rgb(0x9aa6b8)
 end
+
+-- un défi (.lmis) : texte, bouton RÉCUPÉRER quand il est fini, jauge, progression et gains
+-- un défi (.lmis) : texte, bouton RÉCUPÉRER quand il est fini, jauge, progression et gains (Accueil et Profil)
+function K.mission(ctx: any, parent: Instance, m: any, i: number, weekly: boolean)
+	local f = K.make("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = if m.done and not m.claimed then 0.92 else 0.97,
+		BackgroundColor3 = if m.done and not m.claimed then C.gold else C.white, LayoutOrder = i }, parent)
+	K.corner(f, 10); K.pad(f, 12, 10)
+	K.stroke(f, if m.done and not m.claimed then C.gold else C.white, 1, if m.done and not m.claimed then 0.45 else 0.94)
+	K.vlist(f, 6)
+	local top = K.make("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 1 }, f)
+	K.text(top, { Text = MenuConfig.missionText(m.id, m.target, weekly), TextSize = 13, Font = K.MED, TextColor3 = if m.claimed then C.dim else C.text,
+		Size = UDim2.new(1, -110, 0, 0), AutomaticSize = Enum.AutomaticSize.Y })
+	if m.done and not m.claimed then
+		K.btn(top, K.spaced("RÉCUPÉRER", 1), "gold", function()
+			local res = ctx.call(if weekly then "ClaimWeekly" else "ClaimMission", i)
+			if res then ctx.toast("✔ +" .. m.coins .. " 🪙 · +" .. m.xp .. " XP", C.gold) end
+			ctx.refresh()
+		end, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.fromOffset(104, 24), TextSize = 10 })
+	elseif m.claimed then
+		K.text(top, { Text = "✔", TextColor3 = C.green, AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.fromOffset(30, 18),
+			TextXAlignment = Enum.TextXAlignment.Right })
+	end
+	local bar = K.bar(f, m.progress / math.max(1, m.target), { LayoutOrder = 2 }, if m.claimed then C.green elseif weekly then C.purple else nil,
+		if m.claimed then C.green elseif weekly then C.violet else nil)
+	bar.Size = UDim2.new(1, 0, 0, 5)
+	K.text(f, { LayoutOrder = 3, Size = UDim2.new(1, 0, 0, 14), TextSize = 11, TextColor3 = C.dim, TextWrapped = false,
+		Text = K.fmt(m.progress) .. " / " .. K.fmt(m.target) .. '  ·  <font color="#ffd23a">🪙</font> ' .. m.coins .. "  ·  " .. m.xp .. " XP" })
+end
+
 
 return K

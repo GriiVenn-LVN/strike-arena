@@ -60,3 +60,6 @@ for i, id in ipairs({ "std", "prem" }) do
 		refresh()
 	end)
 end
+
+-- Remplacée par le menu principal (MainMenu : profil, récompense du jour, défis, Arsenal › Caisses) : on la cache.
+gui.Enabled = false

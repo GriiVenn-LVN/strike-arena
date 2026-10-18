@@ -39,7 +39,7 @@ local function call(name: string, ...: any): ...any
 end
 
 -- ---------- interface ----------
-local bgGui = make("ScreenGui", { Name = "MainMenuBg", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 8, Enabled = false,
+local bgGui = make("ScreenGui", { Name = "MainMenuBg", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 18, Enabled = false,
 	ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, playerGui)
 -- voile du web : sombre à gauche (là où sont les panneaux), le lobby reste visible derrière
 local veil = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 0, BackgroundColor3 = Color3.new(1, 1, 1) }, bgGui)
@@ -48,7 +48,7 @@ make("UIGradient", { Color = ColorSequence.new(K.rgb(0x05080e), K.rgb(0x0b1220))
 local veil2 = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 0, BackgroundColor3 = Color3.new(1, 1, 1) }, bgGui)
 make("UIGradient", { Color = ColorSequence.new(K.rgb(0x05080e), K.rgb(0x2a1608)), Transparency = NumberSequence.new(0.35, 0.75), Rotation = -90 }, veil2)
 
-local gui = make("ScreenGui", { Name = "MainMenu", ResetOnSpawn = false, DisplayOrder = 9, Enabled = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, playerGui)
+local gui = make("ScreenGui", { Name = "MainMenu", ResetOnSpawn = false, DisplayOrder = 19, Enabled = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, playerGui)
 local root = make("Frame", { Name = "Root", Size = UDim2.fromOffset(1600, 900) }, gui)
 local uiScale = make("UIScale", {}, root)
 local modal = make("TextButton", { Text = "", BackgroundTransparency = 1, Size = UDim2.fromOffset(1, 1), Modal = true, Selectable = false }, gui)   -- libère la souris
@@ -251,7 +251,9 @@ local function computeScale()
 	local inset = GuiService:GetGuiInset()
 	local w, h = vp.X, math.max(200, vp.Y - inset.Y)
 	local s = math.clamp(math.min(w / 1560, h / 860), 0.6, 1.3)
-	uiScale.Scale = s
+	-- AccessibilityController pose un UIScale « AccessScale » sur chaque ScreenGui : le menu, lui, doit tenir dans l'écran
+	local acc = gui:FindFirstChild("AccessScale")
+	uiScale.Scale = s / (if acc and acc:IsA("UIScale") and acc.Scale > 0 then acc.Scale else 1)
 	ctx.W, ctx.H = math.floor(w / s), math.floor(h / s)
 	root.Size = UDim2.fromOffset(ctx.W, ctx.H)
 end
@@ -477,6 +479,7 @@ local function setOpen(on: boolean)
 	gui.Enabled = on; bgGui.Enabled = on; modal.Visible = on
 	openBtn.Visible = not on and zone() == "lobby"
 	player:SetAttribute("UiOpen", on)
+	player:SetAttribute("MenuOpen", on)   -- les boutons des autres interfaces se cachent pendant ce temps
 	if controls then pcall(function() if on then controls:Disable() else controls:Enable() end end) end
 	bindOpenActions(on)
 	if on then
@@ -536,6 +539,13 @@ local function watchCamera(cam: Camera?)
 	end)
 end
 watchCamera(workspace.CurrentCamera)
+local function hookAccess(c: Instance)
+	if c.Name == "AccessScale" and c:IsA("UIScale") then
+		c:GetPropertyChangedSignal("Scale"):Connect(computeScale); computeScale()
+	end
+end
+gui.ChildAdded:Connect(hookAccess)
+for _, c in ipairs(gui:GetChildren()) do hookAccess(c) end
 workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function() watchCamera(workspace.CurrentCamera) end)
 
 -- achat Robux terminé, cadeau débloqué : les chiffres du profil changent

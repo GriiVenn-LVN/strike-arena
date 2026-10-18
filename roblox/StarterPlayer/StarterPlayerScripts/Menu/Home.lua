@@ -27,32 +27,7 @@ local function weekLeft(): string
 	return if h > 48 then math.ceil(h / 24) .. " j" else h .. " h"
 end
 
--- un défi (.lmis) : texte, bouton RÉCUPÉRER quand il est fini, jauge, progression et gains
-local function mission(ctx: any, parent: Instance, m: any, i: number, weekly: boolean)
-	local f = make("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = if m.done and not m.claimed then 0.92 else 0.97,
-		BackgroundColor3 = if m.done and not m.claimed then C.gold else C.white, LayoutOrder = i }, parent)
-	K.corner(f, 10); K.pad(f, 12, 10)
-	K.stroke(f, if m.done and not m.claimed then C.gold else C.white, 1, if m.done and not m.claimed then 0.45 else 0.94)
-	K.vlist(f, 6)
-	local top = make("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 1 }, f)
-	text(top, { Text = MenuConfig.missionText(m.id, m.target, weekly), TextSize = 13, Font = K.MED, TextColor3 = if m.claimed then C.dim else C.text,
-		Size = UDim2.new(1, -110, 0, 0), AutomaticSize = Enum.AutomaticSize.Y })
-	if m.done and not m.claimed then
-		K.btn(top, spaced("RÉCUPÉRER", 1), "gold", function()
-			local res = ctx.call(if weekly then "ClaimWeekly" else "ClaimMission", i)
-			if res then ctx.toast("✔ +" .. m.coins .. " 🪙 · +" .. m.xp .. " XP", C.gold) end
-			ctx.refresh()
-		end, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.fromOffset(104, 24), TextSize = 10 })
-	elseif m.claimed then
-		text(top, { Text = "✔", TextColor3 = C.green, AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.fromOffset(30, 18),
-			TextXAlignment = Enum.TextXAlignment.Right })
-	end
-	local bar = K.bar(f, m.progress / math.max(1, m.target), { LayoutOrder = 2 }, if m.claimed then C.green elseif weekly then C.purple else nil,
-		if m.claimed then C.green elseif weekly then C.violet else nil)
-	bar.Size = UDim2.new(1, 0, 0, 5)
-	text(f, { LayoutOrder = 3, Size = UDim2.new(1, 0, 0, 14), TextSize = 11, TextColor3 = C.dim, TextWrapped = false,
-		Text = K.fmt(m.progress) .. " / " .. K.fmt(m.target) .. '  ·  <font color="#ffd23a">🪙</font> ' .. m.coins .. "  ·  " .. m.xp .. " XP" })
-end
+local mission = K.mission
 
 return function(ctx: any, body: Frame, _sub: string?)
 	local d = ctx.data

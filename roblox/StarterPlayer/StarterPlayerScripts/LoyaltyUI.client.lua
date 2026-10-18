@@ -294,3 +294,18 @@ end
 
 task.spawn(refreshState)
 task.spawn(function() while true do task.wait(60); refreshState() end end)   -- le badge suit les minutes jouées
+
+-- ---------- menu principal (MainMenu) : ses boutons CADEAUX et PREMIUM ouvrent ces fenêtres ----------
+giftBtn.Visible = false; vipBtn.Visible = false
+gui.DisplayOrder = 30   -- au-dessus du menu
+local panels = require(ReplicatedStorage.Shared.ClientState).panels
+panels.gifts = function()
+	vipWin.Visible = false
+	giftWin.Visible = not giftWin.Visible
+	if giftWin.Visible then refreshState(); renderGifts(); pop(giftWin) end
+end
+panels.vip = function()
+	giftWin.Visible = false
+	vipWin.Visible = not vipWin.Visible
+	if vipWin.Visible then refreshState(); renderVip(); pop(vipWin) end
+end
