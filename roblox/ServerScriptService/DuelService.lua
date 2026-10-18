@@ -173,7 +173,10 @@ local function runDuel(def: any, players: { Player }, arena: Arena)
 			if hum then hum.WalkSpeed = 16; hum.JumpPower = 50 end
 			local primary = p:GetAttribute("Primary")
 			local w = typeof(primary) == "string" and Config.WEAPONS[primary]
-			WeaponService.giveLoadout(p, { if w and w.slot == 0 then primary :: string else D.defaultPrimary, D.secondary, "knife" })
+			local sec = p:GetAttribute("Secondary")
+			local sw = typeof(sec) == "string" and Config.WEAPONS[sec]
+			WeaponService.giveLoadout(p, { if w and w.slot == 0 then primary :: string else D.defaultPrimary,
+				if sw and sw.slot == 1 then sec :: string else D.secondary, "knife" })
 		end
 		local endsAt = os.clock() + D.roundTime
 		send("live", { round = round, timeLeft = D.roundTime })

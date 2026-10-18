@@ -117,6 +117,15 @@ for _, o in ipairs(LoyaltyConfig.VIP.offers) do
 	add({ id = o.id, tab = "premium", kind = "vip", name = o.name, rarity = 5, robux = o.robux, productId = o.productId, days = o.days, best = o.best })
 end
 
+-- numéros des produits Robux : ProductIds.lua (un seul fichier à remplir) passe avant les valeurs des fichiers de config
+do
+	local ids = require(script.Parent.ProductIds) :: { [string]: number }
+	for _, it in ipairs(items) do
+		local n = ids[it.id]
+		if n and n > 0 then it.productId = n end
+	end
+end
+
 Catalog.ITEMS = items
 function Catalog.get(id: string): any
 	return byId[id]

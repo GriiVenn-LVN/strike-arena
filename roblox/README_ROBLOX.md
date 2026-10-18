@@ -21,6 +21,22 @@ Pour les mises à jour suivantes : synchronise avec Rojo (section 1) ou rouvre u
 
 **Sécurités ajoutées pour le premier lancement** : `ServerScriptService/Stores.lua` remplace la sauvegarde par une mémoire temporaire quand Roblox la refuse (jeu pas encore publié), au lieu d'arrêter tout le serveur ; si la lecture d'un profil échoue, il n'est jamais écrasé ; `default.project.json` coupe l'apparition automatique (le lobby place le joueur) et le *streaming* (la carte est construite par script).
 
+## 0 bis. Comme sur le web : armes, bras, sons, déplacements, menu des armes
+
+- **Vraies armes du web** : les 23 modèles 3D du jeu web (série Low-Poly de TastyTony, CC BY) sont dans `ReplicatedStorage/Shared/WeaponMeshes`
+  (générés par `python3 tools/export_weapons_lua.py`) et fabriqués en jeu par `WeaponModels.lua` avec l'API EditableMesh.
+  **À faire une fois** : *Game Settings → Security → Allow Mesh / Image APIs* (sinon les armes sont dessinées en blocs simples).
+- **Vue à la première personne** (`ViewmodelController`) : bras, arme, balancement, recul, sortie d'arme, recharge en phases
+  (chargeur qui tombe, chargeur neuf, armement à vide), inspection (**V**), coup de couteau, douilles, éclair, lunette des fusils de précision.
+  Les autres joueurs et les bots tiennent la vraie arme, bras levés (`WeaponVisuals`, pose dans `WeaponService`).
+- **Déplacements** (`MovementController`) : **Maj** sprint, double **Maj** sprint tactique, **C** ou **Ctrl** accroupi,
+  **C en sprintant** glissade (saut = l'annule en gardant l'élan), **saut face à un rebord** escalade. On ne tire pas en sprintant.
+- **Menu des armes** (`LoadoutUI`, touche **B** ou bouton « 🔫 Armes ») : arme principale et pistolet, gardés dans le profil.
+- **Vrais sons du web** : les 40 sons synthétisés du jeu web sont rendus dans un seul fichier, `strike-arena-sons.ogg`
+  (`node tools/render_sounds.js <dossier>`, positions dans `SoundSheet.lua`). Importe-le sur create.roblox.com (*Créations → Audio*),
+  puis mets son numéro dans `ModeConfig.SOUND_SHEET`. En attendant, les sons fournis avec Roblox servent de remplacement.
+- **Robux** : tous les numéros de produits se mettent dans un seul fichier, `ReplicatedStorage/Shared/ProductIds.lua` (nom et prix en commentaire).
+
 ## 1. Mise en place (15 minutes)
 
 1. Installe **Roblox Studio** puis **Rojo** (extension VS Code `evaera.vscode-rojo` + plugin Studio).

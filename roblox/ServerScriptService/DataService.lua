@@ -63,6 +63,11 @@ function DataService.load(player: Player)
 	data = data or template()
 	reconcile(data, template())
 	profiles[player] = data
+	-- armes choisies dans le menu de chargement (LoadoutUI), gardées d'une session à l'autre
+	if typeof(data.loadout) == "table" then
+		if typeof(data.loadout.primary) == "string" then player:SetAttribute("Primary", data.loadout.primary) end
+		if typeof(data.loadout.secondary) == "string" then player:SetAttribute("Secondary", data.loadout.secondary) end
+	end
 	return data
 end
 

@@ -180,6 +180,8 @@ local function lobbyLoadout(p: Player): { string }
 	local primary = p:GetAttribute("Primary")
 	local keys = table.clone(L.loadout)
 	if typeof(primary) == "string" then keys[1] = primary end
+	local secondary = p:GetAttribute("Secondary")
+	if typeof(secondary) == "string" then keys[2] = secondary end
 	return keys
 end
 
