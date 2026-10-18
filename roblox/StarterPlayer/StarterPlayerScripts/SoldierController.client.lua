@@ -102,6 +102,7 @@ local function forget(char: Model)
 	for _, c in ipairs(d.conns) do c:Disconnect() end
 end
 
+local redress: (Model?) -> ()
 local function track(char: Model)
 	if active[char] then return end
 	task.spawn(function()
@@ -129,25 +130,28 @@ local function track(char: Model)
 			if h < d.hp then d.hurt = true end
 			d.hp = h
 		end))
+		if not Players:GetPlayerFromCharacter(char) then table.insert(d.conns, char:GetAttributeChangedSignal("Team"):Connect(function() redress(char) end)) end
 		table.insert(d.conns, char.AncestryChanged:Connect(function() if not char:IsDescendantOf(workspace) then forget(char) end end))
 		dress(d)
 	end)
 end
 
+-- refait l'habillage d'un personnage déjà suivi (tenue ou équipe changée)
+redress = function(c: Model?)
+	if c and active[c] then
+		local d = active[c] :: D
+		local f = c:FindFirstChild("SoldatWeb"); if f then f:Destroy() end
+		d.items = {}; d.rh = {}; d.look = Look.look(c); d.rest = Look.rest(d.look.rig)
+		for p2, cf in pairs(d.N) do local B = d.rest.B[p2.Name]; if B then d.BN[p2.Name] = scaled(B):Inverse() * cf end end
+		task.spawn(dress, d)
+	end
+end
 -- tenue changée (attribut Outfit) : on refait l'habillage au prochain personnage ; tout de suite si on peut
 local function watchPlayer(p: Player)
 	p.CharacterAdded:Connect(track)
 	if p.Character then track(p.Character) end
-	p:GetAttributeChangedSignal("Outfit"):Connect(function()
-		local c = p.Character
-		if c and active[c] then
-			local d = active[c] :: D
-			local f = c:FindFirstChild("SoldatWeb"); if f then f:Destroy() end
-			d.items = {}; d.rh = {}; d.look = Look.look(c); d.rest = Look.rest(d.look.rig)
-			for p2, cf in pairs(d.N) do local B = d.rest.B[p2.Name]; if B then d.BN[p2.Name] = scaled(B):Inverse() * cf end end
-			task.spawn(dress, d)
-		end
-	end)
+	p:GetAttributeChangedSignal("Outfit"):Connect(function() redress(p.Character) end)
+	p:GetAttributeChangedSignal("Team"):Connect(function() redress(p.Character) end)   -- Infecté : on change de camp en cours de partie
 end
 for _, p in ipairs(Players:GetPlayers()) do watchPlayer(p) end
 Players.PlayerAdded:Connect(watchPlayer)

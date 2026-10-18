@@ -35,7 +35,11 @@ end
 -- équipe d'un soldat : nom d'équipe Roblox (joueur) ou attribut Team (bot)
 local function teamOf(model: Model): string?
 	local p = Players:GetPlayerFromCharacter(model)
-	if p then return if p.Team then p.Team.Name else nil end
+	if p then
+		local a = p:GetAttribute("Team")   -- équipe de la partie (MatchService) ; les Teams Roblox ne servent plus
+		if typeof(a) == "string" then return a end
+		return if p.Team then p.Team.Name else nil
+	end
 	local t = model:GetAttribute("Team")
 	return if typeof(t) == "string" then t else nil
 end
