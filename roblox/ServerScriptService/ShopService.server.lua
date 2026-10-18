@@ -105,6 +105,9 @@ buy.OnServerInvoke = function(player: Player, id: any)
 	local it = Catalog.get(id)
 	if not it then return { ok = false, err = "Objet inconnu" } end
 
+	-- objets d'événement (skins, tenues et effets d'Halloween) : seulement avec les paliers de citrouilles
+	if it.event then return { ok = false, err = if Catalog.owns(profile, it) then "Déjà possédé" else "Récompense de l'événement d'Halloween (citrouilles)" } end
+
 	if it.kind == "devproduct" or it.kind == "exclusive" or it.kind == "vip" then
 		if it.kind == "exclusive" and Catalog.owns(profile, it) then return { ok = false, err = "Déjà possédé" } end
 		if it.productId <= 0 then return { ok = false, err = "Bientôt disponible" } end

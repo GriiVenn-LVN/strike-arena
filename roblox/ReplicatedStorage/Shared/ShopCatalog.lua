@@ -65,7 +65,8 @@ for _, key in ipairs(weaponKeys) do
 		for i, skin in ipairs(Config.SKINS) do
 			if skin.rarity > 1 then
 				add({ id = "skin_" .. key .. "_" .. i, tab = "skins", kind = "skin", weapon = key, skin = i,
-					name = skin.name .. " · " .. Config.WEAPONS[key].name, rarity = skin.rarity, price = Catalog.PRICE_BY_RARITY[skin.rarity] })
+					name = skin.name .. " · " .. Config.WEAPONS[key].name, rarity = skin.rarity, price = Catalog.PRICE_BY_RARITY[skin.rarity],
+					event = (skin :: any).ev })      -- event : récompense d'événement, ne s'achète pas (ShopService refuse)
 			end
 		end
 	end
@@ -81,7 +82,7 @@ end
 
 -- Tenues de soldat, traînées de balle, titres de profil
 for i, o in ipairs(Config.OUTFITS) do
-	add({ id = "outfit_" .. i, tab = "style", kind = "outfit", outfit = i, name = o.name, rarity = o.rarity, price = Catalog.PRICE_BY_RARITY[o.rarity] })
+	add({ id = "outfit_" .. i, tab = "style", kind = "outfit", outfit = i, name = o.name, rarity = o.rarity, price = Catalog.PRICE_BY_RARITY[o.rarity], event = (o :: any).ev })
 end
 local TRAIL_NAMES = { cyan = "Cyan", red = "Rouge", lime = "Citron vert", gold = "Or", violet = "Violet", rainbow = "Arc-en-ciel" }
 for _, t in ipairs(X.TRAILS) do
@@ -95,7 +96,7 @@ add({ id = "title_pack", tab = "style", kind = "misc", name = "Pack de titres de
 -- Effets d'élimination (KillFxConfig) : pièces, Robux, ou seulement via un code promo / le groupe Roblox
 for _, fx in ipairs(KillFxConfig.LIST) do
 	add({ id = "killfx_" .. fx.id, tab = "killfx", kind = "killfx", fx = fx.id, name = fx.name, rarity = fx.rarity, source = fx.source,
-		price = if fx.source == "coins" then fx.price else 0, robux = fx.robux, productId = fx.productId or 0 })
+		price = if fx.source == "coins" then fx.price else 0, robux = fx.robux, productId = fx.productId or 0, event = if fx.source == "event" then "hw" else nil })
 end
 
 -- Robux (Developer Products) : renseigne productId après création dans le Creator Hub (0 = désactivé)

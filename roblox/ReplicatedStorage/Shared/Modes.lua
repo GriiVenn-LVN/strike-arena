@@ -131,7 +131,7 @@ function Modes.defaultLimit(mode: string): number?
 end
 
 -- réglages d'une partie, vérifiés (le client peut envoyer n'importe quoi)
-export type Settings = { mode: string, map: string, diff: number, size: number, limit: number?, side: string, eco: number, private: boolean, mut: { [string]: boolean } }
+export type Settings = { mode: string, map: string, diff: number, size: number, limit: number?, side: string, eco: number, private: boolean, mut: { [string]: boolean }, ranked: boolean }
 function Modes.sanitize(s: any): Settings
 	local t = if typeof(s) == "table" then s else {}
 	local mode = if typeof(t.mode) == "string" and Modes.LIST[t.mode] then t.mode else "tdm"
@@ -150,7 +150,8 @@ function Modes.sanitize(s: any): Settings
 	if typeof(t.mut) == "table" then
 		for _, m in ipairs(Modes.MUTATORS) do if t.mut[m.k] == true then mut[m.k] = true end end
 	end
-	return { mode = mode, map = map, diff = diff, size = size, limit = limit, side = side, eco = eco, private = t.private == true, mut = mut }
+	-- ranked : partie classée (web : cfg.ranked, src/66_progress.js) ; ne compte que dans RANKED_MODES, sans modificateur
+	return { mode = mode, map = map, diff = diff, size = size, limit = limit, side = side, eco = eco, private = t.private == true, mut = mut, ranked = t.ranked == true }
 end
 
 return Modes

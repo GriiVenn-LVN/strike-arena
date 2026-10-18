@@ -15,7 +15,7 @@ remote.Parent = ReplicatedStorage
 local pool: { { kind: string, weapon: string?, skin: number?, dance: string?, outfit: number?, rarity: number } } = {}
 for weaponKey in pairs(Config.WEAPONS) do
 	for i, skin in ipairs(Config.SKINS) do
-		if skin.rarity > 1 then
+		if skin.rarity > 1 and not (skin :: any).ev then        -- skins d'événement (Halloween) : jamais dans les caisses
 			table.insert(pool, { kind = "skin", weapon = weaponKey, skin = i, rarity = skin.rarity })
 		end
 	end
@@ -24,7 +24,7 @@ for id, d in pairs(Config.DANCES) do
 	if d.rarity > 1 then table.insert(pool, { kind = "dance", dance = id, rarity = d.rarity }) end
 end
 for i, o in ipairs(Config.OUTFITS) do
-	if o.rarity > 1 then table.insert(pool, { kind = "outfit", outfit = i, rarity = o.rarity }) end
+	if o.rarity > 1 and not (o :: any).ev then table.insert(pool, { kind = "outfit", outfit = i, rarity = o.rarity }) end
 end
 
 local function owns(profile, item): boolean

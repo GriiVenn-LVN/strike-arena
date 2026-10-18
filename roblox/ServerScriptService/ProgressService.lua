@@ -37,7 +37,7 @@ local function seededItem(tier: number, rarity: number)
 	local pool = {}
 	for w, _ in pairs(Config.WEAPONS) do
 		for i, skin in ipairs(Config.SKINS) do
-			if skin.rarity == rarity and w ~= "knife" then table.insert(pool, { weapon = w, skin = i }) end
+			if skin.rarity == rarity and w ~= "knife" and not (skin :: any).ev then table.insert(pool, { weapon = w, skin = i }) end   -- skins d'événement : jamais dans le passe
 		end
 	end
 	table.sort(pool, function(a, b) return a.weapon .. a.skin < b.weapon .. b.skin end)
@@ -110,23 +110,124 @@ local function today(): string return os.date("!%Y-%m-%d") :: string end
 function ProgressService.eventActive(): boolean
 	local t = today(); return t >= X.EVENT.from and t <= X.EVENT.to
 end
-function ProgressService.collectPumpkin(player: Player)
-	local profile = DataService.get(player); if not profile or not ProgressService.eventActive() then return nil end
-	ensure(profile)
-	if profile.ev.id ~= X.EVENT.id then profile.ev = { id = X.EVENT.id, pumpkins = 0, claimed = {} } end
-	profile.ev.pumpkins += 1
-	local rewards = {}
-	for _, g in ipairs(X.EVENT.goals) do
-		if profile.ev.pumpkins >= g.n and not table.find(profile.ev.claimed, g.n) then
-			table.insert(profile.ev.claimed, g.n)
-			if g.coins then profile.coins += g.coins end
-			if g.box then profile.boxes[g.box] = (profile.boxes[g.box] or 0) + 1 end
-			if g.dance and not table.find(profile.inv.dances, g.dance) then table.insert(profile.inv.dances, g.dance) end
-			table.insert(rewards, g)
+local toastEvent = Instance.new("RemoteEvent"); toastEvent.Name = "PumpkinToast"; toastEvent.Parent = ReplicatedStorage   -- serveur -> joueur : { count, lines }
+
+-- objets d'Halloween d'un palier (src/8W_halloween.js applyReward) : skin pour toutes les armes, tenue, effet d'élimination
+local function skinIndex(pattern: string): number?
+	for i, sk in ipairs(Config.SKINS) do if sk.pattern == pattern then return i end end
+	return nil
+end
+local function outfitIndex(name: string): number?
+	for i, o in ipairs(Config.OUTFITS) do if o.name == name then return i end end
+	return nil
+end
+local function grantHw(profile: any, g: any): { string }
+	local lines = {}
+	if g.skin then
+		local i = skinIndex(g.skin)
+		if i then
+			for w in pairs(Config.WEAPONS) do
+				local owned = profile.inv.skins[w] or {}
+				if not table.find(owned, i) then table.insert(owned, i) end
+				profile.inv.skins[w] = owned
+			end
+			table.insert(lines, "Skin " .. Config.SKINS[i].name)
 		end
 	end
+	if g.outfit then
+		local i = outfitIndex(g.outfit)
+		if i then
+			profile.inv.outfits = profile.inv.outfits or {}
+			if not table.find(profile.inv.outfits, i) then table.insert(profile.inv.outfits, i) end
+			table.insert(lines, "Tenue " .. g.outfit)
+		end
+	end
+	if g.fx then
+		profile.inv.killfx = profile.inv.killfx or {}
+		if not table.find(profile.inv.killfx, g.fx) then table.insert(profile.inv.killfx, g.fx) end
+		local KillFxConfig = require(ReplicatedStorage.Shared.KillFxConfig)
+		local f = KillFxConfig.get(g.fx)
+		table.insert(lines, "Effet " .. (if f then f.name else g.fx))
+	end
+	return lines
+end
+-- texte d'un palier (rewardText du web)
+function ProgressService.goalText(g: any): string
+	local a = {}
+	if g.coins then table.insert(a, g.coins .. " pièces") end
+	if g.box then table.insert(a, if g.box == "prem" then "Caisse Premium" else "Caisse Standard") end
+	if g.dance and Config.DANCES[g.dance] then table.insert(a, "Danse « " .. Config.DANCES[g.dance].name .. " »") end
+	if g.skin then local i = skinIndex(g.skin); if i then table.insert(a, "Skin " .. Config.SKINS[i].name) end end
+	if g.outfit then table.insert(a, "Tenue " .. g.outfit) end
+	if g.fx then
+		local KillFxConfig = require(ReplicatedStorage.Shared.KillFxConfig)
+		local f = KillFxConfig.get(g.fx)
+		table.insert(a, "Effet " .. (if f then f.name else g.fx))
+	end
+	return table.concat(a, " • ")
+end
+-- paliers atteints : récompenses de base (claimed = n) et objets d'Halloween (claimed = "hw" .. n, rattrapage des anciens profils)
+local GOALS: { any } = X.EVENT.goals :: any
+local function claimGoals(profile: any): ({ any }, { string })
+	local rewards, lines = {}, {}
+	for _, g in ipairs(GOALS) do
+		if profile.ev.pumpkins >= g.n then
+			if (g.coins or g.box or g.dance) and not table.find(profile.ev.claimed, g.n) then
+				table.insert(profile.ev.claimed, g.n)
+				if g.coins then profile.coins += g.coins end
+				if g.box then profile.boxes[g.box] = (profile.boxes[g.box] or 0) + 1 end
+				if g.dance and not table.find(profile.inv.dances, g.dance) then table.insert(profile.inv.dances, g.dance) end
+				table.insert(rewards, g)
+				table.insert(lines, "🎃 Palier " .. g.n .. " : " .. ProgressService.goalText(g))
+			end
+			local tag = "hw" .. g.n
+			if (g.skin or g.outfit or g.fx) and not table.find(profile.ev.claimed, tag) then
+				table.insert(profile.ev.claimed, tag)
+				local got = grantHw(profile, g)
+				if not table.find(rewards, g) then table.insert(rewards, g) end
+				if #got > 0 then table.insert(lines, "🎃 Palier " .. g.n .. " : " .. table.concat(got, " • ")) end
+			end
+		end
+	end
+	return rewards, lines
+end
+local function evProfile(profile: any)
+	ensure(profile)
+	if profile.ev.id ~= X.EVENT.id then profile.ev = { id = X.EVENT.id, pumpkins = 0, claimed = {} } end
+end
+function ProgressService.collectPumpkin(player: Player): any
+	local profile = DataService.get(player); if not profile or not ProgressService.eventActive() then return nil end
+	evProfile(profile)
+	profile.ev.pumpkins += 1
+	local rewards, lines = claimGoals(profile)
+	toastEvent:FireClient(player, { count = profile.ev.pumpkins, lines = lines })
 	return { count = profile.ev.pumpkins, rewards = rewards }
 end
+-- état de l'événement pour le menu (paliers, citrouilles ramassées, textes)
+function ProgressService.eventStatus(player: Player): any
+	local profile: any = DataService.get(player)
+	local pk = 0
+	if profile then ensure(profile); if profile.ev.id == X.EVENT.id then pk = profile.ev.pumpkins end end
+	local goals = {}
+	for _, g in ipairs(GOALS) do table.insert(goals, { n = g.n, text = ProgressService.goalText(g), done = pk >= g.n }) end
+	return { id = X.EVENT.id, name = X.EVENT.name, from = X.EVENT.from, to = X.EVENT.to, active = ProgressService.eventActive(), pumpkins = pk, goals = goals }
+end
+-- rattrapage à l'arrivée : paliers déjà atteints avant l'ajout des objets d'Halloween
+task.spawn(function()
+	local function catchUp(p: Player)
+		for _ = 1, 30 do
+			local profile = DataService.get(p)
+			if profile then
+				ensure(profile)
+				if ProgressService.eventActive() and profile.ev.id == X.EVENT.id then claimGoals(profile) end
+				return
+			end
+			task.wait(1)
+		end
+	end
+	Players.PlayerAdded:Connect(catchUp)
+	for _, p in ipairs(Players:GetPlayers()) do task.spawn(catchUp, p) end
+end)
 
 -- ---------- fin de partie ----------
 -- summary : { xp, won, mode, difficulty, ranked, kills, brWin, zombieWave, kothWin, trainScore, weaponKills }
@@ -156,6 +257,7 @@ remote("BP_Claim", function(p, tier: any, premium: any)
 	return ProgressService.claimTier(p, tier, premium)
 end)
 remote("BP_BuyPremium", function(p) return ProgressService.buyPremiumWithCoins(p) end)
+remote("EventStatus", function(p) return ProgressService.eventStatus(p) end)
 remote("PumpkinCollected", function(p, id: any)
 	-- la citrouille existe côté serveur (Part nommée "Pumpkin") : on vérifie la distance avant de créditer
 	if typeof(id) ~= "Instance" or id.Name ~= "Pumpkin" or not id:IsDescendantOf(workspace) then return nil end
@@ -165,6 +267,39 @@ remote("PumpkinCollected", function(p, id: any)
 	return ProgressService.collectPumpkin(p)
 end)
 
+-- Citrouille à ramasser : Part « Pumpkin » (vérifiée par PumpkinCollected) habillée en citrouille sculptée (jackO du web)
+function ProgressService.pumpkinAt(pos: Vector3, parent: Instance?): BasePart
+	local p = Instance.new("Part"); p.Name = "Pumpkin"; p.Shape = Enum.PartType.Ball; p.Size = Vector3.new(2.2, 1.8, 2.2)
+	p.Color = Color3.fromRGB(232, 112, 26); p.Material = Enum.Material.SmoothPlastic; p.Anchored = true; p.CanCollide = false; p.CanQuery = false
+	p.Position = pos + Vector3.new(0, 0.9, 0)
+	for i = 0, 5 do   -- côtes
+		local a = i / 6 * math.pi
+		local r = Instance.new("Part"); r.Name = "Rib"; r.Shape = Enum.PartType.Ball; r.Size = Vector3.new(0.9, 1.75, 2.25)
+		r.Color = Color3.fromRGB(214, 98, 20); r.Material = Enum.Material.SmoothPlastic; r.Anchored = true; r.CanCollide = false; r.CanQuery = false; r.CanTouch = false
+		r.CFrame = CFrame.new(p.Position) * CFrame.Angles(0, a, 0); r.Parent = p
+	end
+	local stem = Instance.new("Part"); stem.Name = "Stem"; stem.Size = Vector3.new(0.25, 0.5, 0.25); stem.Color = Color3.fromRGB(74, 90, 34)
+	stem.Anchored = true; stem.CanCollide = false; stem.CanQuery = false; stem.CanTouch = false
+	stem.CFrame = CFrame.new(p.Position + Vector3.new(0, 1.05, 0)) * CFrame.Angles(0, 0, 0.25); stem.Parent = p
+	for _, sx in ipairs({ -0.4, 0.4 }) do   -- yeux lumineux
+		local e = Instance.new("Part"); e.Name = "Eye"; e.Size = Vector3.new(0.32, 0.32, 0.1); e.Material = Enum.Material.Neon; e.Color = Color3.fromRGB(255, 208, 96)
+		e.Anchored = true; e.CanCollide = false; e.CanQuery = false; e.CanTouch = false
+		e.CFrame = CFrame.new(p.Position + Vector3.new(sx, 0.2, -1.08)) * CFrame.Angles(0, 0, math.rad(45)); e.Parent = p
+	end
+	local mouth = Instance.new("Part"); mouth.Name = "Mouth"; mouth.Size = Vector3.new(0.9, 0.18, 0.1); mouth.Material = Enum.Material.Neon; mouth.Color = Color3.fromRGB(255, 208, 96)
+	mouth.Anchored = true; mouth.CanCollide = false; mouth.CanQuery = false; mouth.CanTouch = false
+	mouth.CFrame = CFrame.new(p.Position + Vector3.new(0, -0.3, -1.06)); mouth.Parent = p
+	local light = Instance.new("PointLight"); light.Color = Color3.fromRGB(255, 120, 20); light.Range = 10; light.Parent = p
+	local prompt = Instance.new("ProximityPrompt"); prompt.ActionText = "Ramasser"; prompt.ObjectText = "Citrouille"; prompt.HoldDuration = 0; prompt.MaxActivationDistance = 8; prompt.RequiresLineOfSight = false; prompt.Parent = p
+	prompt.Triggered:Connect(function(player)
+		if not p.Parent then return end
+		p:Destroy()
+		ProgressService.collectPumpkin(player)
+	end)
+	p.Parent = parent or workspace
+	return p
+end
+
 -- Décor d'événement : citrouilles posées sur les points de passage des bots (MapData.roam)
 function ProgressService.spawnPumpkins(map, cellToWorld: (number, number) -> Vector3, parent: Instance?)
 	if not ProgressService.eventActive() then return end
@@ -172,13 +307,7 @@ function ProgressService.spawnPumpkins(map, cellToWorld: (number, number) -> Vec
 	local rng = Random.new()
 	for i = #pts, 2, -1 do local j = rng:NextInteger(1, i); pts[i], pts[j] = pts[j], pts[i] end
 	for i = 1, math.min(X.EVENT.pumpkinsPerMatch, #pts) do
-		local p = Instance.new("Part"); p.Name = "Pumpkin"; p.Shape = Enum.PartType.Ball; p.Size = Vector3.new(2.2, 1.8, 2.2)
-		p.Color = Color3.fromRGB(255, 122, 26); p.Material = Enum.Material.SmoothPlastic; p.Anchored = true; p.CanCollide = false
-		p.Position = cellToWorld(pts[i][1], pts[i][2]) + Vector3.new(0, 1, 0)
-		local light = Instance.new("PointLight"); light.Color = Color3.fromRGB(255, 120, 20); light.Range = 10; light.Parent = p
-		local prompt = Instance.new("ProximityPrompt"); prompt.ActionText = "Ramasser"; prompt.ObjectText = "Citrouille"; prompt.HoldDuration = 0; prompt.MaxActivationDistance = 8; prompt.Parent = p
-		prompt.Triggered:Connect(function(player) ProgressService.collectPumpkin(player); p:Destroy() end)
-		p.Parent = parent or workspace
+		ProgressService.pumpkinAt(cellToWorld(pts[i][1], pts[i][2]) + Vector3.new(0, 0.1, 0), parent)
 	end
 end
 

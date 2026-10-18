@@ -699,6 +699,8 @@ local function freeSlot(): number?
 	return nil
 end
 
+-- fonctions appelées pour chaque joueur à la fin d'une partie : (m, joueur, stat, gagné, résumé MatchEnd modifiable)
+MatchService.finishHooks = {} :: { (Match, Player, Stat?, boolean, { [string]: any }) -> () }
 local function finish(m: Match, winner: any)
 	m.state = "over"
 	broadcast(m)
@@ -717,14 +719,23 @@ local function finish(m: Match, winner: any)
 				bestStreak = s.bestStreak, weaponKills = s.weaponKills })
 			if okR then rewards = r end
 			if rewards then
-				local okP, pr = pcall(ProgressService.finishMatch, p, { xp = rewards.xp, won = won, mode = m.mode, kills = s.k, weaponKills = s.weaponKills })
+				-- classement (rankUpdate du web) : partie classée, mode classé, bots Facile ou plus (diff web = diff - 1), sans modificateur
+				local ranked = m.settings.ranked == true and next(m.settings.mut) == nil
+				local okP, pr = pcall(ProgressService.finishMatch, p, { xp = rewards.xp, won = won, mode = m.mode, kills = s.k, weaponKills = s.weaponKills,
+					ranked = ranked, difficulty = m.settings.diff - 1 })
 				if okP then progress = pr end
 			end
 		end
 		local winnerName = if typeof(winner) == "string" then winner elseif typeof(winner) == "table" then (winner :: any).name else nil
-		endEvent:FireClient(p, { won = won, draw = winner == nil, winner = winnerName, team = m.teams ~= nil, mode = m.mode, modeName = m.def.n,
+		local payload = { won = won, draw = winner == nil, winner = winnerName, team = m.teams ~= nil, mode = m.mode, modeName = m.def.n,
 			score = if m.teams then m.score else {}, rewards = rewards, progress = progress, mvp = mvp, board = finalBoard,
-			me = s and { k = s.k, d = s.d, a = s.a, hs = s.hs, dmg = s.dmg, score = s.score, bestStreak = s.bestStreak } or nil, next = INTERMISSION })
+			me = s and { k = s.k, d = s.d, a = s.a, hs = s.hs, dmg = s.dmg, score = s.score, bestStreak = s.bestStreak, shots = s.shots, hits = s.hits } or nil, next = INTERMISSION }
+		-- médailles, défis de la semaine… (MatchService.finishHooks) : complètent le résumé avant l'envoi
+		for _, hook in ipairs(MatchService.finishHooks) do
+			local okH, errH = pcall(hook, m, p, s, won, payload)
+			if not okH then warn("[MatchService] fin de partie :", errH) end
+		end
+		endEvent:FireClient(p, payload)
 	end
 	BotService.freezeMatch(m.id, true)
 	for p in pairs(m.players) do
