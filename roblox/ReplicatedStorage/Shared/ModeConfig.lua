@@ -47,7 +47,7 @@ ModeConfig.BOT = {
 -- importe-le dans le Creator Hub (Créations → Audio) et colle son numéro ici. Tant que SOUND_SHEET vaut 0,
 -- les sons rbxasset:// fournis avec Roblox (champ id) servent de remplacement.
 -- sheet = nom du son dans la planche (ReplicatedStorage/Shared/SoundSheet.lua).
-ModeConfig.SOUND_SHEET = 0
+ModeConfig.SOUND_SHEET = 99180356518561
 ModeConfig.SOUNDS = {
 	fire = {
 		pistol = { sheet = "pistol", id = "rbxasset://sounds/snap.wav", volume = 0.6, pitch = 1.25 },

@@ -1,8 +1,14 @@
 --!strict
 -- StarterPlayerScripts/HudController (LocalScript)
--- HUD du match à mort par équipe : score et temps, vie + bouclier, munitions et armes, marqueur de touche,
--- chiffres de dégâts, indicateur de direction des dégâts, fil des éliminations, bannière d'élimination et séries,
--- écran de mort, tableau des scores (touche Tab) et écran de fin avec les récompenses.
+-- HUD du match à mort par équipe, avec la présentation du jeu web (index.html #hud, src/80_ui.js, src/8W_degats.js) :
+--   haut : score des deux équipes (soldats en vie) et chrono ; dessous, la phase (« PRÉPAREZ-VOUS… »)
+--   haut gauche : radar qui tourne avec le regard (carte, coéquipiers, ennemis repérés, objets) + nom du lieu
+--   haut droite : fil des éliminations avec l'icône 3D de l'arme
+--   bas gauche : ❤ vie et 🛡 bouclier (chiffre + jauge, traînée blanche des dégâts)
+--   bas droite : emplacements d'armes et panneau de l'arme (icône, nom, munitions, balles du chargeur)
+--   centre : marqueur de touche (blanc, doré à la tête, bleu sur bouclier, rouge + anneau à l'élimination),
+--   chiffres de dégâts cumulés au-dessus de la cible, flèches de direction des tirs reçus, voile rouge, recharge
+--   + bannière d'élimination et séries, écran de mort et réapparition, tableau des scores (Tab), écran de fin.
 -- Fait pour le mode « tdm » (ModeConfig.MODE) : les événements TDMState, KillFeed… sont créés par TDMService.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
@@ -11,12 +17,19 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local StarterGui = game:GetService("StarterGui")
 local Debris = game:GetService("Debris")
+local AssetService = game:GetService("AssetService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local ModeConfig = require(ReplicatedStorage.Shared.ModeConfig)
+local MapData = require(ReplicatedStorage.Shared.MapData)
+local WeaponModels = require(ReplicatedStorage.Shared.WeaponModels)
+local SkinPaint = require(ReplicatedStorage.Shared.SkinPaint)
+local Sfx = require(ReplicatedStorage.Shared.Sfx)
+local S = require(ReplicatedStorage.Shared.ClientState)
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
+local U = Config.STUDS_PER_METER
 
 local hitRemote = ReplicatedStorage:WaitForChild("HitFeedback") :: RemoteEvent
 local damagedRemote = ReplicatedStorage:WaitForChild("Damaged") :: RemoteEvent
@@ -25,27 +38,33 @@ local feedRemote = ReplicatedStorage:WaitForChild("KillFeed") :: RemoteEvent
 local bannerRemote = ReplicatedStorage:WaitForChild("KillBanner") :: RemoteEvent
 local deathRemote = ReplicatedStorage:WaitForChild("DeathInfo") :: RemoteEvent
 local endRemote = ReplicatedStorage:WaitForChild("MatchEnd") :: RemoteEvent
+local tracerRemote = ReplicatedStorage:WaitForChild("Tracer") :: RemoteEvent
 
 -- le tableau Tab remplace la liste des joueurs de Roblox
 pcall(function() StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false) end)
 pcall(function() StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false) end)
 
--- ---------- palette ----------
+-- ---------- palette du web (:root de index.html) ----------
+local function rgb(h: number): Color3 return Color3.fromRGB(bit32.rshift(h, 16), bit32.band(bit32.rshift(h, 8), 255), bit32.band(h, 255)) end
 local C = {
-	bg = Color3.fromRGB(12, 16, 24), panel = Color3.fromRGB(20, 26, 38), text = Color3.fromRGB(240, 244, 250), dim = Color3.fromRGB(150, 160, 178),
-	gold = Color3.fromRGB(255, 205, 80), red = Color3.fromRGB(255, 70, 85), green = Color3.fromRGB(110, 240, 140), blue = Color3.fromRGB(80, 170, 255),
-	Attaquants = Color3.fromRGB(255, 140, 60), ["Défenseurs"] = Color3.fromRGB(80, 160, 255),
+	bg = rgb(0x090d15), panel = rgb(0x0e131e), panel2 = rgb(0x161e2e), line = rgb(0x2a3750), text = rgb(0xe8eef9), dim = rgb(0x8da0bd),
+	accent = rgb(0xff4655), gold = rgb(0xffd75e), good = rgb(0x7dff9f), blue = rgb(0x4aa3ff), orange = rgb(0xff7a4a),
+	red = rgb(0xff4655), green = rgb(0x7dff9f),
+	Attaquants = rgb(0xff7a4a), ["Défenseurs"] = rgb(0x4aa3ff),
 }
 local function teamColor(t: string?): Color3 return (t and (C :: any)[t]) or C.text end
+local FONT = Enum.Font.GothamBlack
+local ITALIC = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic)
 
 -- ---------- petits outils ----------
 local function make(class: string, props: { [string]: any }, parent: Instance?): any
 	local o = Instance.new(class)
+	if o:IsA("GuiObject") then (o :: any).BorderSizePixel = 0 end
 	for k, v in pairs(props) do (o :: any)[k] = v end
 	if parent then o.Parent = parent end
 	return o
 end
-local function corner(o: Instance, r: number?) make("UICorner", { CornerRadius = UDim.new(0, r or 8) }, o) end
+local function corner(o: Instance, r: number?) make("UICorner", { CornerRadius = UDim.new(0, r or 3) }, o) end
 local function stroke(o: Instance, color: Color3?, th: number?, tr: number?)
 	make("UIStroke", { Color = color or Color3.new(0, 0, 0), Thickness = th or 1.5, Transparency = tr or 0.3, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, o)
 end
@@ -59,248 +78,607 @@ local function tween(o: Instance, t: number, props: { [string]: any }, style: En
 	tw:Play()
 	return tw
 end
-local Sfx = require(ReplicatedStorage.Shared.Sfx)
+-- lettres espacées (letter-spacing du web)
+local function spaced(s: string, n: number?): string
+	local gap = string.rep(" ", n or 1)   -- espace fine
+	local out = {}
+	for _, cp in utf8.codes(s) do table.insert(out, utf8.char(cp)) end
+	return table.concat(out, gap)
+end
+-- fond des panneaux du web : dégradé sombre, plus transparent vers la droite
+local function panelBg(o: GuiObject, vertical: boolean?)
+	o.BackgroundColor3 = Color3.new(1, 1, 1)
+	o.BackgroundTransparency = 0
+	make("UIGradient", {
+		Color = ColorSequence.new(rgb(0x121826), rgb(0x0e131e)),
+		Transparency = if vertical then NumberSequence.new(0.12, 0.18) else NumberSequence.new(0.1, 0.4),
+		Rotation = if vertical then 90 else 0,
+	}, o)
+	corner(o, 3)
+end
 local function playSound(def: any) Sfx.play(def) end
 local function fmtTime(s: number): string return string.format("%d:%02d", s // 60, s % 60) end
+local function clamp(x: number, a: number, b: number): number return math.max(a, math.min(b, x)) end
 
 local gui = make("ScreenGui", { Name = "MatchHud", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 10, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, player:WaitForChild("PlayerGui"))
 
--- ==========================================================================================
--- Haut : score des deux équipes + temps
--- ==========================================================================================
-local top = make("Frame", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 14), Size = UDim2.fromOffset(420, 64), BackgroundTransparency = 1 }, gui)
-local function teamBox(x: number, align: Enum.TextXAlignment): (TextLabel, Frame, TextLabel)
-	local box = make("Frame", { Position = UDim2.fromOffset(x, 0), Size = UDim2.fromOffset(150, 64), BackgroundColor3 = C.bg, BackgroundTransparency = 0.25 }, top)
-	corner(box, 10)
-	local score = label(box, { Size = UDim2.new(1, -16, 0, 40), Position = UDim2.fromOffset(8, 2), TextSize = 34, TextXAlignment = align, Text = "0" })
-	local name = label(box, { Size = UDim2.new(1, -16, 0, 14), Position = UDim2.fromOffset(8, 40), TextSize = 11, TextXAlignment = align, TextColor3 = C.dim })
-	local barBg = make("Frame", { Position = UDim2.new(0, 8, 1, -8), Size = UDim2.new(1, -16, 0, 4), BackgroundColor3 = Color3.fromRGB(50, 56, 70), BorderSizePixel = 0 }, box)
-	corner(barBg, 2)
-	local bar = make("Frame", { Size = UDim2.fromScale(0, 1), BorderSizePixel = 0, AnchorPoint = Vector2.new(if align == Enum.TextXAlignment.Right then 1 else 0, 0),
-		Position = UDim2.fromScale(if align == Enum.TextXAlignment.Right then 1 else 0, 0) }, barBg)
-	corner(bar, 2)
-	return score, bar, name
+-- ---------- icône 3D d'une arme (le web dessine aussi ses icônes à partir des modèles) ----------
+local function weaponIcon(parent: Instance, key: string, size: Vector2, props: { [string]: any }?, skin: number?, camo: string?): ViewportFrame
+	local vf = make("ViewportFrame", { Size = UDim2.fromOffset(size.X, size.Y), BackgroundTransparency = 1, Ambient = Color3.fromRGB(170, 175, 190),
+		LightColor = Color3.new(1, 1, 1), LightDirection = Vector3.new(0.4, -1, 0.3) }, parent)
+	if props then for k, v in pairs(props) do (vf :: any)[k] = v end end
+	task.spawn(function()
+		if not Config.WEAPONS[key] then return end
+		local ok, m = pcall(WeaponModels.build, key, 1)
+		if not ok or not m or not vf.Parent then if ok and m then (m :: Model):Destroy() end return end
+		local model = m :: Model
+		SkinPaint.apply(model, skin, camo)
+		model.Parent = vf
+		local cf, ext = model:GetBoundingBox()
+		local cam = Instance.new("Camera"); cam.FieldOfView = 16
+		local aspect = size.X / size.Y
+		local tv = math.tan(math.rad(8))
+		local dist = math.max(ext.Y / 2 / tv, ext.Z / 2 / (tv * aspect)) * 1.12 + ext.X
+		-- vue de côté, canon à gauche comme les icônes du web
+		cam.CFrame = CFrame.lookAt(cf.Position - Vector3.new(dist, 0, 0), cf.Position)
+		cam.Parent = vf; vf.CurrentCamera = cam
+	end)
+	return vf
 end
-local scoreA, barA, nameA = teamBox(0, Enum.TextXAlignment.Left)
-local scoreB, barB, nameB = teamBox(270, Enum.TextXAlignment.Right)
-local timerBox = make("Frame", { Position = UDim2.fromOffset(160, 6), Size = UDim2.fromOffset(100, 52), BackgroundColor3 = C.bg, BackgroundTransparency = 0.15 }, top)
-corner(timerBox, 10)
-local timerLabel = label(timerBox, { Size = UDim2.new(1, 0, 0, 30), Position = UDim2.fromOffset(0, 4), TextSize = 24, Text = "0:00" })
-local goalLabel = label(timerBox, { Size = UDim2.new(1, 0, 0, 14), Position = UDim2.fromOffset(0, 32), TextSize = 10, TextColor3 = C.dim, Text = "" })
+local function mySkin(key: string): (number?, string?)
+	return player:GetAttribute("Skin_" .. key) :: number?, player:GetAttribute("Camo_" .. key) :: string?
+end
+
+-- ==========================================================================================
+-- Haut : score des deux équipes (soldats en vie) + chrono (#top du web)
+-- ==========================================================================================
+local top = make("Frame", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 11), Size = UDim2.fromOffset(0, 60),
+	AutomaticSize = Enum.AutomaticSize.X, BackgroundTransparency = 1 }, gui)
+make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder }, top)
+local function topBox(order: number, width: number): Frame
+	local box = make("Frame", { Size = UDim2.fromOffset(width, 60), LayoutOrder = order }, top)
+	panelBg(box, true)
+	return box
+end
+local function teamBox(order: number): (TextLabel, TextLabel, Frame)
+	local box = topBox(order, 80)
+	local score = label(box, { Size = UDim2.new(1, 0, 0, 34), Position = UDim2.fromOffset(0, 5), TextSize = 32, Font = FONT, Text = "0" })
+	local alive = label(box, { Size = UDim2.new(1, 0, 0, 14), Position = UDim2.fromOffset(0, 39), TextSize = 11, Font = Enum.Font.GothamMedium,
+		TextColor3 = rgb(0xaab8cf), Text = "" })
+	local border = make("Frame", { AnchorPoint = Vector2.new(0, 1), Position = UDim2.fromScale(0, 1), Size = UDim2.new(1, 0, 0, 3) }, box)
+	return score, alive, border
+end
+local scoreL, aliveL, borderL = teamBox(1)
+local timerBox = topBox(2, 124)
+local timerLabel = label(timerBox, { Size = UDim2.new(1, 0, 0, 34), Position = UDim2.fromOffset(0, 5), TextSize = 32, Font = FONT, Text = "0:00" })
+local goalLabel = label(timerBox, { Size = UDim2.new(1, 0, 0, 12), Position = UDim2.fromOffset(0, 40), TextSize = 10, TextColor3 = C.dim, Text = "" })
+local scoreR, aliveR, borderR = teamBox(3)
+local phaseLabel = label(gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 82), Size = UDim2.fromOffset(600, 20), TextSize = 13,
+	Font = FONT, TextColor3 = C.gold, Text = "", TextStrokeTransparency = 0.55 })
 -- rappel des touches, visible seulement quand le mode menu (M) est ouvert
-local menuHint = label(gui, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -130), Size = UDim2.fromOffset(500, 20), TextSize = 14, TextColor3 = C.dim,
+local menuHint = label(gui, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -150), Size = UDim2.fromOffset(500, 20), TextSize = 14, TextColor3 = C.dim,
 	Text = "Souris libre · M pour revenir au jeu", Visible = false })
 player:GetAttributeChangedSignal("MenuOpen"):Connect(function() menuHint.Visible = player:GetAttribute("MenuOpen") == true end)
-local centerMsg = label(gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 86), Size = UDim2.fromOffset(500, 24), TextSize = 16, TextColor3 = C.gold, Text = "" })
-make("UIStroke", { Thickness = 1.5, Transparency = 0.4 }, centerMsg)
 
 -- ==========================================================================================
--- Bas gauche : vie + bouclier
+-- Radar (haut gauche) : la carte tourne avec le regard, comme drawRadar() du web
 -- ==========================================================================================
-local vitals = make("Frame", { AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 22, 1, -22), Size = UDim2.fromOffset(300, 64), BackgroundColor3 = C.bg, BackgroundTransparency = 0.3 }, gui)
-corner(vitals, 10)
-local hpText = label(vitals, { Position = UDim2.fromOffset(14, 6), Size = UDim2.fromOffset(80, 34), TextSize = 30, TextXAlignment = Enum.TextXAlignment.Left, Text = "100" })
-label(vitals, { Position = UDim2.fromOffset(74, 14), Size = UDim2.fromOffset(40, 20), TextSize = 11, TextColor3 = C.dim, TextXAlignment = Enum.TextXAlignment.Left, Text = "VIE" })
-local shieldText = label(vitals, { Position = UDim2.new(1, -94, 0, 10), Size = UDim2.fromOffset(80, 24), TextSize = 16, TextColor3 = C.blue, TextXAlignment = Enum.TextXAlignment.Right, Text = "" })
-local hpBg = make("Frame", { Position = UDim2.new(0, 14, 1, -18), Size = UDim2.new(1, -28, 0, 8), BackgroundColor3 = Color3.fromRGB(45, 50, 62), BorderSizePixel = 0 }, vitals)
-corner(hpBg, 4)
-local hpLag = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(255, 255, 255), BorderSizePixel = 0 }, hpBg); corner(hpLag, 4)
-local hpBar = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = C.green, BorderSizePixel = 0 }, hpBg); corner(hpBar, 4)
-local shieldBar = make("Frame", { Position = UDim2.new(0, 14, 1, -24), Size = UDim2.new(0, 0, 0, 4), BackgroundColor3 = C.blue, BorderSizePixel = 0 }, vitals); corner(shieldBar, 2)
-local protectLabel = label(gui, { AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 24, 1, -92), Size = UDim2.fromOffset(200, 18), TextSize = 13,
-	TextColor3 = Color3.fromRGB(150, 220, 255), TextXAlignment = Enum.TextXAlignment.Left, Text = "", })
+local RADAR = 184                 -- taille à l'écran
+local RIMG = 128                  -- résolution de l'image de la carte
+local RANGE = 31 * U              -- rayon couvert (31 m comme le web)
+local radarWrap = make("Frame", { Position = UDim2.fromOffset(13, 13), Size = UDim2.fromOffset(RADAR, RADAR + 24), BackgroundTransparency = 1 }, gui)
+local radar = make("Frame", { Size = UDim2.fromOffset(RADAR, RADAR), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.5, ClipsDescendants = true }, radarWrap)
+make("UICorner", { CornerRadius = UDim.new(1, 0) }, radar)
+make("UIStroke", { Color = rgb(0x36476a), Thickness = 2 }, radar)
+local radarImg = make("ImageLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ResampleMode = Enum.ResamplerMode.Default }, radar)
+make("UICorner", { CornerRadius = UDim.new(1, 0) }, radarImg)
+local dotsLayer = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1 }, radar)
+local selfArrow = label(radar, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(16, 16), Text = "▲", TextSize = 15,
+	TextColor3 = Color3.new(1, 1, 1), ZIndex = 5 })
+local locLabel = label(radarWrap, { Position = UDim2.fromOffset(0, RADAR + 6), Size = UDim2.new(1, 0, 0, 14), TextSize = 11, Font = FONT, TextColor3 = C.gold,
+	TextStrokeTransparency = 0.6, Text = "" })
 
--- ==========================================================================================
--- Bas droite : munitions + armes
--- ==========================================================================================
-local ammoBox = make("Frame", { AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -22, 1, -22), Size = UDim2.fromOffset(260, 96), BackgroundColor3 = C.bg, BackgroundTransparency = 0.3 }, gui)
-corner(ammoBox, 10)
-local magText = label(ammoBox, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -78, 0, 4), Size = UDim2.fromOffset(110, 46), TextSize = 42, TextXAlignment = Enum.TextXAlignment.Right, Text = "" })
-local reserveText = label(ammoBox, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -14, 0, 20), Size = UDim2.fromOffset(60, 26), TextSize = 18, TextColor3 = C.dim, TextXAlignment = Enum.TextXAlignment.Left, Text = "" })
-local weaponText = label(ammoBox, { Position = UDim2.fromOffset(14, 8), Size = UDim2.fromOffset(120, 18), TextSize = 13, TextColor3 = C.dim, TextXAlignment = Enum.TextXAlignment.Left, Text = "" })
-local reloadBg = make("Frame", { Position = UDim2.new(0, 14, 0, 54), Size = UDim2.new(1, -28, 0, 4), BackgroundColor3 = Color3.fromRGB(45, 50, 62), BorderSizePixel = 0, Visible = false }, ammoBox)
-corner(reloadBg, 2)
-local reloadBar = make("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = C.gold, BorderSizePixel = 0 }, reloadBg); corner(reloadBar, 2)
-local slotRow = make("Frame", { Position = UDim2.new(0, 14, 1, -32), Size = UDim2.new(1, -28, 0, 24), BackgroundTransparency = 1 }, ammoBox)
-make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6) }, slotRow)
-local slotLabels: { TextLabel } = {}
-for i = 1, 3 do
-	local s = label(slotRow, { Size = UDim2.fromOffset(72, 24), TextSize = 11, BackgroundColor3 = C.panel, BackgroundTransparency = 0.2, Text = "" })
-	corner(s, 6)
-	slotLabels[i] = s
+type RadarMap = { id: string, grid: any, colors: buffer, img: EditableImage?, buf: buffer, sites: { any } }
+local rmap: RadarMap? = nil
+local function buildRadar(id: string)
+	if rmap and rmap.id == id then return end
+	if not MapData[id] then return end
+	local g = MapData.buildGrid(id)
+	local N, TY = MapData.N, MapData.TY
+	local colors = buffer.create(N * N * 4)
+	for i = 0, N * N - 1 do
+		local t, r, gg, b, a = g.type[i], 70, 85, 110, 140      -- sol : rgba(70,85,110,.55) sur le fond noir à 50 %
+		if g.ramp[i] ~= 0 then r, gg, b, a = 0xca, 0xa8, 0x5a, 220
+		elseif t == TY.PLAT then r, gg, b, a = 0x6d, 0x8f, 0xb5, 220
+		elseif t == TY.LOW or t == TY.BARREL or t == TY.CRATE then r, gg, b, a = 0x56, 0x61, 0x75, 230
+		elseif t ~= 0 then r, gg, b, a = 5, 8, 13, 240
+		elseif g.ceil[i] < 90 then r, gg, b, a = 50, 60, 80, 150 end
+		buffer.writeu8(colors, i * 4, r); buffer.writeu8(colors, i * 4 + 1, gg); buffer.writeu8(colors, i * 4 + 2, b); buffer.writeu8(colors, i * 4 + 3, a)
+	end
+	local img: EditableImage? = nil
+	local ok, res = pcall(function() return AssetService:CreateEditableImage({ Size = Vector2.new(RIMG, RIMG) }) end)
+	if ok then img = res; radarImg.ImageContent = Content.fromObject(res) end
+	rmap = { id = id, grid = g, colors = colors, img = img, buf = buffer.create(RIMG * RIMG * 4), sites = MapData[id].sites or {} }
 end
 
--- ==========================================================================================
--- Centre : point de visée, marqueur de touche, indicateurs de dégâts, vignette
--- ==========================================================================================
-local center = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(0, 0), BackgroundTransparency = 1 }, gui)
-local dot = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(4, 4), BackgroundColor3 = C.text, BorderSizePixel = 0, Visible = ModeConfig.CENTER_DOT }, center)
-corner(dot, 2); stroke(dot, Color3.new(0, 0, 0), 1, 0.4)
-
-local hitmarker = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(28, 28), BackgroundTransparency = 1, Visible = false }, center)
-local hmScale = make("UIScale", { Scale = 1 }, hitmarker)
-local hmLines: { Frame } = {}
-for i, rot in ipairs({ 45, 135, 225, 315 }) do
-	local holder = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(0, 0), Rotation = rot, BackgroundTransparency = 1 }, hitmarker)
-	hmLines[i] = make("Frame", { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.fromOffset(0, -5), Size = UDim2.fromOffset(2.5, 8), BackgroundColor3 = C.text, BorderSizePixel = 0 }, holder)
-	stroke(hmLines[i], Color3.new(0, 0, 0), 1, 0.5)
-end
-local hmToken = 0
-local function showHitmarker(head: boolean, kill: boolean)
-	hmToken += 1
-	local my = hmToken
-	local col = if kill then C.red elseif head then C.gold else C.text
-	for _, l in ipairs(hmLines) do l.BackgroundColor3 = col; l.BackgroundTransparency = 0; l.Size = UDim2.fromOffset(if kill then 3.5 else 2.5, if kill then 11 else 8) end
-	hitmarker.Visible = true; hitmarker.Rotation = if kill then 0 else math.random(-6, 6)
-	hmScale.Scale = if kill then 1.8 else 1.35
-	tween(hmScale, 0.12, { Scale = 1 }, Enum.EasingStyle.Back)
-	task.delay(if kill then 0.35 else 0.18, function()
-		if my ~= hmToken then return end
-		for _, l in ipairs(hmLines) do tween(l, 0.15, { BackgroundTransparency = 1 }) end
-		task.delay(0.16, function() if my == hmToken then hitmarker.Visible = false end end)
-	end)
-end
-
--- voile rouge qui pulse quand la vie est basse (remplaçable par une image de vignette importée)
-local vignette = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = C.red, BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 0 }, gui)
-local flash = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = C.red, BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 0 }, gui)
-
-local function damageIndicator(fromPos: Vector3)
-	local cf = camera.CFrame
-	local rel = cf:VectorToObjectSpace(fromPos - cf.Position)
-	local angle = math.deg(math.atan2(rel.X, -rel.Z))
-	local holder = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(0, 0), Rotation = angle, BackgroundTransparency = 1 }, center)
-	local arc = make("Frame", { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.fromOffset(0, -110), Size = UDim2.fromOffset(90, 10), BackgroundColor3 = C.red, BackgroundTransparency = 0.05, BorderSizePixel = 0 }, holder)
-	corner(arc, 5)
-	make("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0), NumberSequenceKeypoint.new(1, 1) }) }, arc)
-	tween(arc, 0.12, { Position = UDim2.fromOffset(0, -120) }, Enum.EasingStyle.Back)
-	task.delay(0.6, function() tween(arc, 0.5, { BackgroundTransparency = 1 }) end)
-	Debris:AddItem(holder, 1.2)
+-- nom du lieu (locName() du web, Village et Entrepôt)
+local LOC: { [string]: (number, number, number) -> string } = {
+	village = function(cx, cz, h)
+		if cz <= 10 then return if cx >= 13 and cx <= 26 then "Spawn CT" elseif cx < 13 then "Accès A" else "Accès B" end
+		if cz >= 29 then return if cz >= 31 and cx >= 13 and cx <= 26 then "Spawn T" else "Départ T" end
+		if h > 2 then return "Hauteurs" end
+		if cx <= 6 then return "Grand couloir" end
+		if cx >= 33 then return if cz >= 17 and cz <= 24 then "Souk couvert" else "Couloir est" end
+		if cx >= 7 and cx <= 13 then return "Ruelle" end
+		if cx >= 26 and cx <= 32 then return "Rue du marché" end
+		return "Place centrale"
+	end,
+	warehouse = function(cx, cz, h)
+		if cz <= 10 then return if cx >= 13 and cx <= 26 then "Bureaux CT" elseif cx < 13 then "Vestiaires" else "Salle serveurs" end
+		if cz >= 31 then return if cx >= 10 and cx <= 29 then "Quai T" elseif cx < 10 then "Couloir ouest" else "Couloir est" end
+		if h > 2 then return "Mezzanine" end
+		if cx <= 9 then return "Stockage" end
+		if cx >= 30 then return "Contrôle" end
+		return "Halle centrale"
+	end,
+}
+local function locName(pos: Vector3): string
+	local m = rmap
+	if not m then return "" end
+	local cs = Config.CELL * U
+	local cx, cz = math.floor(pos.X / cs), math.floor(pos.Z / cs)
+	for _, s in ipairs(m.sites) do
+		if Vector2.new(cx + 0.5 - s.cx, cz + 0.5 - s.cz).Magnitude < (s.r or 7) then return "Site " .. s.n end
+	end
+	local fn = LOC[m.id]
+	return if fn then fn(cx, cz, pos.Y / U) else ""
 end
 
--- chiffres de dégâts au-dessus de la cible (doré = tête, rouge = élimination), qui se cumulent sur une même cible
-local lastNumber: { at: number, pos: Vector3, total: number, gui: BillboardGui? } = { at = 0, pos = Vector3.zero, total = 0, gui = nil }
-local function damageNumber(pos: Vector3, dmg: number, head: boolean, kill: boolean)
-	local t = os.clock()
-	local stack = lastNumber.gui ~= nil and t - lastNumber.at < 0.6 and (lastNumber.pos - pos).Magnitude < 8
-	lastNumber.total = if stack then lastNumber.total + dmg else dmg
-	lastNumber.at = t; lastNumber.pos = pos
-	if stack and lastNumber.gui then lastNumber.gui:Destroy() end
-	local anchor = make("Part", { Anchored = true, CanCollide = false, CanQuery = false, CanTouch = false, Transparency = 1, Size = Vector3.new(0.2, 0.2, 0.2),
-		Position = pos + Vector3.new((math.random() - 0.5) * 1.5, 3.2, 0) }, workspace)
-	local bb = make("BillboardGui", { Adornee = anchor, Size = UDim2.fromOffset(120, 50), AlwaysOnTop = true, LightInfluence = 0 }, anchor)
-	local txt = label(bb, { Size = UDim2.fromScale(1, 1), TextSize = if kill then 30 elseif head then 26 else 22, Font = Enum.Font.GothamBlack,
-		TextColor3 = if kill then C.red elseif head then C.gold else C.text, Text = tostring(lastNumber.total) .. (if head then " ◎" else "") })
-	make("UIStroke", { Thickness = 2, Transparency = 0.2 }, txt)
-	local sc = make("UIScale", { Scale = 1.6 }, txt)
-	tween(sc, 0.15, { Scale = 1 }, Enum.EasingStyle.Back)
-	tween(bb, 0.8, { StudsOffset = Vector3.new(0, 2.2, 0) })
-	task.delay(0.45, function() tween(txt, 0.35, { TextTransparency = 1 }) end)
-	lastNumber.gui = bb
-	Debris:AddItem(anchor, 0.9)
+-- points du radar (réutilisés d'une image à l'autre)
+local dotPool: { Frame } = {}
+local function dotAt(i: number): Frame
+	local d = dotPool[i]
+	if not d then
+		d = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(10, 10), ZIndex = 3 }, dotsLayer)
+		make("UICorner", { CornerRadius = UDim.new(1, 0) }, d)
+		make("UIStroke", { Name = "Ring", Color = Color3.new(1, 1, 1), Thickness = 1.5, Enabled = false }, d)
+		local holder = make("Frame", { Name = "Dir", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(0, 0),
+			BackgroundTransparency = 1 }, d)
+		make("Frame", { Name = "Line", AnchorPoint = Vector2.new(0.5, 1), Size = UDim2.fromOffset(2.5, 14) }, holder)
+		dotPool[i] = d
+	end
+	return d
 end
 
-hitRemote.OnClientEvent:Connect(function(head: boolean, kill: boolean, dmg: number?, pos: Vector3?)
-	showHitmarker(head, kill)
-	playSound(if kill then ModeConfig.SOUNDS.kill elseif head then ModeConfig.SOUNDS.hitHead else ModeConfig.SOUNDS.hitBody)
-	if dmg and pos then damageNumber(pos, dmg, head, kill) end
+local spotted: { [Instance]: number } = {}     -- ennemis repérés parce qu'ils tirent
+tracerRemote.OnClientEvent:Connect(function(_o: Vector3, _e: Vector3, shooter: Instance?)
+	if shooter then spotted[shooter] = os.clock() + 2.2 end
 end)
 
-damagedRemote.OnClientEvent:Connect(function(fromPos: Vector3, dmg: number, _head: boolean)
-	if fromPos.Magnitude > 0 then damageIndicator(fromPos) end
-	playSound(ModeConfig.SOUNDS.hurt)
-	flash.BackgroundTransparency = math.clamp(0.92 - dmg / 250, 0.6, 0.92)
-	tween(flash, 0.35, { BackgroundTransparency = 1 })
-end)
+local function soldierList(): { { model: Model, team: string?, alive: boolean } }
+	local out = {}
+	for _, p in ipairs(Players:GetPlayers()) do
+		local c = p.Character
+		local h = c and c:FindFirstChildOfClass("Humanoid")
+		if c and h and p:GetAttribute("Zone") ~= "lobby" and p:GetAttribute("Zone") ~= "duel" then
+			table.insert(out, { model = c, team = p.Team and p.Team.Name or nil, alive = h.Health > 0 })
+		end
+	end
+	local bots = workspace:FindFirstChild("Bots")
+	if bots then
+		for _, b in ipairs(bots:GetChildren()) do
+			local h = b:FindFirstChildOfClass("Humanoid")
+			if b:IsA("Model") and h then table.insert(out, { model = b, team = b:GetAttribute("Team") :: string?, alive = h.Health > 0 }) end
+		end
+	end
+	return out
+end
+
+local radarAcc = 0
+local function drawRadar(dt: number)
+	radarAcc += dt
+	local m = rmap
+	local char = player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not m or not root then return end
+	local pos = root.Position
+	local look = camera.CFrame.LookVector
+	local fwd = Vector3.new(look.X, 0, look.Z)
+	if fwd.Magnitude < 1e-3 then fwd = Vector3.new(0, 0, -1) end
+	fwd = fwd.Unit
+	local right = Vector3.new(-fwd.Z, 0, fwd.X)
+	local half = RADAR / 2
+	local pps = half / RANGE                    -- pixels d'écran par stud
+	-- carte (image recalculée ~15 fois par seconde)
+	if m.img and radarAcc >= 1 / 15 then
+		radarAcc = 0
+		local N = MapData.N
+		local cs = Config.CELL * U
+		local buf, colors = m.buf, m.colors
+		local k = RANGE / (RIMG / 2)            -- studs par pixel de l'image
+		local c0 = RIMG / 2 - 0.5
+		for py = 0, RIMG - 1 do
+			local dy = py - c0
+			-- monde = pos + right * dx * k - fwd * dy * k
+			local wx0 = pos.X - fwd.X * dy * k - right.X * c0 * k
+			local wz0 = pos.Z - fwd.Z * dy * k - right.Z * c0 * k
+			local sx, sz = right.X * k, right.Z * k
+			for px = 0, RIMG - 1 do
+				local o = (py * RIMG + px) * 4
+				local dx = px - c0
+				local r2 = dx * dx + dy * dy
+				if r2 > c0 * c0 then
+					buffer.writeu32(buf, o, 0)
+				else
+					local cx, cz = (wx0 + sx * px) // cs, (wz0 + sz * px) // cs
+					if cx < 0 or cz < 0 or cx >= N or cz >= N then
+						buffer.writeu32(buf, o, 0)
+					else
+						buffer.writeu32(buf, o, buffer.readu32(colors, (cz * N + cx) * 4))
+						-- cône de vision
+						if dy < 0 and r2 < 1400 and math.abs(dx) < -dy * 0.85 then
+							buffer.writeu8(buf, o, math.min(255, buffer.readu8(buf, o) + 26))
+							buffer.writeu8(buf, o + 1, math.min(255, buffer.readu8(buf, o + 1) + 26))
+							buffer.writeu8(buf, o + 2, math.min(255, buffer.readu8(buf, o + 2) + 26))
+						end
+					end
+				end
+			end
+		end
+		(m.img :: EditableImage):WritePixelsBuffer(Vector2.zero, Vector2.new(RIMG, RIMG), buf)
+	end
+	-- coéquipiers, ennemis repérés, objets
+	local n = 0
+	local myTeam = player.Team and player.Team.Name
+	local now = os.clock()
+	local function place(at: Vector3, col: Color3, size: number, ring: boolean, dir: Vector3?)
+		local rel = at - pos
+		local x, y = rel:Dot(right) * pps, -rel:Dot(fwd) * pps
+		if x * x + y * y > (half - 4) ^ 2 then return end
+		n += 1
+		local d = dotAt(n)
+		d.Visible = true; d.BackgroundColor3 = col; d.Size = UDim2.fromOffset(size, size)
+		d.Position = UDim2.fromOffset(half + x, half + y)
+		local ringS = d:FindFirstChild("Ring") :: UIStroke
+		ringS.Enabled = ring
+		local holder = d:FindFirstChild("Dir") :: Frame
+		holder.Visible = dir ~= nil
+		if dir then
+			local a = math.deg(math.atan2(dir:Dot(right), dir:Dot(fwd)))
+			holder.Rotation = a
+			local line = holder:FindFirstChild("Line") :: Frame
+			line.BackgroundColor3 = col
+		end
+	end
+	for _, s in ipairs(soldierList()) do
+		local r = s.model:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if r and s.alive and s.model ~= char then
+			if myTeam and s.team == myTeam then
+				local lv = r.CFrame.LookVector
+				place(r.Position, teamColor(s.team), 11, false, Vector3.new(lv.X, 0, lv.Z))
+			elseif (spotted[s.model] or 0) > now then
+				place(r.Position, rgb(0xff2a2a), 12, true, nil)
+			end
+		end
+	end
+	local folder = workspace:FindFirstChild("Map") or workspace
+	for _, p in ipairs(folder:GetDescendants()) do
+		if p:IsA("Model") and p:GetAttribute("Pickup") and p:GetAttribute("Ready") ~= false then
+			local kind = p:GetAttribute("Pickup")
+			local core = p.PrimaryPart
+			if core then place(core.Position, if kind == "shield" then rgb(0x31c8ff) elseif kind == "health" then rgb(0xff4a5a) else rgb(0xffd24a), 7, false, nil) end
+		end
+	end
+	for i = n + 1, #dotPool do dotPool[i].Visible = false end
+	locLabel.Text = spaced(string.upper(locName(pos)), 2)
+end
 
 -- ==========================================================================================
--- Fil des éliminations (haut droite)
+-- Fil des éliminations (haut droite, #feed du web)
 -- ==========================================================================================
-local feed = make("Frame", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -18, 0, 72), Size = UDim2.fromOffset(380, 200), BackgroundTransparency = 1 }, gui)
+local feed = make("Frame", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -13, 0, 13), Size = UDim2.fromOffset(460, 220), BackgroundTransparency = 1 }, gui)
 make("UIListLayout", { HorizontalAlignment = Enum.HorizontalAlignment.Right, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, feed)
 local feedOrder = 0
+local WEAPON_KEY_BY_NAME: { [string]: string } = {}
+for k, w in pairs(Config.WEAPONS) do WEAPON_KEY_BY_NAME[w.name] = k end
 feedRemote.OnClientEvent:Connect(function(k: any)
 	if player:GetAttribute("Zone") == "lobby" or player:GetAttribute("Zone") == "duel" then return end   -- fil du match à mort : seulement pour ceux qui y jouent
 	feedOrder += 1
 	local me = player.DisplayName
 	local involved = k.killer == me or k.victim == me
-	local row = make("Frame", { Size = UDim2.fromOffset(0, 26), AutomaticSize = Enum.AutomaticSize.X, BackgroundColor3 = if involved then Color3.fromRGB(60, 50, 20) else C.bg,
-		BackgroundTransparency = 0.25, LayoutOrder = feedOrder }, feed)
-	corner(row, 6)
-	if involved then stroke(row, C.gold, 1.2, 0.2) end
-	make("UIPadding", { PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10) }, row)
-	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 8) }, row)
-	local function part(text: string, color: Color3, size: number?, font: Enum.Font?)
-		label(row, { Size = UDim2.fromOffset(0, 24), AutomaticSize = Enum.AutomaticSize.X, Text = text, TextColor3 = color, TextSize = size or 14, Font = font or Enum.Font.GothamBold })
+	local row = make("Frame", { Size = UDim2.fromOffset(0, 28), AutomaticSize = Enum.AutomaticSize.X, LayoutOrder = feedOrder,
+		BackgroundColor3 = if involved then rgb(0x3c0c14) else C.bg, BackgroundTransparency = if involved then 0.15 else 0.2 }, feed)
+	if involved then stroke(row, C.accent, 1, 0) end
+	make("UIPadding", { PaddingLeft = UDim.new(0, 11), PaddingRight = UDim.new(0, 14) }, row)
+	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 8),
+		SortOrder = Enum.SortOrder.LayoutOrder }, row)
+	make("Frame", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 14, 0, 0), Size = UDim2.new(0, 3, 1, 0), BackgroundColor3 = teamColor(k.killerTeam) }, row)
+	local order = 0
+	local function part(text: string, color: Color3)
+		order += 1
+		label(row, { Size = UDim2.fromOffset(0, 26), AutomaticSize = Enum.AutomaticSize.X, Text = text, TextColor3 = color, TextSize = 13, LayoutOrder = order })
 	end
 	part(k.killer, teamColor(k.killerTeam))
-	part("[" .. k.weapon .. "]", C.dim, 12, Enum.Font.GothamMedium)
-	if k.headshot then part("◎", C.gold, 14) end
+	local key = WEAPON_KEY_BY_NAME[k.weapon]
+	order += 1
+	if key then weaponIcon(row, key, Vector2.new(52, 19), { LayoutOrder = order })
+	else part("[" .. tostring(k.weapon) .. "]", C.dim) end
+	if k.headshot then part("✦", C.gold) end
 	part(k.victim, teamColor(k.victimTeam))
-	-- au plus 5 lignes, chaque ligne s'efface après 5 s
+	-- au plus 6 lignes, chaque ligne s'efface après 7 s
 	local rows = {}
 	for _, c in ipairs(feed:GetChildren()) do if c:IsA("Frame") then table.insert(rows, c) end end
 	table.sort(rows, function(a, b) return a.LayoutOrder < b.LayoutOrder end)
-	while #rows > 5 do (table.remove(rows, 1) :: Instance):Destroy() end
-	task.delay(5, function()
+	while #rows > 6 do (table.remove(rows, 1) :: Instance):Destroy() end
+	task.delay(7, function()
 		if not row.Parent then return end
 		tween(row, 0.4, { BackgroundTransparency = 1 })
-		for _, c in ipairs(row:GetChildren()) do if c:IsA("TextLabel") then tween(c, 0.4, { TextTransparency = 1 }) end end
+		for _, c in ipairs(row:GetDescendants()) do
+			if c:IsA("TextLabel") then tween(c, 0.4, { TextTransparency = 1 }) elseif c:IsA("ViewportFrame") then tween(c, 0.4, { ImageTransparency = 1 }) end
+		end
 		Debris:AddItem(row, 0.45)
 	end)
 end)
 
 -- ==========================================================================================
--- Bannière d'élimination et séries (centre bas)
+-- Bas gauche : ❤ vie et 🛡 bouclier (.vital du web)
 -- ==========================================================================================
-local banner = make("Frame", { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -170), Size = UDim2.fromOffset(420, 80), BackgroundTransparency = 1 }, gui)
-local bannerScale = make("UIScale", { Scale = 1 }, banner)
-local bannerTitle = label(banner, { Size = UDim2.new(1, 0, 0, 34), TextSize = 28, Font = Enum.Font.GothamBlack, TextTransparency = 1, Text = "" })
-make("UIStroke", { Thickness = 2, Transparency = 0.25 }, bannerTitle)
-local bannerSub = label(banner, { Position = UDim2.fromOffset(0, 36), Size = UDim2.new(1, 0, 0, 20), TextSize = 15, TextColor3 = C.dim, TextTransparency = 1, Text = "" })
-local streakLabel = label(gui, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.32), Size = UDim2.fromOffset(600, 60), TextSize = 46, Font = Enum.Font.GothamBlack,
-	TextColor3 = C.gold, TextTransparency = 1, Text = "" })
-make("UIStroke", { Thickness = 3, Transparency = 0.2, Color = Color3.fromRGB(80, 40, 0) }, streakLabel)
+local vitals = make("Frame", { AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 19, 1, -16), Size = UDim2.fromOffset(228, 108), BackgroundTransparency = 1 }, gui)
+make("UIListLayout", { Padding = UDim.new(0, 7), VerticalAlignment = Enum.VerticalAlignment.Bottom, SortOrder = Enum.SortOrder.LayoutOrder }, vitals)
+local function vital(order: number, icon: string, c1: Color3, c2: Color3): (TextLabel, Frame, Frame, Frame)
+	local row = make("Frame", { Size = UDim2.fromOffset(228, 50), LayoutOrder = order }, vitals)
+	panelBg(row)
+	make("Frame", { Size = UDim2.new(0, 3, 1, 0), BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.87 }, row)
+	label(row, { Position = UDim2.fromOffset(12, 0), Size = UDim2.fromOffset(22, 50), Text = icon, TextSize = 19 })
+	local num = label(row, { Position = UDim2.fromOffset(42, 0), Size = UDim2.fromOffset(62, 50), Text = "0", TextSize = 40, Font = FONT,
+		TextXAlignment = Enum.TextXAlignment.Left })
+	local meter = make("Frame", { AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 112, 0.5, 0), Size = UDim2.new(1, -126, 0, 9), BackgroundColor3 = rgb(0x0a0f18) }, row)
+	local ghost = make("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.25 }, meter)
+	local fill = make("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 2 }, meter)
+	local grad = make("UIGradient", { Color = ColorSequence.new(c1, c2) }, fill)
+	grad.Name = "Grad"
+	return num, fill, ghost, row
+end
+local hpText, hpBar, hpGhost = vital(1, "❤", rgb(0xff4655), rgb(0xff8a65))
+local shieldText, shieldBar = vital(2, "🛡", rgb(0x16b8ff), rgb(0x9af0ff))
+local protectLabel = label(gui, { AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 21, 1, -130), Size = UDim2.fromOffset(240, 18), TextSize = 13,
+	TextColor3 = rgb(0x96dcff), TextXAlignment = Enum.TextXAlignment.Left, Text = "", TextStrokeTransparency = 0.6 })
+
+-- ==========================================================================================
+-- Bas droite : emplacements + panneau de l'arme (#slots et #wpanel du web)
+-- ==========================================================================================
+local br = make("Frame", { AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -19, 1, -16), Size = UDim2.fromOffset(330, 130), BackgroundTransparency = 1 }, gui)
+make("UIListLayout", { Padding = UDim.new(0, 6), HorizontalAlignment = Enum.HorizontalAlignment.Right, VerticalAlignment = Enum.VerticalAlignment.Bottom,
+	SortOrder = Enum.SortOrder.LayoutOrder }, br)
+local slotRow = make("Frame", { Size = UDim2.fromOffset(0, 26), AutomaticSize = Enum.AutomaticSize.X, BackgroundTransparency = 1, LayoutOrder = 1 }, br)
+make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder }, slotRow)
+type Slot = { frame: Frame, num: TextLabel, icon: ViewportFrame?, key: string?, skin: string, border: UIStroke }
+local slots: { Slot } = {}
+for i = 1, 3 do
+	local f = make("Frame", { Size = UDim2.fromOffset(74, 26), BackgroundColor3 = C.bg, BackgroundTransparency = 0.22, LayoutOrder = i, Visible = false }, slotRow)
+	local num = label(f, { Position = UDim2.fromOffset(7, 0), Size = UDim2.fromOffset(10, 26), Text = tostring(i), TextSize = 11, TextColor3 = C.dim })
+	local b = make("UIStroke", { Color = C.accent, Thickness = 1, Transparency = 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, f)
+	slots[i] = { frame = f, num = num, icon = nil, key = nil, skin = "", border = b }
+end
+local wpanel = make("Frame", { Size = UDim2.fromOffset(310, 88), LayoutOrder = 2 }, br)
+panelBg(wpanel)
+make("Frame", { AnchorPoint = Vector2.new(0, 1), Position = UDim2.fromScale(0, 1), Size = UDim2.new(1, 0, 0, 3), BackgroundColor3 = C.accent }, wpanel)
+local wIconHolder = make("Frame", { Position = UDim2.fromOffset(14, 16), Size = UDim2.fromOffset(120, 52), BackgroundTransparency = 1 }, wpanel)
+local wName = label(wpanel, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -16, 0, 8), Size = UDim2.fromOffset(160, 14), TextSize = 11, TextColor3 = C.dim,
+	TextXAlignment = Enum.TextXAlignment.Left })
+local magText = label(wpanel, { Position = UDim2.new(1, -176, 0, 22), Size = UDim2.fromOffset(0, 44), AutomaticSize = Enum.AutomaticSize.X, TextSize = 45, Font = FONT,
+	TextXAlignment = Enum.TextXAlignment.Left, Text = "" })
+local reserveText = label(wpanel, { Position = UDim2.new(1, -176, 0, 36), Size = UDim2.fromOffset(0, 26), AutomaticSize = Enum.AutomaticSize.X, TextSize = 21,
+	TextColor3 = C.dim, TextXAlignment = Enum.TextXAlignment.Left, Text = "" })
+local pips = make("Frame", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -16, 0, 70), Size = UDim2.fromOffset(160, 6), BackgroundTransparency = 1 }, wpanel)
+make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Right, Padding = UDim.new(0, 2) }, pips)
+local pipList: { Frame } = {}
+local panelKey, panelSkin, pipMax = "", "", -1
+
+-- ==========================================================================================
+-- Centre : marqueur de touche, chiffres de dégâts, direction des tirs, voiles, recharge (src/8W_degats.js)
+-- ==========================================================================================
+local center = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(0, 0), BackgroundTransparency = 1 }, gui)
+local dot = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(4, 4), BackgroundColor3 = C.text, Visible = ModeConfig.CENTER_DOT }, center)
+corner(dot, 2); stroke(dot, Color3.new(0, 0, 0), 1, 0.4)
+
+local hitmarker = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(0, 0), BackgroundTransparency = 1, Visible = false, ZIndex = 6 }, center)
+local hmLines: { Frame } = {}
+local hmHolders: { Frame } = {}
+for i, rot in ipairs({ 45, 135, 225, 315 }) do
+	local holder = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(0, 0), Rotation = rot, BackgroundTransparency = 1 }, hitmarker)
+	hmLines[i] = make("Frame", { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.fromOffset(0, -7), Size = UDim2.fromOffset(3, 11), BackgroundColor3 = C.text, ZIndex = 6 }, holder)
+	corner(hmLines[i], 2); stroke(hmLines[i], Color3.new(0, 0, 0), 1, 0.3)
+	hmHolders[i] = holder
+end
+local hmRing = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(44, 44), BackgroundTransparency = 1, Visible = false, ZIndex = 6 }, center)
+make("UICorner", { CornerRadius = UDim.new(1, 0) }, hmRing)
+local hmRingStroke = make("UIStroke", { Color = rgb(0xff3b47), Thickness = 2 }, hmRing)
+local hmToken = 0
+local function showHitmarker(head: boolean, kill: boolean, shieldOnly: boolean)
+	hmToken += 1
+	local my = hmToken
+	local col = if kill then rgb(0xff3b47) elseif shieldOnly then rgb(0x5fd6ff) elseif head then rgb(0xffd23f) else C.text
+	local dur = if kill then 0.55 elseif head then 0.4 else 0.3
+	hitmarker.Visible = true
+	for _, l in ipairs(hmLines) do
+		l.BackgroundColor3 = col; l.BackgroundTransparency = 0
+		l.Size = UDim2.fromOffset(if kill then 4 else 3, if kill then 15 else 11)
+		l.Position = UDim2.fromOffset(0, -13)
+		tween(l, dur * 0.18, { Position = UDim2.fromOffset(0, -6) })
+		task.delay(dur * 0.18, function()
+			if my ~= hmToken then return end
+			tween(l, dur * 0.82, { Position = UDim2.fromOffset(0, -9), BackgroundTransparency = 1 })
+		end)
+	end
+	if kill then
+		hmRing.Visible = true; hmRing.Size = UDim2.fromOffset(15, 15); hmRingStroke.Transparency = 0.05
+		tween(hmRing, 0.45, { Size = UDim2.fromOffset(66, 66) }); tween(hmRingStroke, 0.45, { Transparency = 1 })
+	end
+	task.delay(dur + 0.05, function() if my == hmToken then hitmarker.Visible = false; hmRing.Visible = false end end)
+end
+
+-- voile rouge des dégâts (dégradé vers les bords) et vignette de vie basse
+local function edgeVeil(color: Color3, z: number): { Frame }
+	local list = {}
+	local specs: { { any } } = { { UDim2.fromScale(1, 0.32), UDim2.fromScale(0, 0), 90 }, { UDim2.fromScale(1, 0.32), UDim2.fromScale(0, 0.68), -90 },
+		{ UDim2.fromScale(0.22, 1), UDim2.fromScale(0, 0), 0 }, { UDim2.fromScale(0.22, 1), UDim2.fromScale(0.78, 0), 180 } }
+	for i, spec in ipairs(specs) do
+		local f = make("Frame", { Size = spec[1], Position = spec[2], BackgroundColor3 = color, BackgroundTransparency = 1, ZIndex = z }, gui)
+		make("UIGradient", { Rotation = spec[3], Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1) }) }, f)
+		list[i] = f
+	end
+	return list
+end
+local hurtVeil = edgeVeil(rgb(0xaa0000), 0)
+local lowVeil = edgeVeil(rgb(0xb40000), 0)
+local function setVeil(list: { Frame }, alpha: number)
+	for _, f in ipairs(list) do f.BackgroundTransparency = 1 - clamp(alpha, 0, 1) end
+end
+local hurtAlpha = 0
+
+-- direction des tirs reçus : l'arc suit la position du tireur quand on se retourne
+type Dir = { holder: Frame, arc: Frame, chev: TextLabel, from: Vector3, att: Instance?, t: number, k: number }
+local dirs: { Dir } = {}
+for i = 1, 6 do
+	local holder = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(0, 0), BackgroundTransparency = 1, ZIndex = 5 }, center)
+	local arc = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(0, -146), Size = UDim2.fromOffset(112, 9), BackgroundColor3 = rgb(0xff2636),
+		BackgroundTransparency = 1, ZIndex = 5 }, holder)
+	corner(arc, 5)
+	make("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0), NumberSequenceKeypoint.new(1, 1) }) }, arc)
+	local chev = label(holder, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(0, -161), Size = UDim2.fromOffset(26, 16), Text = "▲", TextSize = 16,
+		TextColor3 = rgb(0xff3442), TextTransparency = 1, ZIndex = 5 })
+	dirs[i] = { holder = holder, arc = arc, chev = chev, from = Vector3.zero, att = nil, t = 9, k = 0 }
+end
+local function damageIndicator(fromPos: Vector3, att: Instance?, dmg: number)
+	local k = math.min(1, 0.35 + dmg / 45)
+	local slot: Dir? = nil
+	for _, d in ipairs(dirs) do if att and d.att == att and d.t < 1.4 then slot = d end end
+	if not slot then
+		slot = dirs[1]
+		for _, d in ipairs(dirs) do if d.t > (slot :: any).t then slot = d end end
+	end
+	local s = (slot :: any) :: Dir
+	s.k = math.max(if s.t < 1.4 then s.k else 0, k); s.from = fromPos; s.att = att; s.t = 0
+end
+
+-- chiffres de dégâts au-dessus de la cible : cumulés tant que les touches s'enchaînent (doré = tête, bleu = bouclier, rouge = élimination)
+type Num = { bb: BillboardGui, txt: TextLabel, total: number, hs: boolean, sh: boolean, kill: boolean, t0: number, tu: number, bump: number, target: Instance?, anchor: BasePart }
+local nums: { Num } = {}
+local function damageNumber(pos: Vector3, dmg: number, head: boolean, kill: boolean, shieldOnly: boolean, target: Instance?)
+	local t = os.clock()
+	local o: Num? = nil
+	for _, n in ipairs(nums) do if n.target == target and t - n.tu < 0.65 and not n.kill then o = n end end
+	if not o then
+		local anchor = make("Part", { Anchored = true, CanCollide = false, CanQuery = false, CanTouch = false, Transparency = 1, Size = Vector3.new(0.2, 0.2, 0.2),
+			Position = pos + Vector3.new(0, 2.05 * U * 0.8, 0) }, workspace)
+		local bb = make("BillboardGui", { Adornee = anchor, Size = UDim2.fromOffset(160, 60), AlwaysOnTop = true, LightInfluence = 0,
+			StudsOffsetWorldSpace = Vector3.zero }, anchor)
+		local txt = label(bb, { Size = UDim2.fromScale(1, 1), FontFace = ITALIC, TextSize = 22, Text = "", RichText = true })
+		make("UIStroke", { Thickness = 1.5, Transparency = 0.15 }, txt)
+		o = { bb = bb, txt = txt, total = 0, hs = false, sh = true, kill = false, t0 = t, tu = t, bump = 0, target = target, anchor = anchor }
+		table.insert(nums, (o :: any) :: Num)
+	end
+	local n = (o :: any) :: Num
+	n.total += dmg; n.hs = n.hs or head; n.sh = n.sh and shieldOnly; n.tu = t; n.bump = 1
+	if kill then n.kill = true end
+	n.txt.TextColor3 = if n.kill then rgb(0xff4655) elseif n.hs then rgb(0xffd23f) elseif n.sh then rgb(0x5fd6ff) else Color3.new(1, 1, 1)
+	n.txt.Text = tostring(math.floor(n.total + 0.5)) .. (if n.kill then '<font size="13"> ☠</font>' elseif n.hs then '<font size="13"> ✦</font>' else "")
+	n.txt.TextSize = math.min(40, 20 + math.sqrt(n.total) * 1.5 + (if n.hs then 4 else 0) + (if n.kill then 5 else 0))
+	if target and target:IsA("Model") then
+		local head = target:FindFirstChild("Head") :: BasePart?
+		if head then n.anchor.Position = head.Position + Vector3.new(0, 1.6, 0) end
+	end
+end
+local function updateNumbers(dt: number)
+	local t = os.clock()
+	for i = #nums, 1, -1 do
+		local n = nums[i]
+		local age, life = t - n.tu, t - n.t0
+		if age > 1.05 then n.anchor:Destroy(); table.remove(nums, i); continue end
+		n.bump = math.max(0, n.bump - dt * 7)
+		local rise = math.min(life, 1.6) * 26 + age * 30
+		n.bb.StudsOffset = Vector3.new(0, rise / 60, 0)
+		n.txt.TextTransparency = if age < 0.7 then 0 else (age - 0.7) / 0.35
+		local sc = (1 + n.bump * 0.45) * (if life < 0.08 then 1.6 - life * 7.5 else 1)
+		n.bb.Size = UDim2.fromOffset(160 * sc, 60 * sc)
+	end
+end
+
+-- recharge : petite barre sous le viseur
+local relBar = make("Frame", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromOffset(0, 46), Size = UDim2.fromOffset(84, 4), BackgroundColor3 = Color3.new(1, 1, 1),
+	BackgroundTransparency = 0.88, Visible = false }, center)
+corner(relBar, 3)
+local relFill = make("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.5 }, relBar)
+corner(relFill, 3)
+
+hitRemote.OnClientEvent:Connect(function(head: boolean, kill: boolean, dmg: number?, pos: Vector3?, shieldOnly: boolean?, target: Instance?)
+	showHitmarker(head, kill, shieldOnly == true)
+	playSound(if kill then ModeConfig.SOUNDS.kill elseif shieldOnly then "shield" elseif head then ModeConfig.SOUNDS.hitHead else ModeConfig.SOUNDS.hitBody)
+	if dmg and pos then damageNumber(pos, dmg, head, kill, shieldOnly == true, target) end
+end)
+
+damagedRemote.OnClientEvent:Connect(function(fromPos: Vector3, dmg: number, _head: boolean, shieldOnly: boolean?, shieldBroke: boolean?, att: Instance?)
+	if fromPos.Magnitude > 0 then damageIndicator(fromPos, att, dmg) end
+	playSound(if shieldOnly then "shield" else ModeConfig.SOUNDS.hurt)
+	if shieldBroke then playSound("shieldbreak") end
+	hurtAlpha = math.max(hurtAlpha, math.min(0.95, 0.25 + dmg / 50) * (if shieldOnly then 0.4 else 1))
+end)
+
+-- ==========================================================================================
+-- Bannière d'élimination (#killmsg) et séries (#banner)
+-- ==========================================================================================
+local killMsg = label(gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0.58), Size = UDim2.fromOffset(700, 26), TextSize = 18, Font = FONT,
+	RichText = true, TextTransparency = 1, TextStrokeTransparency = 1, Text = "" })
+local killScale = make("UIScale", { Scale = 1 }, killMsg)
+local streakLabel = label(gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0.2), Size = UDim2.fromOffset(900, 64), TextSize = 56, Font = FONT,
+	TextColor3 = C.text, TextTransparency = 1, Text = "", RichText = true })
+make("UIStroke", { Thickness = 3, Transparency = 0.35, Color = rgb(0x3a0a10) }, streakLabel)
 local streakScale = make("UIScale", { Scale = 1 }, streakLabel)
 local bannerToken = 0
 bannerRemote.OnClientEvent:Connect(function(b: any)
 	bannerToken += 1
 	local my = bannerToken
-	bannerTitle.Text = (if b.headshot then "TIR À LA TÊTE" else "ÉLIMINATION") .. "  +" .. b.points
-	bannerTitle.TextColor3 = if b.headshot then C.gold else C.text
-	bannerSub.Text = b.victim .. (if b.streak >= 2 then "   ·   " .. b.streak .. " d'affilée" else "")
-	bannerTitle.TextTransparency = 0; bannerSub.TextTransparency = 0
-	bannerScale.Scale = 1.5
-	tween(bannerScale, 0.22, { Scale = 1 }, Enum.EasingStyle.Back)
-	task.delay(1.6, function()
+	killMsg.Text = spaced((if b.headshot then "TIR À LA TÊTE" else "ÉLIMINATION") .. "  +" .. b.points, 1) .. '   <font color="#ffd75e">' .. tostring(b.victim) .. "</font>"
+		.. (if b.streak >= 2 then '   <font color="#8da0bd">' .. b.streak .. " d'affilée</font>" else "")
+	killMsg.TextTransparency = 0; killMsg.TextStrokeTransparency = 0.5
+	killScale.Scale = 1.3
+	tween(killScale, 0.22, { Scale = 1 }, Enum.EasingStyle.Back)
+	task.delay(1.8, function()
 		if my ~= bannerToken then return end
-		tween(bannerTitle, 0.4, { TextTransparency = 1 }); tween(bannerSub, 0.4, { TextTransparency = 1 })
+		tween(killMsg, 0.3, { TextTransparency = 1, TextStrokeTransparency = 1 })
 	end)
 	if b.streakName then
-		streakLabel.Text = string.upper(b.streakName)
-		streakLabel.TextTransparency = 0; streakScale.Scale = 0.3
+		streakLabel.Text = spaced(string.upper(b.streakName), 2) .. '\n<font size="19" color="#ffd75e">' .. spaced(b.streak .. " ÉLIMINATIONS D'AFFILÉE", 1) .. "</font>"
+		streakLabel.TextTransparency = 0; streakScale.Scale = 1.3
 		tween(streakScale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
 		playSound(ModeConfig.SOUNDS.streak)
-		task.delay(2, function() tween(streakLabel, 0.5, { TextTransparency = 1 }) end)
+		task.delay(2.2, function() tween(streakLabel, 0.5, { TextTransparency = 1 }) end)
 	end
 end)
 
 -- ==========================================================================================
--- Écran de mort
+-- Écran de mort + réapparition (#respawn du web)
 -- ==========================================================================================
 local deathFrame = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(30, 0, 5), BackgroundTransparency = 1, Visible = false, ZIndex = 5 }, gui)
-local deathTitle = label(deathFrame, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.42), Size = UDim2.fromOffset(600, 40), TextSize = 30, Font = Enum.Font.GothamBlack, ZIndex = 6, Text = "" })
-local deathSub = label(deathFrame, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.48), Size = UDim2.fromOffset(600, 24), TextSize = 16, TextColor3 = C.dim, ZIndex = 6, Text = "" })
+local deathTitle = label(deathFrame, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0.58), Size = UDim2.fromOffset(700, 26), TextSize = 18, Font = FONT,
+	ZIndex = 6, RichText = true, TextStrokeTransparency = 0.5, Text = "" })
+local respawnNum = label(deathFrame, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0.36), Size = UDim2.fromOffset(300, 70), TextSize = 64, Font = FONT,
+	ZIndex = 6, TextStrokeTransparency = 0.6, Text = "" })
+label(deathFrame, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0.36, 74), Size = UDim2.fromOffset(700, 20), TextSize = 14, Font = FONT, ZIndex = 6,
+	TextColor3 = C.gold, TextStrokeTransparency = 0.6, Text = spaced("RÉAPPARITION — B : CHOISIR UNE ARME", 1) })
 deathRemote.OnClientEvent:Connect(function(d: any)
 	deathFrame.Visible = true; deathFrame.BackgroundTransparency = 1
-	tween(deathFrame, 0.4, { BackgroundTransparency = 0.55 })
-	deathTitle.Text = "Éliminé par " .. d.killer
+	tween(deathFrame, 0.4, { BackgroundTransparency = 0.6 })
+	deathTitle.Text = spaced("ÉLIMINÉ PAR", 1) .. '  <font color="#ffd75e">' .. tostring(d.killer) .. "</font>   " .. '<font color="#8da0bd">' .. tostring(d.weapon)
+		.. (if d.headshot then " · tête" else "") .. "</font>"
 	local left = d.respawn
 	task.spawn(function()
 		while left > 0 and deathFrame.Visible do
-			deathSub.Text = d.weapon .. (if d.headshot then " · tir à la tête" else "") .. "   —   réapparition dans " .. left
+			respawnNum.Text = tostring(left)
 			task.wait(1); left -= 1
 		end
+		respawnNum.Text = ""
 	end)
 end)
 
@@ -309,9 +687,10 @@ end)
 -- ==========================================================================================
 local board = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(820, 460), BackgroundColor3 = C.bg,
 	BackgroundTransparency = 0.08, Visible = false, ZIndex = 20 }, gui)
-corner(board, 14); stroke(board, Color3.fromRGB(70, 80, 100), 1.5, 0.3)
+corner(board, 6); stroke(board, C.line, 1.5, 0.2)
 local boardScale = make("UIScale", { Scale = 1 }, board)
-label(board, { Position = UDim2.fromOffset(20, 12), Size = UDim2.new(1, -40, 0, 26), TextSize = 20, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 21, Text = "Match à mort par équipe" })
+label(board, { Position = UDim2.fromOffset(20, 12), Size = UDim2.new(1, -40, 0, 26), TextSize = 18, Font = FONT, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 21,
+	Text = spaced("MATCH À MORT PAR ÉQUIPE", 1) })
 local boardInfo = label(board, { Position = UDim2.fromOffset(20, 12), Size = UDim2.new(1, -40, 0, 26), TextSize = 14, TextColor3 = C.dim, TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 21 })
 local columns: { Frame } = {}
 for i = 1, 2 do
@@ -320,18 +699,19 @@ for i = 1, 2 do
 	columns[i] = col
 end
 local function boardRow(parent: Instance, order: number, cells: { string }, color: Color3, bg: Color3?, bold: boolean?)
-	local row = make("Frame", { Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = bg or C.panel, BackgroundTransparency = if bg then 0.1 else 0.35, LayoutOrder = order, ZIndex = 21 }, parent)
-	corner(row, 6)
+	local row = make("Frame", { Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = bg or C.panel2, BackgroundTransparency = if bg then 0.1 else 0.35, LayoutOrder = order, ZIndex = 21 }, parent)
+	corner(row, 3)
 	local widths = { 0.46, 0.12, 0.12, 0.12, 0.18 }
 	local x = 0
 	for i, text in ipairs(cells) do
 		label(row, { Position = UDim2.new(x, if i == 1 then 10 else 0, 0, 0), Size = UDim2.new(widths[i], if i == 1 then -10 else 0, 1, 0), Text = text, ZIndex = 22,
-			TextSize = if i == 1 then 14 else 13, TextColor3 = if i == 1 then color else C.text, Font = if bold then Enum.Font.GothamBlack else Enum.Font.GothamBold,
+			TextSize = if i == 1 then 14 else 13, TextColor3 = if i == 1 then color else C.text, Font = if bold then FONT else Enum.Font.GothamBold,
 			TextXAlignment = if i == 1 then Enum.TextXAlignment.Left else Enum.TextXAlignment.Center, TextTruncate = Enum.TextTruncate.AtEnd })
 		x += widths[i]
 	end
 end
 local lastState: any = nil
+local liveAt = -100
 local function renderBoard()
 	local st = lastState
 	if not st then return end
@@ -339,14 +719,14 @@ local function renderBoard()
 	boardInfo.Text = st.mapName .. "   ·   " .. fmtTime(st.timeLeft) .. "   ·   premier à " .. st.killsToWin
 	for i, team in ipairs(st.teams) do
 		local col = columns[i]
-		boardRow(col, 0, { string.upper(team) .. "   " .. (st.score[team] or 0), "É", "M", "A", "SCORE" }, teamColor(team), Color3.fromRGB(30, 36, 52), true)
+		boardRow(col, 0, { string.upper(team) .. "   " .. (st.score[team] or 0), "É", "M", "A", "SCORE" }, teamColor(team), rgb(0x1e2434), true)
 		local n = 0
 		for _, e in ipairs(st.board) do
 			if e.team == team then
 				n += 1
 				local mine = e.userId == player.UserId
 				boardRow(col, n, { (if e.bot then "[BOT] " else "") .. e.name .. (if e.bot then "" else "  · " .. e.ping .. " ms"), tostring(e.k), tostring(e.d), tostring(e.a), tostring(e.score) },
-					if mine then C.gold else C.text, if mine then Color3.fromRGB(60, 52, 24) else nil)
+					if mine then C.gold else C.text, if mine then rgb(0x3c3418) else nil)
 			end
 		end
 	end
@@ -360,7 +740,7 @@ local function showBoard(on: boolean)
 		board.Visible = false
 	end
 end
-UserInputService.InputBegan:Connect(function(input, processed)
+UserInputService.InputBegan:Connect(function(input)
 	if input.KeyCode == Enum.KeyCode.Tab or input.KeyCode == Enum.KeyCode.ButtonSelect then showBoard(true) end
 end)
 UserInputService.InputEnded:Connect(function(input)
@@ -368,9 +748,9 @@ UserInputService.InputEnded:Connect(function(input)
 end)
 -- bouton tactile pour les téléphones
 if UserInputService.TouchEnabled then
-	local btn = make("TextButton", { AnchorPoint = Vector2.new(0, 0), Position = UDim2.fromOffset(16, 16), Size = UDim2.fromOffset(90, 34), BackgroundColor3 = C.bg,
+	local btn = make("TextButton", { AnchorPoint = Vector2.new(0, 0), Position = UDim2.fromOffset(16, RADAR + 46), Size = UDim2.fromOffset(90, 34), BackgroundColor3 = C.bg,
 		BackgroundTransparency = 0.25, Font = Enum.Font.GothamBold, TextSize = 14, TextColor3 = C.text, Text = "Scores" }, gui)
-	corner(btn, 8)
+	corner(btn, 3)
 	btn.Activated:Connect(function() showBoard(not board.Visible) end)
 end
 
@@ -378,7 +758,7 @@ end
 -- Écran de fin de partie
 -- ==========================================================================================
 local endFrame = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(5, 8, 14), BackgroundTransparency = 1, Visible = false, ZIndex = 30 }, gui)
-local endTitle = label(endFrame, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.24), Size = UDim2.fromOffset(800, 90), TextSize = 84, Font = Enum.Font.GothamBlack, ZIndex = 31 })
+local endTitle = label(endFrame, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.24), Size = UDim2.fromOffset(900, 90), TextSize = 84, Font = FONT, ZIndex = 31 })
 make("UIStroke", { Thickness = 3, Transparency = 0.3 }, endTitle)
 local endTitleScale = make("UIScale", { Scale = 1 }, endTitle)
 local endScore = label(endFrame, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.34), Size = UDim2.fromOffset(600, 40), TextSize = 30, ZIndex = 31 })
@@ -387,10 +767,10 @@ make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Horizontal
 local endNext = label(endFrame, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -40), Size = UDim2.fromOffset(600, 24), TextSize = 16, TextColor3 = C.dim, ZIndex = 31 })
 
 local function card(title: string, lines: { string }, accent: Color3, delay: number)
-	local f = make("Frame", { Size = UDim2.fromOffset(240, 150), BackgroundColor3 = C.panel, BackgroundTransparency = 1, ZIndex = 31 }, endCards)
-	corner(f, 12)
+	local f = make("Frame", { Size = UDim2.fromOffset(240, 150), BackgroundColor3 = C.panel2, BackgroundTransparency = 1, ZIndex = 31 }, endCards)
+	corner(f, 4)
 	local st = make("UIStroke", { Color = accent, Thickness = 1.5, Transparency = 1 }, f)
-	local t = label(f, { Position = UDim2.fromOffset(16, 12), Size = UDim2.new(1, -32, 0, 20), TextSize = 13, TextColor3 = accent, TextXAlignment = Enum.TextXAlignment.Left, TextTransparency = 1, ZIndex = 32, Text = string.upper(title) })
+	local t = label(f, { Position = UDim2.fromOffset(16, 12), Size = UDim2.new(1, -32, 0, 20), TextSize = 13, TextColor3 = accent, TextXAlignment = Enum.TextXAlignment.Left, TextTransparency = 1, ZIndex = 32, Text = spaced(string.upper(title), 1) })
 	local items = {}
 	for i, l in ipairs(lines) do
 		table.insert(items, label(f, { Position = UDim2.fromOffset(16, 14 + i * 24), Size = UDim2.new(1, -32, 0, 22), TextSize = 17, TextXAlignment = Enum.TextXAlignment.Left, TextTransparency = 1, ZIndex = 32, Text = l }))
@@ -407,7 +787,7 @@ endRemote.OnClientEvent:Connect(function(r: any)
 	for _, c in ipairs(endCards:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
 	endFrame.Visible = true; endFrame.BackgroundTransparency = 1
 	tween(endFrame, 0.5, { BackgroundTransparency = 0.25 })
-	endTitle.Text = if r.draw then "ÉGALITÉ" elseif r.won then "VICTOIRE" else "DÉFAITE"
+	endTitle.Text = spaced(if r.draw then "ÉGALITÉ" elseif r.won then "VICTOIRE" else "DÉFAITE", 2)
 	endTitle.TextColor3 = if r.draw then C.text elseif r.won then C.gold else C.red
 	endTitleScale.Scale = 2.2; endTitle.TextTransparency = 1
 	tween(endTitleScale, 0.5, { Scale = 1 }, Enum.EasingStyle.Back); tween(endTitle, 0.3, { TextTransparency = 0 })
@@ -439,89 +819,157 @@ end)
 -- ==========================================================================================
 -- Mise à jour continue
 -- ==========================================================================================
+local inMatch = true
 stateRemote.OnClientEvent:Connect(function(st: any)
 	-- avec le lobby, le score du match à mort ne s'affiche que pour ceux qui y jouent
-	local inMatch = player:GetAttribute("Zone") == nil or player:GetAttribute("Zone") == "tdm"
-	top.Visible = inMatch
-	if not inMatch then centerMsg.Text = ""; return end
+	inMatch = player:GetAttribute("Zone") == nil or player:GetAttribute("Zone") == "tdm"
+	top.Visible = inMatch; radarWrap.Visible = inMatch
+	if not inMatch then phaseLabel.Text = ""; return end
+	if st.state == "live" and (not lastState or lastState.state ~= "live") then liveAt = os.clock() end
 	lastState = st
-	local a, b = st.teams[1], st.teams[2]
-	scoreA.Text = tostring(st.score[a] or 0); scoreB.Text = tostring(st.score[b] or 0)
-	scoreA.TextColor3 = teamColor(a); scoreB.TextColor3 = teamColor(b)
-	nameA.Text = string.upper(a) .. (if player.Team and player.Team.Name == a then "  · TOI" else "")
-	nameB.Text = (if player.Team and player.Team.Name == b then "TOI ·  " else "") .. string.upper(b)
-	barA.BackgroundColor3 = teamColor(a); barB.BackgroundColor3 = teamColor(b)
-	tween(barA, 0.3, { Size = UDim2.fromScale(math.clamp((st.score[a] or 0) / st.killsToWin, 0, 1), 1) })
-	tween(barB, 0.3, { Size = UDim2.fromScale(math.clamp((st.score[b] or 0) / st.killsToWin, 0, 1), 1) })
+	if typeof(st.mapId) == "string" and st.mapId ~= "" then buildRadar(st.mapId) end
+	-- à gauche l'équipe bleue (Défenseurs), à droite l'orange (Attaquants), comme #top du web
+	local l, r = st.teams[2], st.teams[1]
+	scoreL.Text = tostring(st.score[l] or 0); scoreR.Text = tostring(st.score[r] or 0)
+	borderL.BackgroundColor3 = teamColor(l); borderR.BackgroundColor3 = teamColor(r)
+	scoreL.TextColor3 = if player.Team and player.Team.Name == l then C.text else rgb(0xd5deec)
+	scoreR.TextColor3 = if player.Team and player.Team.Name == r then C.text else rgb(0xd5deec)
 	timerLabel.Text = fmtTime(st.timeLeft)
-	timerLabel.TextColor3 = if st.state == "live" and st.timeLeft <= 30 then C.red else C.text
-	goalLabel.Text = if st.state == "live" then "PREMIER À " .. st.killsToWin else (if st.state == "intermission" then "PAUSE" else "")
-	centerMsg.Text = if st.state == "intermission" then "Nouvelle partie dans " .. st.timeLeft .. " s" else ""
+	goalLabel.Text = if st.state == "live" then spaced("PREMIER À " .. st.killsToWin, 1) else (if st.state == "intermission" then spaced("PAUSE", 1) else "")
+	phaseLabel.Text = if st.state == "intermission" then spaced("NOUVELLE PARTIE DANS " .. st.timeLeft .. " S", 2)
+		elseif st.state == "live" and os.clock() - liveAt < 4 then spaced("PRÉPAREZ-VOUS…", 2)
+		else ""
 	if st.state == "live" and endFrame.Visible then endFrame.Visible = false end
 	if board.Visible then renderBoard() end
 end)
 
-local shownHp = 100
+local ghostHp, ghostT = 100, 0
 player.CharacterAdded:Connect(function(char)
 	deathFrame.Visible = false
-	shownHp = 100
+	ghostHp = 100
 	local hum = char:WaitForChild("Humanoid") :: Humanoid
+	local last = hum.Health
 	hum.HealthChanged:Connect(function(hp)
-		if hp < shownHp then
-			hpLag.Size = UDim2.fromScale(shownHp / hum.MaxHealth, 1)
-			task.delay(0.25, function() tween(hpLag, 0.4, { Size = UDim2.fromScale(math.max(0, hp) / hum.MaxHealth, 1) }) end)
-		else
-			hpLag.Size = UDim2.fromScale(math.max(0, hp) / hum.MaxHealth, 1)
-		end
-		shownHp = hp
+		if hp < last then ghostT = os.clock() + 0.45 end
+		last = hp
 	end)
 end)
 
-RunService.RenderStepped:Connect(function()
+RunService.RenderStepped:Connect(function(dt: number)
 	local char = player.Character
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
 	local hp = if hum then math.max(0, hum.Health) else 0
 	local maxHp = if hum then hum.MaxHealth else 100
 	local frac = hp / maxHp
+	local t = os.clock()
+	-- vie : chiffre (rouge et qui pulse sous 30), jauge, traînée blanche qui rattrape la vie restante
 	hpText.Text = tostring(math.ceil(hp))
+	hpText.TextColor3 = if hp > 0 and hp < 30 then (if t % 0.8 < 0.4 then rgb(0xff5050) else rgb(0xff8080)) else C.text
 	hpBar.Size = UDim2.fromScale(frac, 1)
-	hpBar.BackgroundColor3 = if frac > 0.5 then C.green elseif frac > 0.25 then C.gold else C.red
-	vignette.BackgroundTransparency = if frac < 0.35 and hp > 0 then 0.88 + 0.05 * math.sin(os.clock() * 5) else 1
+	local hpPct = frac * 100
+	if hpPct >= ghostHp or hp <= 0 then ghostHp = hpPct elseif t > ghostT then ghostHp = math.max(hpPct, ghostHp - dt * 70) end
+	hpGhost.Size = UDim2.fromScale(ghostHp / 100, 1)
+	-- bouclier
 	local shield = char and char:GetAttribute("Shield")
 	local sh = if typeof(shield) == "number" then shield else 0
-	shieldText.Text = if sh > 0 then "◆ " .. sh else ""
-	shieldBar.Size = UDim2.new((sh / Config.SHIELD_MAX) * 1, -28 * (sh / Config.SHIELD_MAX), 0, 4)
+	shieldText.Text = tostring(sh)
+	shieldBar.Size = UDim2.fromScale(sh / Config.SHIELD_MAX, 1)
+	-- voiles rouges
+	hurtAlpha = math.max(0, hurtAlpha - dt / 0.7)
+	setVeil(hurtVeil, hurtAlpha * 0.85)
+	setVeil(lowVeil, if frac < 0.3 and hp > 0 then 0.35 + 0.25 * math.sin(t * 5.7) else 0)
 	local prot = char and char:GetAttribute("ProtectedUntil")
 	protectLabel.Text = if typeof(prot) == "number" and prot > workspace:GetServerTimeNow() then "◇ Protection d'apparition" else ""
 
+	-- arme en main
 	local key = player:GetAttribute("Weapon")
 	local w = typeof(key) == "string" and Config.WEAPONS[key] or nil
+	wpanel.Visible = w ~= nil
 	if w then
-		weaponText.Text = string.upper(w.name)
-		if w.melee then magText.Text = "—"; reserveText.Text = ""
+		local k = key :: string
+		local skin, camo = mySkin(k)
+		local skinId = tostring(skin) .. "/" .. tostring(camo)
+		if panelKey ~= k or panelSkin ~= skinId then
+			panelKey = k; panelSkin = skinId
+			for _, c in ipairs(wIconHolder:GetChildren()) do c:Destroy() end
+			weaponIcon(wIconHolder, k, Vector2.new(120, 52), nil, skin, camo)
+			wName.Text = spaced(string.upper(w.name), 2)
+			pipMax = -1
+		end
+		local mag = player:GetAttribute("Mag") :: number? or 0
+		if w.melee then
+			magText.Text = "—"; reserveText.Text = ""
 		else
-			local mag = player:GetAttribute("Mag") :: number? or 0
-			magText.Text = tostring(mag); reserveText.Text = "/ " .. tostring(player:GetAttribute("Reserve") or 0)
-			magText.TextColor3 = if mag <= math.ceil(w.mag * 0.2) then C.red else C.text
+			magText.Text = tostring(mag)
+			reserveText.Text = "/ " .. tostring(player:GetAttribute("Reserve") or 0)
+			reserveText.Position = UDim2.new(1, -176 + magText.AbsoluteSize.X + 4, 0, 36)
 		end
+		magText.TextColor3 = if not w.melee and mag <= math.ceil(w.mag * 0.2) then rgb(0xff6b6b) else C.text
+		-- balles du chargeur
+		local maxPips = if w.melee then 0 else math.min(w.mag, 50)
+		if maxPips ~= pipMax then
+			pipMax = maxPips
+			for _, p in ipairs(pipList) do p:Destroy() end
+			pipList = {}
+			local pw = if maxPips > 36 then 2 else 3
+			for i = 1, maxPips do pipList[i] = make("Frame", { Size = UDim2.fromOffset(pw, 6), BackgroundColor3 = C.gold, LayoutOrder = i }, pips) end
+		end
+		local shown = if w.mag > 50 then math.ceil(mag / w.mag * 50) else mag
+		for i, p in ipairs(pipList) do p.BackgroundTransparency = if i <= shown then 0 else 0.8 end
+		-- recharge sous le viseur
 		local reloading = player:GetAttribute("Reloading") == true
-		reloadBg.Visible = reloading
+		relBar.Visible = reloading
 		if reloading then
-			local started = player:GetAttribute("ReloadStart") :: number? or os.clock()
-			reloadBar.Size = UDim2.fromScale(math.clamp((os.clock() - started) / math.max(w.reload, 0.1), 0, 1), 1)
+			local started = player:GetAttribute("ReloadStart") :: number? or t
+			relFill.Size = UDim2.fromScale(clamp((t - started) / math.max(w.reload, 0.1), 0, 1), 1)
 		end
+	else
+		relBar.Visible = false
 	end
+	-- emplacements
 	local loadout = string.split(tostring(player:GetAttribute("Loadout") or ""), ",")
 	local slot = player:GetAttribute("Slot") :: number? or 1
-	for i, l in ipairs(slotLabels) do
+	for i, s in ipairs(slots) do
 		local k = loadout[i]
 		local wk = k and Config.WEAPONS[k]
-		l.Visible = wk ~= nil
+		s.frame.Visible = wk ~= nil
 		if wk then
-			l.Text = i .. "  " .. wk.name
-			l.TextColor3 = if i == slot then C.bg else C.dim
-			l.BackgroundColor3 = if i == slot then C.gold else C.panel
+			local skin, camo = mySkin(k)
+			local id = tostring(skin) .. "/" .. tostring(camo)
+			if s.key ~= k or s.skin ~= id then
+				s.key = k; s.skin = id
+				if s.icon then s.icon:Destroy() end
+				s.icon = weaponIcon(s.frame, k, Vector2.new(46, 18), { Position = UDim2.fromOffset(20, 4) }, skin, camo)
+			end
+			local on = i == slot
+			s.border.Transparency = if on then 0 else 1
+			s.num.TextColor3 = if on then C.text else C.dim
 		end
 	end
+	-- haut : soldats en vie, chrono pressé
+	if inMatch and lastState then
+		local alive: { [string]: number } = {}
+		for _, so in ipairs(soldierList()) do if so.alive and so.team then alive[so.team] = (alive[so.team] or 0) + 1 end end
+		local l, r = lastState.teams[2], lastState.teams[1]
+		aliveL.Text = (alive[l] or 0) .. " en vie"; aliveR.Text = (alive[r] or 0) .. " en vie"
+		timerLabel.TextColor3 = if lastState.state == "live" and lastState.timeLeft <= 30 then (if t % 1 < 0.5 then rgb(0xff5050) else rgb(0xff9090)) else C.text
+	end
+	-- radar
+	if inMatch then drawRadar(dt) end
+	-- direction des tirs reçus
+	local cf = camera.CFrame
+	for _, d in ipairs(dirs) do
+		d.t += dt
+		if d.t > 1.6 then d.arc.BackgroundTransparency = 1; d.chev.TextTransparency = 1; continue end
+		if d.att and d.att:IsA("Model") then
+			local r = d.att:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if r then d.from = r.Position end
+		end
+		local rel = cf:VectorToObjectSpace(d.from - cf.Position)
+		d.holder.Rotation = math.deg(math.atan2(rel.X, -rel.Z))
+		local a = d.k * (if d.t < 1 then 1 else 1 - (d.t - 1) / 0.6)
+		d.arc.BackgroundTransparency = 1 - a; d.chev.TextTransparency = 1 - a
+	end
+	updateNumbers(dt)
 	dot.Visible = ModeConfig.CENTER_DOT and player:GetAttribute("Aiming") ~= true and hp > 0
 end)

@@ -23,6 +23,12 @@ local hitFx = remoteEvent("HitFeedback")          -- serveur -> tireur : (tête,
 local damagedFx = remoteEvent("Damaged")          -- serveur -> victime : (position du tireur, dégâts, tête)
 local tracerFx = remoteEvent("Tracer")            -- serveur -> tous : (origine, impact, personnage du tireur)
 local flashFx = remoteEvent("FlashFeedback")
+-- client -> serveur : inclinaison du regard (radians), recopiée en attribut « Pitch » du personnage pour la kill-cam
+local pitchFx = Instance.new("UnreliableRemoteEvent"); pitchFx.Name = "AimPitch"; pitchFx.Parent = ReplicatedStorage
+pitchFx.OnServerEvent:Connect(function(player: Player, pitch: any)
+	local char = player.Character
+	if char and typeof(pitch) == "number" and pitch == pitch then char:SetAttribute("Pitch", math.clamp(pitch, -1.5, 1.5)) end
+end)
 
 local MAX_RANGE = 400
 local MELEE_RANGE = 2.6 * Config.STUDS_PER_METER
@@ -149,6 +155,9 @@ local function attachModel(c: any, key: string)
 	local weld = Instance.new("Weld"); weld.Part0 = hand; weld.Part1 = handle; weld.C0 = gripOffset; weld.Parent = handle
 	model:SetAttribute("Custom", src ~= nil)
 	model:SetAttribute("Key", key)
+	-- skin de l'arme (attributs Skin_<arme> / Camo_<arme> du joueur, posés par DataService.syncSkins)
+	model:SetAttribute("Skin", c:GetAttribute("Skin_" .. key))
+	model:SetAttribute("Camo", c:GetAttribute("Camo_" .. key))
 	model.Parent = char
 	char:SetAttribute("Weapon", key)
 end
@@ -272,8 +281,10 @@ function WeaponService.applyDamage(attacker: any, victimChar: Model, raw: number
 	local dmg = raw
 	local vs = state[victim]
 	if vs and vs.reduction > 0 then dmg *= (1 - vs.reduction) end
+	local total = dmg
+	local absorbed = 0
 	if vs and vs.shield > 0 then
-		local absorbed = math.min(vs.shield, dmg)
+		absorbed = math.min(vs.shield, dmg)
 		vs.shield -= absorbed; dmg -= absorbed
 		syncShield(victim)
 	end
@@ -282,21 +293,25 @@ function WeaponService.applyDamage(attacker: any, victimChar: Model, raw: number
 		vs.armor = math.max(0, vs.armor - (dmg - hp) * 0.5)
 		dmg = hp
 	end
-	local final = math.max(1, math.floor(dmg + 0.5))
-	hum:TakeDamage(final)
+	-- bouclier comme sur le web : tant qu'il tient, la vie ne bouge pas
+	local final = if dmg <= 0.01 then 0 else math.max(1, math.floor(dmg + 0.5))
+	if final > 0 then hum:TakeDamage(final) end
 	local killed = hum.Health <= 0
 	if killed then dead[victimChar] = true end
+	local shieldOnly = absorbed > 0 and final == 0
+	local shieldBroke = absorbed > 0 and vs ~= nil and vs.shield <= 0
 
 	local aChar = WeaponService.charOf(attacker)
 	local aRoot = aChar and aChar:FindFirstChild("HumanoidRootPart") :: BasePart?
 	local vRoot = victimChar:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local shown = math.max(1, math.floor(total + 0.5))   -- le chiffre affiché compte aussi ce que le bouclier a pris
 	if isPlayer(attacker) then
-		hitFx:FireClient(attacker, headshot, killed, final, vRoot and vRoot.Position or Vector3.zero)
+		hitFx:FireClient(attacker, headshot, killed, shown, vRoot and vRoot.Position or Vector3.zero, shieldOnly, victimChar)
 	end
 	if isPlayer(victim) then
-		damagedFx:FireClient(victim, aRoot and aRoot.Position or Vector3.zero, final, headshot)
+		damagedFx:FireClient(victim, aRoot and aRoot.Position or Vector3.zero, shown, headshot, shieldOnly, shieldBroke, aChar)
 	end
-	damagedEvent:Fire(attacker, victim, final, headshot)
+	damagedEvent:Fire(attacker, victim, shown, headshot)
 	if killed then killedEvent:Fire(attacker, victim, weaponKey, headshot) end
 end
 
@@ -375,8 +390,9 @@ reloadEvent.OnServerEvent:Connect(function(player: Player)
 end)
 
 -- ---------- bouclier, soins, munitions (ramassables de la carte) ----------
+-- ajoute du bouclier (ramassable : +25, comme sur le web), sans dépasser Config.SHIELD_MAX
 function WeaponService.addShield(c: any, amount: number)
-	local s = state[c]; if s then s.shield = math.max(s.shield, math.min(amount, Config.SHIELD_MAX)); syncShield(c) end
+	local s = state[c]; if s then s.shield = math.min(Config.SHIELD_MAX, s.shield + amount); syncShield(c) end
 end
 function WeaponService.shieldOf(c: any): number
 	local s = state[c]; return s and s.shield or 0

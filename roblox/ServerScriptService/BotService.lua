@@ -121,6 +121,8 @@ local function think(b: Brain)
 			local head = b.model:FindFirstChild("Head") :: BasePart?
 			if head and key then
 				local w = Config.WEAPONS[key]
+				-- inclinaison du regard, pour la kill-cam (vue par les yeux du bot)
+				b.model:SetAttribute("Pitch", math.asin(math.clamp((bestPos - head.Position).Unit.Y, -1, 1)))
 				if w.melee and bestD > 9 then
 					b.hum:MoveTo(bestPos)
 				elseif WeaponService.fire(b.model, head.Position, aimError(bestPos - head.Position)) then

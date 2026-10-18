@@ -57,6 +57,8 @@ equipSkin.OnServerInvoke = function(player: Player, weapon: any, skinIndex: any)
 	if not owned then return false end
 	profile.equippedSkins = profile.equippedSkins or {}
 	profile.equippedSkins[weapon] = skinIndex
+	if profile.equipped and profile.equipped.animCamo then profile.equipped.animCamo[weapon] = nil end   -- un skin remplace le camo animé
+	DataService.syncSkins(player)
 	return true
 end
 

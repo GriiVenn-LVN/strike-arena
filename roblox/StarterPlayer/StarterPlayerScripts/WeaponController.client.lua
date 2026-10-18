@@ -237,6 +237,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 RunService:BindToRenderStep("WeaponCamera", Enum.RenderPriority.Camera.Value + 1, function(dt: number)
+	if S.kc then return end                -- la kill-cam tient la caméra
 	local key = W.weapon
 	local w = key and Config.WEAPONS[key]
 	local targetFov = BASE_FOV
