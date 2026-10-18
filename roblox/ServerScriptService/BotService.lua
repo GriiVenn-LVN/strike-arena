@@ -242,7 +242,7 @@ function BotService.freezeMatch(id: number, on: boolean)
 	for m, b in pairs(brains) do
 		if b.match == id then
 			m:SetAttribute("Frozen", if on then true else nil)
-			b.hum:Move(Vector3.zero); b.hum.WalkSpeed = if on then 0 else 15 * (if b.diff then b.diff.speed else 1)
+			b.hum:Move(Vector3.zero); b.hum.WalkSpeed = if on then 0 else 15 * (if b.diff then b.diff.speed else 1) * ((b.model:GetAttribute("SpeedMult") :: number?) or 1)
 		end
 	end
 end

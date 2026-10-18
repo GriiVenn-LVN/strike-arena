@@ -38,6 +38,7 @@ local feedRemote = ReplicatedStorage:WaitForChild("KillFeed") :: RemoteEvent
 local bannerRemote = ReplicatedStorage:WaitForChild("KillBanner") :: RemoteEvent
 local deathRemote = ReplicatedStorage:WaitForChild("DeathInfo") :: RemoteEvent
 local endRemote = ReplicatedStorage:WaitForChild("MatchEnd") :: RemoteEvent
+local leaveFn = ReplicatedStorage:WaitForChild("MatchLeave") :: RemoteFunction
 local tracerRemote = ReplicatedStorage:WaitForChild("Tracer") :: RemoteEvent
 
 -- le tableau Tab remplace la liste des joueurs de Roblox
@@ -806,6 +807,19 @@ local endScore = label(endFrame, { AnchorPoint = Vector2.new(0.5, 0.5), Position
 local endCards = make("Frame", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0.42), Size = UDim2.fromOffset(760, 150), BackgroundTransparency = 1, ZIndex = 31 }, endFrame)
 make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, Padding = UDim.new(0, 14) }, endCards)
 local endNext = label(endFrame, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -40), Size = UDim2.fromOffset(600, 24), TextSize = 16, TextColor3 = C.dim, ZIndex = 31 })
+
+-- bouton « Quitter la partie » (web : écran de fin -> Menu) ; Modal libère la souris en vue à la 1re personne
+local endLeave = make("TextButton", { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -76), Size = UDim2.fromOffset(240, 40),
+	BackgroundColor3 = C.panel2, BackgroundTransparency = 0.1, Text = spaced("QUITTER LA PARTIE", 1), TextColor3 = C.text, TextSize = 15, Font = FONT,
+	AutoButtonColor = true, Modal = true, ZIndex = 32 }, endFrame)
+corner(endLeave, 4)
+make("UIStroke", { Color = C.red, Thickness = 1.5, Transparency = 0.2, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, endLeave)
+endLeave.Activated:Connect(function()
+	endLeave.Text = spaced("RETOUR AU SALON…", 1)
+	local ok = pcall(function() leaveFn:InvokeServer() end)
+	endLeave.Text = spaced("QUITTER LA PARTIE", 1)
+	if ok then endFrame.Visible = false end
+end)
 
 local function card(title: string, lines: { string }, accent: Color3, delay: number)
 	local f = make("Frame", { Size = UDim2.fromOffset(240, 150), BackgroundColor3 = C.panel2, BackgroundTransparency = 1, ZIndex = 31 }, endCards)

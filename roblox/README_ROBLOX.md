@@ -49,7 +49,9 @@ Pour les mises à jour suivantes : synchronise avec Rojo (section 1) ou rouvre u
 ReplicatedStorage/Shared/Config.lua      armes, raretés, caisses, récompenses, danses, skins (valeurs du prototype)
 ReplicatedStorage/Shared/ShopCatalog.lua catalogue de la boutique (armes, skins, viseurs, tenues, produits Robux)
 ReplicatedStorage/Shared/ModeConfig.lua  mode lancé (tdm / bomb), réglages du match à mort, des bots et des sons de combat
-ReplicatedStorage/Shared/MapData.lua     3 cartes exportées du prototype (généré par tools/export_maps_lua.pl)
+ReplicatedStorage/Shared/MapData.lua     grille de jeu des 10 cartes du web (généré par tools/scene_to_lua.py)
+ReplicatedStorage/Shared/MapScenes/      décor 3D des 10 cartes du web (blocs, maillages, textures, lampes, ambiance)
+ReplicatedStorage/Shared/MapScene.lua    lecture de MapScenes (client + serveur)
 ServerScriptService/DataService.lua      DataStore : profil, XP, pièces, inventaire, stats, défis, série quotidienne
 ServerScriptService/RewardService.lua    niveaux, récompense quotidienne, défis du jour, récompenses de fin de partie
 ServerScriptService/LootService.server.lua  caisses : tirage pondéré + pitié + doublons
@@ -57,7 +59,8 @@ ServerScriptService/ShopService.server.lua  boutique : achats en pièces, offres
 ServerScriptService/WeaponService.lua    tir hitscan validé serveur : cadence, munitions, recharge, 3 armes, couteau, bouclier → gilet → santé (joueurs et bots)
 ServerScriptService/BotService.lua       bots R15 : patrouille (PathfindingService), vision, temps de réaction, rafales
 ServerScriptService/TDMService.lua       match à mort par équipe : équipes, bots, réapparition, protection, objets, fil, séries, assistances, fin
-ServerScriptService/MapBuilder.lua       construit la carte (Parts, rampes en escaliers, plafonds, spawns, sites)
+ServerScriptService/MapBuilder.lua       construit une carte : collision exacte du web (invisible) + décor du web ; plusieurs cartes à la fois
+StarterPlayerScripts/MapDetailController.client.lua  maillages détaillés, textures du web, halos, ciel / brouillard / lumière de la carte
 ServerScriptService/RoundService.lua     mode compétitif 5v5 : cinématique → achat → manche → fin, bombe (ProximityPrompt, pas encore branchée ; ModeConfig.MODE = "bomb")
 ServerScriptService/Main.server.lua      point d'entrée + RemoteFunctions (profil, daily, défis, danses, skins)
 StarterPlayerScripts/CinematicController.client.lua   cinématique d'arrivée en hélicoptère (caméra scriptée, barres de cinéma)
@@ -90,7 +93,34 @@ Manette : RT/LT/X/Y, Select pour les scores. Téléphone : boutons Tir / Viser /
 
 **Ce que je n'ai pas pu vérifier** : rien n'a tourné dans Studio (pas de compte). La syntaxe Luau de chaque fichier est vérifiée avec `luau-compile`, mais le premier test dans Studio montrera sûrement des réglages à ajuster (position de l'arme dans la main, vitesse des bots, volume des sons). Envoie-moi la fenêtre *Output* s'il y a une erreur rouge.
 
-Régénérer les cartes après modification du prototype : `perl tools/export_maps_lua.pl > roblox/ReplicatedStorage/Shared/MapData.lua`
+Régénérer les cartes après modification du prototype : voir la section 0 ter.
+
+## 0 ter. Les 10 cartes du web, à l'identique
+
+Village, Entrepôt, Station polaire, Port de nuit, Métro, Temple perdu, Stand de tir, Laboratoire, Asile hanté et Manoir hanté
+sont relevées **sur le jeu web en marche** (le vrai `buildWorld()` de chaque carte), puis reconstruites dans Roblox :
+
+- **Jeu (serveur, `MapBuilder`)** : la collision vient de la grille du web (cases, hauteurs, rampes en pente continue, plafonds),
+  en blocs invisibles. Murs, toits, rampes, plafonds et lignes de vue se comportent comme sur le web ; les balles, les bots et
+  l'escalade ne touchent que ces blocs. Le décor (blocs, boules, cylindres du web, ~1 300 à 1 800 pièces par carte) est en Parts
+  non collisionnables et ignorées des rayons (`CanQuery = false`), avec les couleurs et une matière Roblox proche de la texture du web.
+- **Détails (client, `MapDetailController`)** : textures canvas du web sur les blocs (murs crépis, briques, caisses, sol avec ses
+  marquages et son grain), tous les objets non primitifs (fûts, palmiers, feuilles, rochers, statues, citrouilles, relief lointain…)
+  en maillages `EditableMesh` regroupés par matériau, halos des lampes, et l'ambiance du thème de la carte où l'on se trouve
+  (ciel dégradé, brouillard, couleur et hauteur du soleil). Au lobby, l'éclairage d'origine revient.
+  Il faut **Allow Mesh / Image APIs** (comme pour les armes) ; sinon les cartes restent en couleurs unies avec des blocs simples.
+- **Plusieurs matchs à la fois** : `MapBuilder.build(id, origine, nom)` construit la carte dans `workspace[nom]` (attributs `MapId`,
+  `Origin`, `Theme`), décalée de `origine` ; l'objet renvoyé a `cellToWorld`, `groundAt`, `toCell`, `spawns`, `sites`.
+  `MapBuilder.destroy(carte)` la retire, `MapBuilder.list()` donne `{ id, name, desc, theme }` des 10 cartes dans l'ordre du web.
+  Le client applique l'ambiance de la carte nommée par l'attribut `MatchMap` du personnage (sinon celle sous la caméra).
+- Carte du match à mort : `ModeConfig.TDM.map` (`"village"`, `"warehouse"`, `"station"`, `"harbor"`, `"metro"`, `"jungle"`, `"range"`, `"labo"`, `"asile"`, `"manoir"`).
+
+**Régénérer** (depuis la racine du dépôt, après une modification des cartes du web) :
+```
+bash build.sh
+NODE_PATH=$(npm root -g) node tools/export_scene.js /tmp/cartes      # Playwright + Chromium
+python3 tools/scene_to_lua.py /tmp/cartes                            # Pillow ; réécrit MapData.lua et MapScenes/
+```
 
 ## 1 ter. Lobby, duels, codes, effets d'élimination, classement, groupe
 
@@ -114,6 +144,7 @@ Tout se règle dans `ReplicatedStorage/Shared/CommunityConfig.lua` (sauf les cod
 | Prototype web | Roblox |
 |---|---|
 | Grille 40×40, 1 case = 2 m, hauteurs, rampes, plafonds | `MapData.lua` + `MapBuilder.lua` (1 stud ≈ 0,28 m ⇒ `STUDS_PER_METER = 3.571`) |
+| `buildWorld()` : décor 3D, textures canvas, thèmes | `MapScenes/` + `MapBuilder.lua` (blocs) + `MapDetailController` (maillages, textures, ambiance) |
 | `shoot()` / `hurt()` (client = serveur) | Le **client** envoie origine + direction (`FireWeapon`), le **serveur** valide et applique les dégâts (anti-triche) |
 | Bots (A* + vision + objectifs) | `PathfindingService` + PNJ R15 ; la logique d'objectif (poser / défendre / chasser) se porte telle quelle |
 | Particules GPU, impacts, douilles | `ParticleEmitter` / `Beam` / `Trail` ; décalques via `Decal` sur `result.Instance` |
