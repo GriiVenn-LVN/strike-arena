@@ -37,6 +37,17 @@ Pour les mises à jour suivantes : synchronise avec Rojo (section 1) ou rouvre u
   puis mets son numéro dans `ModeConfig.SOUND_SHEET`. En attendant, les sons fournis avec Roblox servent de remplacement.
 - **Robux** : tous les numéros de produits se mettent dans un seul fichier, `ReplicatedStorage/Shared/ProductIds.lua` (nom et prix en commentaire).
 
+## 0 ter. Soldats du web : apparence, animations, ragdoll
+
+- **Même soldat que le web** : soldat photo-réaliste CC0 (Mesh2Motion) aux couleurs de l'équipe — Attaquants (T, camouflage désert), Défenseurs (CT, bleu nuit), sans équipe (chacun-pour-soi, gris teinté de la couleur du joueur) — avec gilet, casque, poches et sac du soldat procédural ; les **tenues de la boutique** gardent le soldat procédural du web (couleurs et coiffe de chaque tenue).
+  Données dans `ReplicatedStorage/Shared/SoldierMeshes` (≈ 870 Ko), refaites avec
+  `node tools/soldiers/export_soldiers_web.js /tmp/soldats.json && python3 tools/soldiers/soldiers_to_lua.py /tmp/soldats.json`
+  (Playwright + Chromium, Pillow). Même réglage que les armes : *Allow Mesh / Image APIs* ; sans lui, l'avatar R15 reste visible.
+- **Habillage** (`SoldierController`, `SoldierModels`) : chaque client découpe le soldat en 15 morceaux soudés aux membres R15 (cachés sur ce client). Joueurs, bots et soi-même (ombre, kill-cam) ; à la première personne on ne voit que le viewmodel, comme sur le web.
+- **Animations du web** (`SoldierAnim`, port de `45_models.js` et `8T_anim.js`) : marche et course selon la vitesse, accroupi, glissade, sprint et sprint tactique, saut/chute/réception, escalade, buste qui suit le regard, recharge, recul, bras qui tiennent l'arme (IK), 8 danses (touche T quand la danse n'a pas d'animation importée), mort. Appliquées aux `Motor6D.Transform` à chaque image : aucune animation à importer. L'état (glissade, sprint, accroupi, visée) passe par le remote `SoldierAnim`, la recharge par l'attribut `ReloadT`, la tenue par l'attribut `Outfit` du joueur (`SoldierService`).
+- **Ragdoll** (`SoldierService`, comme `8Zb_ragdoll.js`) : à la mort, les articulations deviennent des `BallSocketConstraint` (limites par articulation) et le corps part dans le sens du tir qui tue (plus fort au fusil à pompe et au sniper, différent sur un tir à la tête). La réapparition et la kill-cam ne changent pas.
+- **Pas vérifié dans Studio** : rien n'a pu tourner ici. Points à surveiller : rendu des pièces EditableMesh soudées (orientation, taille) et le passage de l'animation au ragdoll (les membres repartent de la pose « naturelle » vue par le serveur).
+
 ## 1. Mise en place (15 minutes)
 
 1. Installe **Roblox Studio** puis **Rojo** (extension VS Code `evaera.vscode-rojo` + plugin Studio).
