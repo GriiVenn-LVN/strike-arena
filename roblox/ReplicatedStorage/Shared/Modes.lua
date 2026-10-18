@@ -109,6 +109,7 @@ Modes.BUY_ITEMS = {
 	{ k = "frag", n = "Grenade frag (G)", price = 300 },
 	{ k = "flash", n = "Flashbang (F) ×2", price = 200 },
 	{ k = "smoke", n = "Fumigène (H)", price = 300 },
+	{ k = "mine", n = "Mine de proximité (X) — max 2", price = 350 },
 }
 
 -- réglages possibles de l'écran « Jouer » (src/85_menu.js)

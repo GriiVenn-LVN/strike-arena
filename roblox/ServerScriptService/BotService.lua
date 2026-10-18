@@ -16,7 +16,7 @@ local BotService = {}
 type Brain = {
 	model: Model, hum: Humanoid, root: BasePart, team: string,
 	roam: { Vector3 }, waypoints: { PathWaypoint }, wpIndex: number, goal: Vector3?, repathAt: number,
-	target: Model?, seenAt: number, burstLeft: number, nextBurst: number, alive: boolean,
+	target: Model?, seenAt: number, lastSeen: Vector3?, lastSeenAt: number, burstLeft: number, nextBurst: number, alive: boolean,
 	match: number?, diff: any, goalFn: ((Model) -> Vector3?)?,
 }
 -- Réglages d'une apparition (MatchService) : partie, niveau (Modes.DIFFS), armes, but de déplacement imposé par le mode
@@ -116,6 +116,7 @@ local function think(b: Brain)
 		end
 	end
 	if best ~= b.target then b.target = best; b.seenAt = t end
+	if best then local br = best:FindFirstChild("HumanoidRootPart") :: BasePart?; if br then b.lastSeen = br.Position; b.lastSeenAt = t end end
 	-- occupé par l'objectif du mode (pose / désamorçage de la bombe) : il reste sur place tant qu'aucun ennemi n'est en vue
 	if not best and b.model:GetAttribute("Busy") then b.hum:Move(Vector3.zero); b.goal = nil; return end
 
@@ -199,7 +200,7 @@ function BotService.spawn(team: string, at: Vector3, roam: { Vector3 }, name: st
 
 	local b: Brain = {
 		model = model, hum = hum, root = root, team = team, roam = roam, waypoints = {}, wpIndex = 1, goal = nil, repathAt = 0,
-		target = nil, seenAt = 0, burstLeft = math.random(BOT.burst[1], BOT.burst[2]), nextBurst = 0, alive = true,
+		target = nil, seenAt = 0, lastSeen = nil, lastSeenAt = -99, burstLeft = math.random(BOT.burst[1], BOT.burst[2]), nextBurst = 0, alive = true,
 		match = opts and opts.match, diff = opts and opts.diff, goalFn = opts and opts.goal,
 	}
 	brains[model] = b
@@ -251,6 +252,13 @@ function BotService.removeMatch(id: number)
 end
 function BotService.setGoal(model: Model, fn: ((Model) -> Vector3?)?)
 	local b = brains[model]; if b then b.goalFn = fn end
+end
+
+-- combat d'un bot (grenades des modes à manches) : ennemi visé, dernière position vue d'un ennemi et quand
+function BotService.combatOf(model: Model): (Model?, Vector3?, number)
+	local b = brains[model]
+	if not b then return nil, nil, -99 end
+	return b.target, b.lastSeen, os.clock() - b.lastSeenAt
 end
 
 function BotService.isBot(m: any): boolean
