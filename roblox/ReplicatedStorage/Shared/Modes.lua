@@ -80,6 +80,16 @@ Modes.DIFFS = {
 	{ n = "Légende", react = 0.13, spread = 0.75, aimHead = 0.55, speed = 1.05, strafe = 1, hear = 1, dmg = 1.05, sight = 110, bmin = 6, bmax = 16, nade = 1, desc = "Réaction quasi instantanée, headshots constants, grenades utiles." },
 }
 
+-- modificateurs de partie (src/8Y_mutators.js), cumulables, pour les parties contre les bots
+Modes.MUTATORS = {
+	{ k = "lune", ic = "🌙", n = "Gravité lunaire", d = "Sauts géants, chute lente" },
+	{ k = "turbo", ic = "⚡", n = "Turbo", d = "Tout le monde court 30 % plus vite" },
+	{ k = "tetes", ic = "🎯", n = "Têtes seulement", d = "Seuls les tirs à la tête blessent" },
+	{ k = "balle", ic = "💥", n = "Une balle", d = "Chaque touche élimine" },
+	{ k = "vamp", ic = "🩸", n = "Vampire", d = "Chaque élimination rend 50 PV" },
+	{ k = "nades", ic = "💣", n = "Grenades à volonté", d = "Une grenade revient toutes les 5 s" },
+}
+
 -- réglages possibles de l'écran « Jouer » (src/85_menu.js)
 function Modes.sizes(mode: string): { number }
 	local m = Modes.LIST[mode]
@@ -99,7 +109,7 @@ function Modes.defaultLimit(mode: string): number?
 end
 
 -- réglages d'une partie, vérifiés (le client peut envoyer n'importe quoi)
-export type Settings = { mode: string, map: string, diff: number, size: number, limit: number?, side: string, eco: number, private: boolean }
+export type Settings = { mode: string, map: string, diff: number, size: number, limit: number?, side: string, eco: number, private: boolean, mut: { [string]: boolean } }
 function Modes.sanitize(s: any): Settings
 	local t = if typeof(s) == "table" then s else {}
 	local mode = if typeof(t.mode) == "string" and Modes.LIST[t.mode] then t.mode else "tdm"
@@ -112,7 +122,11 @@ function Modes.sanitize(s: any): Settings
 	local limit = if typeof(t.limit) == "number" and table.find(lims, t.limit) then t.limit else Modes.defaultLimit(mode)
 	local side = if t.side == "t" or t.side == "ct" then t.side else "rnd"
 	local eco = if t.eco == 0 then 0 else 1
-	return { mode = mode, map = map, diff = diff, size = size, limit = limit, side = side, eco = eco, private = t.private == true }
+	local mut = {}
+	if typeof(t.mut) == "table" then
+		for _, m in ipairs(Modes.MUTATORS) do if t.mut[m.k] == true then mut[m.k] = true end end
+	end
+	return { mode = mode, map = map, diff = diff, size = size, limit = limit, side = side, eco = eco, private = t.private == true, mut = mut }
 end
 
 return Modes
