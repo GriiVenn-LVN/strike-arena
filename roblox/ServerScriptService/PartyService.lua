@@ -74,7 +74,7 @@ end
 -- Invitation d'un ami : ouvre la fenêtre native de Roblox (le client appelle SocialService:PromptGameInvite)
 Players.PlayerRemoving:Connect(leave)
 
--- Équilibrage : les groupes arrivent dans la même équipe (utilisé par RoundService.assignTeams)
+-- Équilibrage : les groupes arrivent dans la même équipe (utilisé par MatchService)
 -- Membres du groupe d'un joueur (lui compris) ; seul s'il n'a pas de groupe
 function PartyService.membersOf(player: Player): { Player }
 	local id = partyOf[player]

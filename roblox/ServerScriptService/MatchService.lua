@@ -488,6 +488,7 @@ end
 -- ==========================================================================================
 function MatchService.weaponName(key: string): string
 	if key == "frag" then return "Grenade" end
+	if key == "bomb" then return "Bombe" end
 	local w = Config.WEAPONS[key]
 	return w and w.name or key
 end

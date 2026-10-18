@@ -116,6 +116,8 @@ local function think(b: Brain)
 		end
 	end
 	if best ~= b.target then b.target = best; b.seenAt = t end
+	-- occupé par l'objectif du mode (pose / désamorçage de la bombe) : il reste sur place tant qu'aucun ennemi n'est en vue
+	if not best and b.model:GetAttribute("Busy") then b.hum:Move(Vector3.zero); b.goal = nil; return end
 
 	local key, mag = WeaponService.current(b.model)
 	if key and mag <= 0 and not Config.WEAPONS[key].melee then WeaponService.reload(b.model) end
