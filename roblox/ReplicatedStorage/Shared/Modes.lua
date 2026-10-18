@@ -15,6 +15,7 @@ local function rgb(hex: number): Color3
 end
 
 -- time = durée de la partie en secondes (web : DM_TIME = 480 s, RTIME des variantes) ; nil = pas de chrono global
+-- (Capture de zone et Domination : 10 min par défaut sur le web, RTIME.koth / RTIME.dom)
 Modes.LIST = {
 	bomb = { n = "Compétitif", ic = "💣", c = rgb(0xff4655), team = true, bomb = true, desc = "Pose ou désamorce la bombe. Économie, boutique, manches.", limitLabel = "Manches pour gagner", limits = { 3, 5, 7, 13 }, tag = "Bombe · économie · manches" },
 	rapid = { n = "Désamorçage rapide", ic = "⚡", c = rgb(0xffd23a), team = true, bomb = true, desc = "Manches de 45 s, armes fournies, bombe dès le début. Pur gunfight.", limitLabel = "Manches pour gagner", limits = { 5, 7, 9 }, tag = "Manches courtes, armes fournies" },
@@ -22,8 +23,8 @@ Modes.LIST = {
 	tdm = { n = "Match à mort par équipe", ic = "⚔", c = rgb(0x4aa3ff), team = true, respawn = 3, desc = "Deux équipes, réapparition rapide. Premier à atteindre le score.", limitLabel = "Éliminations pour gagner", limits = { 20, 30, 40, 60 }, tag = "Équipes, réapparition", time = 480 },
 	ffa = { n = "Match à mort", ic = "☠", c = rgb(0xffb938), team = false, respawn = 2, desc = "Chacun pour soi. Le meilleur score gagne.", limitLabel = "Éliminations pour gagner", limits = { 15, 25, 35 }, tag = "Chacun pour soi", time = 480 },
 	gg = { n = "Course aux armes", ic = "🔫", c = rgb(0x7dff9f), team = false, respawn = 1.5, desc = "Chaque élimination change ton arme. Termine avec le couteau.", limitLabel = "Niveaux", limits = {}, tag = "Une arme par élimination", time = 480 },
-	koth = { n = "Capture de zone", ic = "🚩", c = rgb(0x35e0c0), team = true, respawn = 3, desc = "Tiens la zone qui change de place pour marquer des points.", limitLabel = "Points pour gagner", limits = { 100, 200, 300 }, tag = "Tiens la zone", time = 480 },
-	dom = { n = "Domination", ic = "🏳", c = rgb(0xffd23a), team = true, respawn = 3, desc = "Trois drapeaux A, B, C à capturer et à tenir. Chaque drapeau tenu rapporte des points.", limitLabel = "Points pour gagner", limits = { 100, 200, 300 }, tag = "Tiens A, B et C", time = 480 },
+	koth = { n = "Capture de zone", ic = "🚩", c = rgb(0x35e0c0), team = true, respawn = 3, desc = "Tiens la zone qui change de place pour marquer des points.", limitLabel = "Points pour gagner", limits = { 100, 200, 300 }, tag = "Tiens la zone", time = 600 },
+	dom = { n = "Domination", ic = "🏳", c = rgb(0xffd23a), team = true, respawn = 3, desc = "Trois drapeaux A, B, C à capturer et à tenir. Chaque drapeau tenu rapporte des points.", limitLabel = "Points pour gagner", limits = { 100, 200, 300 }, tag = "Tiens A, B et C", time = 600 },
 	kc = { n = "Élimination confirmée", ic = "🏷", c = rgb(0xffcf4a), team = true, respawn = 3, desc = "Chaque adversaire éliminé lâche une plaque : ramasse-la pour marquer. Ramasse celles de tes alliés pour priver l'adversaire du point.", limitLabel = "Plaques pour gagner", limits = { 30, 50, 75 }, tag = "Ramasse les plaques pour marquer", time = 480 },
 	ctf = { n = "Capture du drapeau", ic = "🚩", c = rgb(0xff9f43), team = true, respawn = 3, desc = "Va prendre le drapeau adverse et ramène-le dans ta base. Ton drapeau doit être chez toi pour marquer.", limitLabel = "Captures pour gagner", limits = { 3, 5, 7 }, tag = "Ramène le drapeau adverse", time = 600 },
 	shp = { n = "Arme tournante", ic = "🎲", c = rgb(0xffa94d), team = false, respawn = 2, desc = "Tout le monde a la même arme, tirée au sort toutes les 30 secondes. Adapte-toi vite !", limitLabel = "Éliminations pour gagner", limits = { 15, 25, 35 }, tag = "Même arme pour tous, elle change", time = 480 },
@@ -43,7 +44,7 @@ Modes.GROUPS = ({
 } :: any) :: { { any } }
 
 -- Partie rapide : modes tirés au hasard (QUICK_MODES du web)
-Modes.QUICK = { "tdm", "ffa", "gg", "koth", "dom", "kc", "shp" }
+Modes.QUICK = { "tdm", "ffa", "gg", "koth", "duel", "rapid", "dom", "kc", "ctf", "shp" }
 
 -- Cartes, dans l'ordre du web (MAPS) ; zombie = réservée au mode Zombies
 Modes.MAPS = {
@@ -90,6 +91,26 @@ Modes.MUTATORS = {
 	{ k = "nades", ic = "💣", n = "Grenades à volonté", d = "Une grenade revient toutes les 5 s" },
 }
 
+-- boutique des modes à manches (Compétitif, Désamorçage rapide, Duel) : CATS et renderBuy du web (src/10_core.js, src/80_ui.js)
+-- prix des armes : Config.WEAPONS[k].price ; équipement : prix du web (buyItem)
+Modes.BUY_CATS = {
+	{ n = "Pistolets", list = { "glock", "usp", "p250", "fiveseven", "deagle" } },
+	{ n = "SMG", list = { "mac10", "mp9", "ump", "p90" } },
+	{ n = "Pompes", list = { "nova", "sawedoff", "xm" } },
+	{ n = "Fusils", list = { "galil", "famas", "ak", "m4", "sg553", "aug" } },
+	{ n = "Snipers", list = { "ssg", "awp", "scar" } },
+	{ n = "Lourd", list = { "negev", "m249" } },
+}
+Modes.BUY_ITEMS = {
+	{ k = "armor", n = "Gilet pare-balles", price = 650 },
+	{ k = "shield1", n = "Bouclier léger (+25)", price = 400 },
+	{ k = "shield2", n = "Bouclier lourd (+50)", price = 1000 },
+	{ k = "kit", n = "Kit de désamorçage", price = 400, ct = true },
+	{ k = "frag", n = "Grenade frag (G)", price = 300 },
+	{ k = "flash", n = "Flashbang (F) ×2", price = 200 },
+	{ k = "smoke", n = "Fumigène (H)", price = 300 },
+}
+
 -- réglages possibles de l'écran « Jouer » (src/85_menu.js)
 function Modes.sizes(mode: string): { number }
 	local m = Modes.LIST[mode]
@@ -117,7 +138,9 @@ function Modes.sanitize(s: any): Settings
 	local map = if typeof(t.map) == "string" and table.find(maps, t.map) then t.map else maps[1]
 	local diff = if typeof(t.diff) == "number" then math.clamp(math.floor(t.diff), 1, #Modes.DIFFS) else 3
 	local sizes = Modes.sizes(mode)
-	local size = if typeof(t.size) == "number" and table.find(sizes, t.size) then t.size else (if Modes.LIST[mode].team then math.min(5, sizes[#sizes]) else 8)
+	local size = if typeof(t.size) == "number" and table.find(sizes, t.size) then t.size
+		elseif mode == "duel" then 1                       -- web : 1 v 1 par défaut (cfg.duelSize)
+		else (if Modes.LIST[mode].team then math.min(5, sizes[#sizes]) else 8)
 	local lims = Modes.LIST[mode].limits
 	local limit = if typeof(t.limit) == "number" and table.find(lims, t.limit) then t.limit else Modes.defaultLimit(mode)
 	local side = if t.side == "t" or t.side == "ct" then t.side else "rnd"

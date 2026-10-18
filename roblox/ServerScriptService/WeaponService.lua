@@ -222,7 +222,7 @@ function WeaponService.giveLoadout(c: any, keys: { string })
 	notify(c)
 end
 
--- Compatibilité avec RoundService (mode bombe) : une seule arme + couteau.
+-- Une seule arme + couteau.
 function WeaponService.giveWeapon(c: any, key: string)
 	WeaponService.giveLoadout(c, { key, "knife" })
 end
@@ -400,6 +400,19 @@ function WeaponService.addShield(c: any, amount: number)
 end
 function WeaponService.shieldOf(c: any): number
 	local s = state[c]; return s and s.shield or 0
+end
+-- bouclier fixé à une valeur (boutique des modes à manches : bouclier léger 25, lourd 50)
+function WeaponService.setShield(c: any, amount: number)
+	local s = state[c]; if s then s.shield = math.clamp(amount, 0, Config.SHIELD_MAX); syncShield(c) end
+end
+-- gilet pare-balles (boutique des modes à manches : 100 = gilet neuf)
+function WeaponService.setArmor(c: any, amount: number)
+	local s = state[c]; if s then s.armor = math.clamp(amount, 0, 100) end
+	local char = WeaponService.charOf(c)
+	if char then char:SetAttribute("Armor", math.floor(math.clamp(amount, 0, 100) + 0.5)) end
+end
+function WeaponService.armorOf(c: any): number
+	local s = state[c]; return s and s.armor or 0
 end
 function WeaponService.setReduction(c: any, r: number)
 	local s = state[c]; if s then s.reduction = r end
