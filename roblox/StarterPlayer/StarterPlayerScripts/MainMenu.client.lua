@@ -4,20 +4,22 @@
 -- logo STRIKE ARENA, navigation Accueil / Jouer / Arsenal / Profil / Réglages, encart du profil (niveau, XP, pièces,
 -- caisses, RÉCOMPENSE), boutons CADEAUX et PREMIUM. Chaque rubrique est un module de Menu/ (Home, Play, Arsenal, Profile, Settings).
 -- S'ouvre à l'arrivée au lobby et au retour d'une partie ; se rouvre avec le bouton en haut à gauche, la touche P ou la croix
--- bas de la manette. En partie il ne s'ouvre que sur demande, avec « Reprendre » et « Quitter la partie ».
--- (Échap est réservée par Roblox à son propre menu.) Le serveur vérifie tout (MatchService, PartyService, MenuService…).
+-- bas de la manette. En partie, P ouvre la pause (PauseMenu : Reprendre, Options, Menu principal, Quitter la partie),
+-- d'où l'on rejoint ce menu, avec « Reprendre » et « Quitter la partie ». Le serveur vérifie tout (MatchService, PartyService, MenuService…).
+-- Effets du web (src/8A_juice.js, src/87d_lobby.js) : fond animé avec deux lueurs, onglets qui glissent en fondu,
+-- cartes qui apparaissent en cascade, menu qui s'ouvre en zoomant, pastille qui bat ; survol et clic des boutons dans Menu/Kit.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
-local SoundService = game:GetService("SoundService")
-local Lighting = game:GetService("Lighting")
+local TweenService = game:GetService("TweenService")
 
 local Modes = require(ReplicatedStorage.Shared.Modes)
 local S = require(ReplicatedStorage.Shared.ClientState)
 local MenuDir = script.Parent:WaitForChild("Menu")
 local K = require(MenuDir:WaitForChild("Kit"))
+local Options = require(MenuDir:WaitForChild("Options"))
 local C = K.C
 local make, text, spaced = K.make, K.text, K.spaced
 
@@ -47,6 +49,31 @@ make("UIGradient", { Color = ColorSequence.new(K.rgb(0x05080e), K.rgb(0x0b1220))
 	NumberSequenceKeypoint.new(0, 0.12), NumberSequenceKeypoint.new(0.55, 0.38), NumberSequenceKeypoint.new(1, 0.55) }), Rotation = 0 }, veil)
 local veil2 = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 0, BackgroundColor3 = Color3.new(1, 1, 1) }, bgGui)
 make("UIGradient", { Color = ColorSequence.new(K.rgb(0x05080e), K.rgb(0x2a1608)), Transparency = NumberSequence.new(0.35, 0.75), Rotation = -90 }, veil2)
+-- fond animé du web (#menu::before) : une lueur rouge en bas à gauche, une bleue en haut à droite, qui dérivent lentement
+-- (14 s, aller-retour). Une lueur = cercles concentriques très transparents : plus dense au centre, fondue sur les bords.
+local glows: { { Frame } } = {}
+local function glow(pos: UDim2, size: number, color: Color3, drift: UDim2): { Frame }
+	local holder = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = pos, Size = UDim2.fromScale(size, size), SizeConstraint = Enum.SizeConstraint.RelativeXX }, bgGui)
+	local rings = {}
+	for i = 1, 7 do
+		local f = i / 7
+		local r = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(f, f),
+			BackgroundTransparency = 0.972, BackgroundColor3 = color }, holder)
+		make("UICorner", { CornerRadius = UDim.new(0.5, 0) }, r)
+		table.insert(rings, r)
+	end
+	TweenService:Create(holder, TweenInfo.new(14, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+		{ Position = pos + drift, Size = UDim2.fromScale(size * 1.08, size * 1.08) }):Play()
+	table.insert(glows, rings)
+	return rings
+end
+glow(UDim2.fromScale(0.15, 1.05), 0.75, C.accent, UDim2.fromScale(0.03, -0.04))
+glow(UDim2.fromScale(0.9, -0.08), 0.6, C.blue, UDim2.fromScale(-0.03, 0.03))
+-- Halloween (#menu.theme-hw::before) : orange et violet
+local function glowTheme(hw: boolean)
+	local cols = if hw then { C.orange, K.rgb(0x8a3dff) } else { C.accent, C.blue }
+	for i, rings in ipairs(glows) do for _, r in ipairs(rings) do r.BackgroundColor3 = cols[i] end end
+end
 
 local gui = make("ScreenGui", { Name = "MainMenu", ResetOnSpawn = false, DisplayOrder = 19, Enabled = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, playerGui)
 local root = make("Frame", { Name = "Root", Size = UDim2.fromOffset(1600, 900), AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0) }, gui)
@@ -64,7 +91,7 @@ local TABS = {
 	{ id = "play", n = "JOUER", ic = "▶" },
 	{ id = "arsenal", n = "ARSENAL", ic = "✦", subs = { "Armes", "Viseurs", "Casier", "Caisses" }, hint = "Armes, viseurs, tenues et caisses · enregistré automatiquement" },
 	{ id = "profile", n = "PROFIL", ic = "★", subs = { "Progression", "Statistiques", "Style" }, hint = "Niveau, défis, statistiques et style du profil" },
-	{ id = "settings", n = "RÉGLAGES", ic = "⚙", subs = { "Général", "Touches", "Accessibilité" }, hint = "Les réglages sont enregistrés automatiquement" },
+	{ id = "settings", n = "RÉGLAGES", ic = "⚙", subs = { "Général", "Viseur", "Son", "Touches", "Accessibilité" }, hint = "Appliqués tout de suite et enregistrés · aussi dans la pause (P)" },
 }
 local PAGES: { [string]: any } = {}
 for _, id in ipairs({ "Home", "Play", "Arsenal", "Profile", "Settings" }) do
@@ -105,34 +132,12 @@ function ctx.toast(msg: string, color: Color3?)
 	task.delay(3.2, function() if my == toastN then toastLabel.Visible = false end end)
 end
 
--- ---------- réglages : appliqués côté client (champ de vision, sensibilité, volume, qualité) ----------
-ctx.opts = { fov = 70, sens = 1, aimSens = 1, vol = 0.7, quality = 3 }
-local master = SoundService:FindFirstChild("Master") :: SoundGroup?
-if not master then
-	local g = Instance.new("SoundGroup"); g.Name = "Master"; g.Parent = SoundService; master = g
-end
-local function adopt(s: Instance)
-	if s:IsA("Sound") and s.SoundGroup == nil then s.SoundGroup = master end
-end
-for _, where in ipairs({ workspace, SoundService }) do
-	for _, d in ipairs(where:GetDescendants()) do adopt(d) end
-	where.DescendantAdded:Connect(adopt)
-end
-local disabledFx: { [Instance]: boolean } = {}
-function ctx.applyOpts()
-	local o = ctx.opts
-	S.opt.fov = o.fov; S.opt.sens = o.sens; S.opt.aimSens = o.aimSens
-	if master then master.Volume = o.vol / 0.7 end        -- 70 % = volume d'origine
-	Lighting.GlobalShadows = o.quality >= 2
-	for _, e in ipairs(Lighting:GetChildren()) do
-		if e:IsA("BloomEffect") or e:IsA("SunRaysEffect") then
-			if o.quality < 3 and e.Enabled then e.Enabled = false; disabledFx[e] = true
-			elseif o.quality >= 3 and disabledFx[e] then e.Enabled = true; disabledFx[e] = nil end
-		end
-	end
-end
+-- ---------- réglages : Menu/Options (appliqués côté client, gardés dans le profil, partagés avec la pause) ----------
+ctx.opts = Options.v
+ctx.applyOpts = Options.apply
 local saveTokens: { [string]: number } = {}
 function ctx.save(kind: string)   -- enregistre dans le profil, une seconde après le dernier changement
+	if kind == "opts" then Options.save(); return end
 	saveTokens[kind] = (saveTokens[kind] or 0) + 1
 	local my = saveTokens[kind]
 	task.delay(1, function()
@@ -158,10 +163,10 @@ function ctx.refresh(andRender: boolean?)
 				if typeof(menu.play) == "table" then
 					ctx.play = Modes.sanitize(menu.play); ctx.friends = menu.play.friends == true
 				end
-				if typeof(menu.opts) == "table" then for k, v in pairs(menu.opts) do if typeof(v) == "number" then ctx.opts[k] = v end end end
 			end
-			ctx.applyOpts()
+			Options.load(d.profile)   -- anciens réglages (menu.opts) puis toutes les options (profile.options), appliqués
 		end
+		glowTheme(d.eventActive == true)
 	end
 	ctx.loy = call("Loy_Get") or ctx.loy
 	ctx.ch = call("GetChallenges") or ctx.ch          -- défis du jour / de la semaine, avec leurs textes (pool complet du web)
@@ -269,7 +274,7 @@ local subRow = make("Frame", { Name = "SubRow", Size = UDim2.new(1, -56, 0, 40),
 local body = make("Frame", { Name = "Body", Size = UDim2.new(1, -56, 1, -170), Position = UDim2.fromOffset(28, 140), ClipsDescendants = true }, root)
 local footer = text(root, { Name = "Footer", AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 28, 1, -8), Size = UDim2.new(1, -56, 0, 16),
 	TextSize = 11, TextColor3 = C.mute, Font = K.MED, TextWrapped = false,
-	Text = 'P : menu  •  Tous les réglages sont sauvegardés automatiquement  •  <u>Crédits</u> : modèles d\'armes « Low-Poly » de TastyTony (CC BY 4.0)' })
+	Text = 'P : menu (en partie : pause)  •  Tous les réglages sont sauvegardés automatiquement  •  <u>Crédits</u> : modèles d\'armes « Low-Poly » de TastyTony (CC BY 4.0)' })
 local navButtons: { [string]: TextButton } = {}
 
 local function buildHeader()
@@ -309,7 +314,7 @@ local function buildHeader()
 				local dot = text(b, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -2, 0, 2), Size = UDim2.fromOffset(17, 17), Text = tostring(n),
 					BackgroundTransparency = 0, BackgroundColor3 = C.gold, TextColor3 = C.ink, Font = K.BLACK, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Center,
 					ZIndex = b.ZIndex + 1 })
-				K.corner(dot, 9)
+				K.corner(dot, 9); K.beat(dot)   -- bat comme la pastille .ndot du web
 			end
 		end
 		navButtons[t.id] = b
@@ -379,7 +384,7 @@ local function buildSubRow()
 	if t and t.subs then
 		for i, s in ipairs(t.subs) do
 			local on = ctx.sub[t.id] == s
-			local b = K.btn(row, spaced(s, 1), if on then "white" else "dark", function() ctx.sub[t.id] = s; render() end,
+			local b = K.btn(row, spaced(s, 1), if on then "white" else "dark", function() if ctx.sub[t.id] ~= s then ctx.goSub(t.id, s) end end,
 				{ LayoutOrder = i, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 32), TextSize = 13, Font = K.BLACK })
 			K.pad(b, 16, 0); K.corner(b, 16)
 			local c = b:FindFirstChildOfClass("UICorner"); if c then c.CornerRadius = UDim.new(0, 16) end
@@ -416,35 +421,85 @@ local function scrollPositions(): { [string]: Vector2 }
 	for _, d in ipairs(body:GetDescendants()) do if d:IsA("ScrollingFrame") then out[d.Name] = d.CanvasPosition end end
 	return out
 end
-render = function()
+-- changement d'onglet (dir = -1 / 1) : la page arrive en glissant et en fondu (tpin du web), puis ses cartes en cascade.
+-- Le fondu passe par un CanvasGroup le temps de l'animation ; ensuite la page est remise directement dans « body »
+-- (un CanvasGroup permanent rendrait le texte un peu flou).
+local fadeN, fadeAt = 0, 0
+local function animateIn(host: CanvasGroup, dir: number)
+	fadeN += 1; fadeAt = os.clock()
+	local my = fadeN
+	host.GroupTransparency = 1
+	host.Position = UDim2.fromOffset(28 * dir, 0)
+	task.defer(function()
+		if not host.Parent then return end
+		K.cascade(host)
+		local tw = K.tween(host, 0.28, { GroupTransparency = 0, Position = UDim2.fromOffset(0, 0) }, Enum.EasingStyle.Quint)
+		tw.Completed:Connect(function()
+			if my ~= fadeN or host.Parent ~= body then return end
+			for _, c in ipairs(host:GetChildren()) do c.Parent = body end
+			host:Destroy()
+		end)
+	end)
+end
+local function renderWith(dir: number?)
 	if not open then return end
 	local keep = scrollPositions()
 	buildHeader(); buildSubRow()
 	K.clear(body)
+	local host: GuiObject = body
+	if dir then host = make("CanvasGroup", { Name = "PageFade", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1 }, body) end
 	local page = PAGES[ctx.tab]
 	if page then
-		local ok, err = pcall(page, ctx, body, ctx.sub[ctx.tab])
+		local ok, err = pcall(page, ctx, host, ctx.sub[ctx.tab])
 		if not ok then
 			warn("[MainMenu] rubrique " .. ctx.tab, err)
-			text(body, { Text = "Cette rubrique n'a pas pu s'afficher.", TextColor3 = C.dim, Size = UDim2.new(1, 0, 0, 30) })
+			text(host, { Text = "Cette rubrique n'a pas pu s'afficher.", TextColor3 = C.dim, Size = UDim2.new(1, 0, 0, 30) })
 		end
 	end
+	if dir and host:IsA("CanvasGroup") then animateIn(host, dir) end
 	task.defer(function()
 		for _, d in ipairs(body:GetDescendants()) do
 			if d:IsA("ScrollingFrame") and keep[d.Name] then d.CanvasPosition = keep[d.Name] end
 		end
 	end)
 end
+-- un rafraîchissement (profil reçu juste après l'ouverture…) attend la fin de l'animation au lieu de la couper
+local renderLater = false
+render = function()
+	if body:FindFirstChild("PageFade") and os.clock() - fadeAt < 1 then
+		if not renderLater then
+			renderLater = true
+			task.delay(0.35, function() renderLater = false; render() end)
+		end
+		return
+	end
+	renderWith(nil)
+end
 ctx.render = function() render() end
 
+local function tabIndex(id: string): number
+	for i, t in ipairs(TABS) do if t.id == id then return i end end
+	return 1
+end
+-- sous-onglet (Armes / Viseurs…, Général / Son…) : glisse depuis le côté où il se trouve
+function ctx.goSub(tab: string, s: string)
+	local t = TABS[tabIndex(tab)]
+	local old = table.find(t.subs or {}, ctx.sub[tab]) or 1
+	local new = table.find(t.subs or {}, s) or 1
+	ctx.sub[tab] = s
+	renderWith(if new >= old then 1 else -1)
+end
+
 function ctx.go(tab: string, sub: string?)
+	local dir = if tabIndex(tab) >= tabIndex(ctx.tab) then 1 else -1
+	local changed = tab ~= ctx.tab or (sub ~= nil and sub ~= ctx.sub[tab])
 	if tab ~= ctx.tab then
 		for _, d in ipairs(body:GetDescendants()) do if d:IsA("ScrollingFrame") then d.CanvasPosition = Vector2.zero end end
 	end
 	if ctx.tab == "home" then ctx.newsSeen = true end
 	ctx.tab = tab
 	if sub then ctx.sub[tab] = sub end
-	render()
+	if changed then renderWith(dir) else render() end
 	if UserInputService.GamepadEnabled and navButtons[tab] then GuiService.SelectedObject = navButtons[tab] end
 end
 
@@ -515,7 +570,11 @@ local function setOpen(on: boolean)
 	bindOpenActions(on)
 	if on then
 		computeScale()
-		render()
+		-- ouverture : le menu arrive en zoomant légèrement (sbIn du web), la page et ses cartes en fondu et en cascade
+		local s = uiScale.Scale
+		uiScale.Scale = s * 0.965
+		K.tween(uiScale, 0.32, { Scale = s }, Enum.EasingStyle.Quint)
+		renderWith(1)
 		task.spawn(function() ctx.refresh(true) end)
 		if UserInputService.GamepadEnabled and navButtons[ctx.tab] then GuiService.SelectedObject = navButtons[ctx.tab] end
 	else
@@ -536,10 +595,17 @@ player:GetAttributeChangedSignal("UiOpen"):Connect(function()
 end)
 
 openBtn.Activated:Connect(function() setOpen(true) end)
+-- P / croix bas : au lobby le menu ; en partie la pause (PauseMenu, qui s'inscrit dans S.panels), d'où l'on rejoint le menu
 ContextActionService:BindAction("MainMenu", function(_, st)
-	if st == Enum.UserInputState.Begin then setOpen(not open) end
+	if st == Enum.UserInputState.Begin then
+		local pause = S.panels.pause
+		if not open and ctx.inMatch() and pause then pause() else setOpen(not open) end
+	end
 	return Enum.ContextActionResult.Sink
 end, false, Enum.KeyCode.P, Enum.KeyCode.DPadDown)
+-- la pause ouvre le menu principal (bouton MENU PRINCIPAL) ; « settings » l'ouvre sur les Réglages
+S.panels.menu = function() setOpen(true) end
+S.panels.settings = function() ctx.open("settings", "Général") end
 
 -- arrivée au lobby et retour d'une partie : le menu s'ouvre ; une partie commence : il se ferme
 local lastZone = zone()

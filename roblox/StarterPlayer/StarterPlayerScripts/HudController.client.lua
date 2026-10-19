@@ -545,6 +545,18 @@ local panelKey, panelSkin, pipMax = "", "", -1
 local center = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(0, 0), BackgroundTransparency = 1 }, gui)
 local dot = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(4, 4), BackgroundColor3 = C.text, Visible = ModeConfig.CENTER_DOT }, center)
 corner(dot, 2); stroke(dot, Color3.new(0, 0, 0), 1, 0.4)
+-- autres formes du viseur (Options → Viseur : S.opt.xhStyle / S.opt.xhColor)
+local xhCross = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(0, 0), BackgroundTransparency = 1, Visible = false }, center)
+local xhBars: { Frame } = {}
+for i, v in ipairs({ Vector2.new(0, -1), Vector2.new(0, 1), Vector2.new(-1, 0), Vector2.new(1, 0) }) do
+	local bar = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(v.X * 9, v.Y * 9),
+		Size = if v.X == 0 then UDim2.fromOffset(2, 8) else UDim2.fromOffset(8, 2), BackgroundColor3 = C.text }, xhCross)
+	stroke(bar, Color3.new(0, 0, 0), 1, 0.4)
+	xhBars[i] = bar
+end
+local xhCircle = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(18, 18), BackgroundTransparency = 1, Visible = false }, center)
+make("UICorner", { CornerRadius = UDim.new(1, 0) }, xhCircle)
+local xhRing = make("UIStroke", { Color = C.text, Thickness = 1.5 }, xhCircle)
 
 local hitmarker = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(0, 0), BackgroundTransparency = 1, Visible = false, ZIndex = 6 }, center)
 local hmLines: { Frame } = {}
@@ -915,7 +927,7 @@ endRemote.OnClientEvent:Connect(function(r: any)
 	task.spawn(function()
 		local left = r.next or 15
 		while left > 0 and endFrame.Visible do
-			endNext.Text = "Prochaine partie dans " .. left .. " s — même mode, même carte"
+			endNext.Text = "Prochaine partie dans " .. left .. " s — même mode"
 			task.wait(1); left -= 1
 		end
 	end)
@@ -1155,5 +1167,11 @@ RunService.RenderStepped:Connect(function(dt: number)
 		d.arc.BackgroundTransparency = 1 - a; d.chev.TextTransparency = 1 - a
 	end
 	updateNumbers(dt)
-	dot.Visible = ModeConfig.CENTER_DOT and player:GetAttribute("Aiming") ~= true and hp > 0
+	local showXh = ModeConfig.CENTER_DOT and player:GetAttribute("Aiming") ~= true and hp > 0
+	local style, col = S.opt.xhStyle or "dot", S.opt.xhColor or C.text
+	dot.Visible = showXh and (style == "dot" or style == "circle")
+	xhCross.Visible = showXh and style == "cross"
+	xhCircle.Visible = showXh and style == "circle"
+	dot.BackgroundColor3 = col; xhRing.Color = col
+	for _, b in ipairs(xhBars) do b.BackgroundColor3 = col end
 end)
