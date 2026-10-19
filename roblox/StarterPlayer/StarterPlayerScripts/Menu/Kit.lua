@@ -66,6 +66,135 @@ function K.tween(o: Instance, t: number, props: { [string]: any }, style: Enum.E
 	return tw
 end
 
+-- ---------- effets (src/8A_juice.js, src/87d_lobby.js) : survol, clic, brillance, apparition ----------
+local Sfx = require(game:GetService("ReplicatedStorage").Shared.Sfx)
+local lastHover = 0
+-- son d'interface (sfxUI du web) : plus discret au survol, et pas plus d'un toutes les 70 ms
+function K.uiSound(hover: boolean?)
+	local now = os.clock()
+	if hover then
+		if now - lastHover < 0.07 then return end
+		lastHover = now
+	end
+	pcall(Sfx.play, "ui", nil, if hover then 0.3 else 0.8)
+end
+-- UIScale des effets (un seul par objet : survol, clic et apparition se le partagent), créé au premier besoin
+function K.fxScale(o: Instance): UIScale
+	local s = o:FindFirstChild("FxScale")
+	if s and s:IsA("UIScale") then return s end
+	return make("UIScale", { Name = "FxScale" }, o)
+end
+-- dans une liste ou une grille, un objet qui grossit pousse ses voisins : on grossit deux fois moins
+local function inLayout(o: Instance): boolean
+	local p = o.Parent
+	return p ~= nil and p:FindFirstChildWhichIsA("UIGridStyleLayout") ~= nil
+end
+-- reflet qui traverse l'objet (.btn::after et .hero::after du web) : bande blanche en dégradé, dans un cadre qui la coupe.
+-- Le dégradé est sur la bande, jamais sur un bouton qui porte son texte (il le teinterait aussi).
+-- every = nil : un seul passage (survol) ; sinon recommence toutes les « every » secondes
+function K.shine(o: GuiObject, every: number?, strength: number?)
+	if o:FindFirstChildWhichIsA("UIGridStyleLayout") then return end   -- le cadre du reflet prendrait une place dans la liste
+	local holder = o:FindFirstChild("Shine")
+	local band: Frame
+	if holder and holder:FindFirstChild("Band") then
+		band = (holder :: any).Band
+	else
+		holder = make("Frame", { Name = "Shine", Size = UDim2.fromScale(1, 1), ClipsDescendants = true, ZIndex = o.ZIndex + 1, Active = false }, o)
+		band = make("Frame", { Name = "Band", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.fromScale(-0.6, 0.5), Size = UDim2.fromScale(0.5, 1.6),
+			BackgroundTransparency = 0, BackgroundColor3 = C.white, ZIndex = o.ZIndex + 1, Rotation = 12, Active = false }, holder)
+		local a = 1 - (strength or 0.22)
+		make("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, a), NumberSequenceKeypoint.new(1, 1) }) }, band)
+	end
+	local h = holder :: Instance
+	if not every and h:GetAttribute("Loop") then return end   -- le reflet tourne déjà en boucle
+	band.Position = UDim2.fromScale(-0.6, 0.5)
+	if every then
+		h:SetAttribute("Loop", true)
+		TweenService:Create(band, TweenInfo.new(1.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, false, every), { Position = UDim2.fromScale(1.1, 0.5) }):Play()
+	else
+		K.tween(band, 0.6, { Position = UDim2.fromScale(1.1, 0.5) }, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+	end
+end
+-- battement (pastilles .ndot du web : scale 1,18 toutes les 1,6 s)
+function K.beat(o: GuiObject, to: number?, period: number?)
+	TweenService:Create(K.fxScale(o), TweenInfo.new((period or 1.6) / 2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { Scale = to or 1.18 }):Play()
+end
+-- survol / sélection manette : léger agrandissement, lueur du bord, son ; clic : enfoncement puis rebond
+function K.juice(b: GuiButton, grow: number?, shine: boolean?)
+	local g = grow or 0.04
+	local hovered = false
+	local function target(): number
+		if not hovered then return 1 end
+		return 1 + (if inLayout(b) then g * 0.5 else g)
+	end
+	local function glow(on: boolean)
+		local st = b:FindFirstChildOfClass("UIStroke")
+		if st and st.Name == "Pulse" then return end
+		if not st then
+			if not on or b:FindFirstChild("Cut") then return end   -- coins coupés : un bord dessinerait les coins carrés
+			local base = b:GetAttribute("BaseColor")
+			st = make("UIStroke", { Name = "Glow", Thickness = 1.5, Transparency = 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+				Color = if typeof(base) == "Color3" then base:Lerp(C.white, 0.45) else C.white }, b)
+		end
+		local s = st :: UIStroke
+		if s:GetAttribute("BaseT") == nil then s:SetAttribute("BaseT", s.Transparency) end
+		local baseT = s:GetAttribute("BaseT") :: number
+		K.tween(s, 0.16, { Transparency = if on then math.min(baseT, 1) - (if s.Name == "Glow" then 0.6 else math.min(0.35, baseT * 0.5)) else baseT })
+	end
+	local function hover(on: boolean)
+		if hovered == on then return end
+		hovered = on
+		K.tween(K.fxScale(b), 0.16, { Scale = target() }, if on then Enum.EasingStyle.Back else Enum.EasingStyle.Quad)
+		glow(on)
+		if on then
+			K.uiSound(true)
+			if shine then K.shine(b) end
+		end
+	end
+	b.MouseEnter:Connect(function() hover(true) end)
+	b.MouseLeave:Connect(function() hover(false) end)
+	b.SelectionGained:Connect(function() hover(true) end)
+	b.SelectionLost:Connect(function() hover(false) end)
+	b.MouseButton1Down:Connect(function() K.tween(K.fxScale(b), 0.06, { Scale = 0.95 }) end)
+	b.MouseButton1Up:Connect(function() K.tween(K.fxScale(b), 0.22, { Scale = target() }, Enum.EasingStyle.Back) end)
+	b.Activated:Connect(function()
+		K.uiSound(false)
+		-- manette / tactile : pas de MouseButton1Down, on rejoue l'enfoncement ici
+		local s = K.fxScale(b)
+		if s.Scale > 0.97 then
+			s.Scale = 0.95
+			K.tween(s, 0.22, { Scale = target() }, Enum.EasingStyle.Back)
+		end
+	end)
+end
+-- apparition en cascade (lcIn du web : chaque carte arrive avec un léger décalage) : les cartes de la page grossissent
+-- de 0,94 à 1 l'une après l'autre, de haut en bas puis de gauche à droite
+function K.cascade(root: Instance, max: number?)
+	local found: { GuiObject } = {}
+	local function walk(o: Instance, depth: number)
+		for _, c in ipairs(o:GetChildren()) do
+			if #found >= (max or 14) then return end
+			if c:IsA("GuiObject") and c.Visible then
+				local isCard = (c:IsA("Frame") or c:IsA("TextButton")) and c:FindFirstChildOfClass("UICorner") ~= nil
+					and c.AbsoluteSize.X >= 140 and c.AbsoluteSize.Y >= 56
+				if isCard then table.insert(found, c)
+				elseif depth < 5 then walk(c, depth + 1) end
+			end
+		end
+	end
+	walk(root, 0)
+	table.sort(found, function(a, b)
+		local pa, pb = a.AbsolutePosition, b.AbsolutePosition
+		if math.abs(pa.Y - pb.Y) > 8 then return pa.Y < pb.Y end
+		return pa.X < pb.X
+	end)
+	for i, c in ipairs(found) do
+		local s = K.fxScale(c)
+		s.Scale = 0.94
+		TweenService:Create(s, TweenInfo.new(0.42, Enum.EasingStyle.Back, Enum.EasingDirection.Out, 0, false, (i - 1) * 0.045), { Scale = 1 }):Play()
+	end
+end
+
 -- lettres espacées (letter-spacing du web), comme HudController
 function K.spaced(s: string, n: number?): string
 	local gap = string.rep(" ", n or 1)
@@ -116,12 +245,14 @@ end
 function K.card(parent: Instance?, props: { [string]: any }?, onClick: (() -> ())?): Frame
 	local f = make(if onClick then "TextButton" else "Frame", { BackgroundTransparency = 0, BackgroundColor3 = C.white, Size = UDim2.new(1, 0, 0, 0),
 		AutomaticSize = Enum.AutomaticSize.Y }, parent)
-	if onClick then
-		(f :: any).Text = ""; (f :: any).Selectable = true
-		(f :: any).Activated:Connect(onClick)
-	end
 	K.gradient(f, rgb(0x121b2c), rgb(0x0b111c), 90, 0.13, 0.2)
 	K.corner(f, 14); K.stroke(f)
+	if onClick then
+		(f :: any).Text = ""; (f :: any).Selectable = true
+		-- carte cliquable : elle grossit un peu et son bord s'éclaire au survol (.mcard:hover du web)
+		K.juice(f :: any, 0.02);
+		(f :: any).Activated:Connect(onClick)
+	end
 	K.pad(f, 18, 16)
 	if props then for k, v in pairs(props) do (f :: any)[k] = v end end
 	return f
@@ -173,14 +304,19 @@ function K.btn(parent: Instance?, text: string, kind: BtnKind?, cb: (() -> ())?,
 	if props then for key, v in pairs(props) do (b :: any)[key] = v end end
 	b:SetAttribute("BaseColor", b.BackgroundColor3)
 	-- survol / sélection manette : éclaircit un peu (filter:brightness du web)
+	-- (un bouton transparent, comme les onglets de la navigation, prend un léger fond au survol)
+	local baseT = b.BackgroundTransparency
 	local function hi(on: boolean)
 		local base = b:GetAttribute("BaseColor")
-		if typeof(base) == "Color3" then b.BackgroundColor3 = if on then base:Lerp(C.white, 0.12) else base end
+		if typeof(base) == "Color3" then K.tween(b, 0.12, { BackgroundColor3 = if on then base:Lerp(C.white, 0.12) else base }) end
+		if baseT >= 0.95 then K.tween(b, 0.12, { BackgroundTransparency = if on then 0.9 else baseT }) end
 	end
 	b.MouseEnter:Connect(function() hi(true) end)
 	b.MouseLeave:Connect(function() hi(false) end)
 	b.SelectionGained:Connect(function() hi(true) end)
 	b.SelectionLost:Connect(function() hi(false) end)
+	-- agrandissement, lueur, son ; reflet qui traverse les boutons pleins (rouge, or, bleu…)
+	K.juice(b, 0.04, k[3] == 0 and kind ~= "alt" and kind ~= "white")
 	if cb then b.Activated:Connect(cb) end
 	return b
 end
@@ -200,8 +336,10 @@ function K.chip(parent: Instance?, text: string, on: boolean, cb: (() -> ())?, p
 	local b = make("TextButton", { Text = text, Font = K.BOLD, TextSize = 13, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 36),
 		BackgroundTransparency = if on then 0 else 0.25, BackgroundColor3 = if on then (onColor or C.accent) else C.navy, TextColor3 = C.white, Selectable = true }, parent)
 	K.corner(b, 6); K.pad(b, 14, 0)
-	if not on then K.stroke(b, C.white, 1, 0.92) end
+	-- puce choisie : lueur de sa couleur (.chip.on du web) ; les autres : bord fin qui s'éclaire au survol
+	if on then K.stroke(b, (onColor or C.accent):Lerp(C.white, 0.35), 1.5, 0.45) else K.stroke(b, C.white, 1, 0.92) end
 	if props then for k, v in pairs(props) do (b :: any)[k] = v end end
+	K.juice(b, 0.05)
 	if cb then b.Activated:Connect(cb) end
 	return b
 end

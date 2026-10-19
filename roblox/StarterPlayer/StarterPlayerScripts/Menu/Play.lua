@@ -432,6 +432,7 @@ return function(ctx: any, body: Frame, _sub: string?)
 	local pb = K.btn(cfg, spaced(label, if friends and inParty then 2 else 4), "primary", function() ctx.startPlay() end,
 		{ LayoutOrder = 31, Size = UDim2.new(1, 0, 0, 70), TextSize = if friends and inParty then 20 else 28, Name = "PlayGo" })
 	K.cut(pb, 12, K.rgb(0x0b111c))
+	K.shine(pb, 2.4, 0.25)   -- reflet qui revient sur JOUER (playglow du web)
 	if not friends then
 		local qb = K.btn(cfg, "", "alt", function() ctx.quick(nil) end, { LayoutOrder = 32, Size = UDim2.new(1, 0, 0, 60) })
 		text(qb, { Text = "⚡  " .. spaced("PARTIE RAPIDE", 2), Size = UDim2.new(1, 0, 0, 24), Position = UDim2.fromOffset(0, 10), Font = K.BLACK, TextSize = 16,
