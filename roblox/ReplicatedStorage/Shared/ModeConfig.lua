@@ -4,7 +4,7 @@
 -- Partagé client / serveur : le HUD lit les mêmes valeurs que le serveur.
 local ModeConfig = {}
 
--- "tdm" = match à mort par équipe (premier mode jouable) ; "bomb" = compétitif 5v5 (RoundService, bombe pas encore branchée)
+-- Mode de la « Partie rapide » quand le lobby est désactivé (CommunityConfig.LOBBY_ENABLED = false) ; sinon chacun choisit dans le menu
 ModeConfig.MODE = "tdm"
 
 ModeConfig.TDM = {

@@ -26,7 +26,10 @@ local startFn = remote("RemoteFunction", "PartyStart") :: RemoteFunction
 local function broadcast(party: Party)
 	local names = {}
 	for _, m in ipairs(party.members) do table.insert(names, { userId = m.UserId, name = m.DisplayName, leader = m == party.leader }) end
-	for _, m in ipairs(party.members) do partyEvent:FireClient(m, party.id, names) end
+	for _, m in ipairs(party.members) do
+		m:SetAttribute("Party", party.id); m:SetAttribute("PartyLeader", m == party.leader)   -- lus par le menu (groupes du serveur)
+		partyEvent:FireClient(m, party.id, names)
+	end
 end
 
 local function leave(player: Player)
@@ -34,6 +37,7 @@ local function leave(player: Player)
 	local party = parties[id]; partyOf[player] = nil
 	if not party then return end
 	local i = table.find(party.members, player); if i then table.remove(party.members, i) end
+	player:SetAttribute("Party", nil); player:SetAttribute("PartyLeader", nil)
 	partyEvent:FireClient(player, nil, {})
 	if #party.members == 0 then parties[id] = nil return end
 	if party.leader == player then party.leader = party.members[1] end
@@ -47,15 +51,24 @@ createFn.OnServerInvoke = function(player: Player)
 	broadcast(parties[id])
 	return id
 end
-joinFn.OnServerInvoke = function(player: Player, id: any)
+function PartyService.join(player: Player, id: any): boolean
 	if typeof(id) ~= "string" then return false end
 	local party = parties[id]
-	if not party or #party.members >= MAX_PARTY then return false end
+	if not party or #party.members >= MAX_PARTY or table.find(party.members, player) then return false end
 	leave(player)
 	table.insert(party.members, player); partyOf[player] = id
 	broadcast(party)
 	return true
 end
+joinFn.OnServerInvoke = PartyService.join
+-- invitation (SocialService, LaunchData = numéro du groupe) : l'ami qui arrive rejoint le groupe tout seul
+Players.PlayerAdded:Connect(function(player: Player)
+	local ok, data = pcall(function() return player:GetJoinData() end)
+	local launch = ok and typeof(data) == "table" and data.LaunchData
+	if typeof(launch) == "string" and string.sub(launch, 1, 6) == "party:" then
+		task.delay(3, function() if player.Parent then PartyService.join(player, string.sub(launch, 7)) end end)
+	end
+end)
 leaveFn.OnServerInvoke = function(player: Player) leave(player); return true end
 
 -- Le chef lance : serveur réservé + téléportation de tout le groupe
@@ -74,7 +87,19 @@ end
 -- Invitation d'un ami : ouvre la fenêtre native de Roblox (le client appelle SocialService:PromptGameInvite)
 Players.PlayerRemoving:Connect(leave)
 
--- Équilibrage : les groupes arrivent dans la même équipe (utilisé par RoundService.assignTeams)
+-- Équilibrage : les groupes arrivent dans la même équipe (utilisé par MatchService)
+-- Membres du groupe d'un joueur (lui compris) ; seul s'il n'a pas de groupe
+function PartyService.membersOf(player: Player): { Player }
+	local id = partyOf[player]
+	local party = id and parties[id]
+	return if party then table.clone(party.members) else { player }
+end
+function PartyService.isLeader(player: Player): boolean
+	local id = partyOf[player]
+	local party = id and parties[id]
+	return party == nil or party.leader == player
+end
+
 function PartyService.groupsOf(players: { Player }): { { Player } }
 	local seen: { [string]: { Player } } = {}
 	local solo: { { Player } } = {}

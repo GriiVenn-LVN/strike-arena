@@ -255,6 +255,116 @@ EFFECTS.spirit = function(char, pos, snaps)
 	sound("rbxasset://sounds/electronicpingshort.wav", pos, 0.6, 1.2)
 end
 
+-- ---------- effets de l'événement d'Halloween (src/8W_halloween.js HWFX) : le corps reste, l'effet s'y ajoute ----------
+local RunService = game:GetService("RunService")
+-- petite boucle d'animation : fn(t) renvoie false quand c'est fini
+local function animate(life: number, fn: (number, number) -> ())
+	local t0 = os.clock()
+	local conn: RBXScriptConnection
+	conn = RunService.Heartbeat:Connect(function(dt)
+		local t = os.clock() - t0
+		if t >= life then conn:Disconnect(); fn(life, dt); return end
+		fn(t, dt)
+	end)
+end
+local BAT = Color3.fromRGB(11, 7, 16)
+-- Nuée de chauves-souris : 22 chauves-souris s'échappent en battant des ailes, lueur violette
+EFFECTS.bats = function(_char, pos, _snaps)
+	local origin = pos + Vector3.new(0, 1.5, 0)
+	for _ = 1, 22 do
+		local body = newPart({ Shape = Enum.PartType.Ball, Size = Vector3.new(0.35, 0.3, 0.45), Color = BAT, Material = Enum.Material.SmoothPlastic,
+			Position = origin + Vector3.new(math.random() - 0.5, math.random() - 0.6, math.random() - 0.5) * 0.8 })
+		local wl = newPart({ Size = Vector3.new(0.9, 0.05, 0.4), Color = BAT, Material = Enum.Material.SmoothPlastic })
+		local wr = newPart({ Size = Vector3.new(0.9, 0.05, 0.4), Color = BAT, Material = Enum.Material.SmoothPlastic })
+		local eye = newPart({ Size = Vector3.new(0.18, 0.06, 0.04), Color = Color3.fromRGB(255, 48, 48), Material = Enum.Material.Neon })
+		local a, sp, vy, sw, fl = math.random() * math.pi * 2, 4 + math.random() * 6, 3.5 + math.random() * 5.5, (math.random() - 0.5) * 6, 16 + math.random() * 8
+		local life = 1.4 + math.random() * 0.8
+		local p0 = body.Position
+		animate(life, function(t, _dt)
+			if t >= life then body:Destroy(); wl:Destroy(); wr:Destroy(); eye:Destroy(); return end
+			local aa = a + sw * t * 0.4
+			local p = p0 + Vector3.new(math.cos(aa) * sp * t, vy * t * (1 - t / life * 0.25), math.sin(aa) * sp * t)
+			local cf = CFrame.lookAt(p, p + Vector3.new(math.cos(aa), 0.2, math.sin(aa)))
+			local flap = math.sin(t * fl) * 0.9
+			body.CFrame = cf
+			wl.CFrame = cf * CFrame.new(-0.45, 0, 0) * CFrame.Angles(0, 0, flap) * CFrame.new(-0.2, 0, 0)
+			wr.CFrame = cf * CFrame.new(0.45, 0, 0) * CFrame.Angles(0, 0, -flap) * CFrame.new(0.2, 0, 0)
+			eye.CFrame = cf * CFrame.new(0, 0.05, -0.22)
+			local fade = math.clamp((life - t) / 0.4, 0, 1)
+			body.Transparency = 1 - fade; wl.Transparency = 1 - fade; wr.Transparency = 1 - fade; eye.Transparency = 1 - fade
+		end)
+	end
+	burstEmitter(origin, { Texture = "rbxasset://textures/particles/sparkles_main.dds", Color = ColorSequence.new(Color3.fromRGB(138, 61, 255)),
+		LightEmission = 1, Lifetime = NumberRange.new(0.7, 1.2), Speed = NumberRange.new(1, 3), SpreadAngle = Vector2.new(180, 180),
+		Size = NumberSequence.new(1.6, 0.2), Transparency = NumberSequence.new(0.2, 1) }, 10, 1.5)
+	sound("rbxasset://sounds/electronicpingshort.wav", pos, 0.5, 2.6)
+end
+-- Âme damnée : un crâne spectral vert monte en spirale, traînée d'étincelles vertes
+EFFECTS.soul = function(_char, pos, _snaps)
+	local green = Color3.fromRGB(109, 255, 122)
+	local base = pos + Vector3.new(0, 1, 0)
+	local skull = newPart({ Shape = Enum.PartType.Ball, Size = Vector3.new(1.3, 1.3, 1.3), Color = Color3.fromRGB(190, 255, 200), Material = Enum.Material.Neon, Transparency = 0.15 })
+	local jaw = newPart({ Size = Vector3.new(0.75, 0.4, 0.6), Color = Color3.fromRGB(190, 255, 200), Material = Enum.Material.Neon, Transparency = 0.15 })
+	local eyes: { { p: Part, x: number } } = {}
+	for _, sx in ipairs({ -0.25, 0.25 }) do
+		table.insert(eyes, { p = newPart({ Shape = Enum.PartType.Ball, Size = Vector3.new(0.34, 0.4, 0.2), Color = Color3.fromRGB(10, 58, 24), Material = Enum.Material.SmoothPlastic }), x = sx })
+	end
+	local glow = Instance.new("PointLight"); glow.Color = green; glow.Range = 14; glow.Brightness = 3; glow.Parent = skull
+	local cam = workspace.CurrentCamera
+	animate(2.4, function(t, _dt)
+		if t >= 2.4 then skull:Destroy(); jaw:Destroy(); for _, e in ipairs(eyes) do e.p:Destroy() end; return end
+		local sc = 0.5 + t * 0.45
+		local p = base + Vector3.new(math.cos(t * 5) * 0.35 * t * 3.6, t * 1.3 * 3.6, math.sin(t * 5) * 0.35 * t * 3.6)
+		local look = if cam then cam.CFrame.Position else p + Vector3.new(0, 0, -1)
+		local cf = CFrame.lookAt(p, Vector3.new(look.X, p.Y, look.Z))
+		skull.Size = Vector3.new(1.3, 1.3, 1.3) * sc; skull.CFrame = cf
+		jaw.Size = Vector3.new(0.75, 0.4, 0.6) * sc; jaw.CFrame = cf * CFrame.new(0, -0.6 * sc, -0.1 * sc)
+		for _, e in ipairs(eyes) do e.p.Size = Vector3.new(0.34, 0.4, 0.2) * sc; e.p.CFrame = cf * CFrame.new(e.x * sc, 0.05 * sc, -0.55 * sc) end
+		local fade = 1 - math.clamp((2.4 - t) / 0.6, 0, 1)
+		skull.Transparency = 0.15 + fade * 0.85; jaw.Transparency = skull.Transparency
+		for _, e in ipairs(eyes) do e.p.Transparency = fade end
+		glow.Brightness = 3 * (1 - fade)
+	end)
+	burstEmitter(base - Vector3.new(0, 2, 0), { Texture = "rbxasset://textures/particles/sparkles_main.dds", Color = ColorSequence.new(green, Color3.fromRGB(184, 255, 176)),
+		LightEmission = 1, Lifetime = NumberRange.new(1, 1.8), Speed = NumberRange.new(4, 9), SpreadAngle = Vector2.new(25, 25),
+		Acceleration = Vector3.new(0, 4, 0), Drag = 1, Size = NumberSequence.new(0.6, 0.1), Transparency = NumberSequence.new(0, 1) }, 36, 2.2)
+	light(base, green, 18, 3, 1.6)
+	sound("rbxasset://sounds/electronicpingshort.wav", pos, 0.7, 0.55)
+end
+-- Pierre tombale : une tombe « R.I.P. » au nom de l'adversaire sort de terre, mottes de terre, lueur verte
+EFFECTS.grave = function(char, pos, _snaps)
+	local cam = workspace.CurrentCamera
+	local from = if cam then cam.CFrame.Position else pos + Vector3.new(0, 0, 5)
+	local away = Vector3.new(pos.X - from.X, 0, pos.Z - from.Z)
+	away = if away.Magnitude > 0.01 then away.Unit else Vector3.new(0, 0, 1)
+	local params = RaycastParams.new(); params.FilterType = Enum.RaycastFilterType.Exclude; params.FilterDescendantsInstances = { fxFolder, char }
+	local hit = workspace:Raycast(pos + Vector3.new(0, 2, 0), Vector3.new(0, -14, 0), params)
+	local ground = if hit then hit.Position.Y else pos.Y - 3
+	local at = Vector3.new(pos.X, ground, pos.Z) + away * 3.2
+	local stone = Color3.fromRGB(176, 180, 176)
+	local slab = newPart({ Size = Vector3.new(2.9, 2.7, 0.7), Color = stone, Material = Enum.Material.Slate })
+	local top = newPart({ Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.7, 2.9, 2.9), Color = stone, Material = Enum.Material.Slate })
+	local gui = Instance.new("SurfaceGui"); gui.Face = Enum.NormalId.Front; gui.CanvasSize = Vector2.new(256, 240); gui.LightInfluence = 1; gui.Parent = slab
+	local rip = Instance.new("TextLabel"); rip.BackgroundTransparency = 1; rip.Size = UDim2.new(1, 0, 0.45, 0); rip.Font = Enum.Font.Garamond
+	rip.TextScaled = true; rip.TextColor3 = Color3.fromRGB(42, 42, 46); rip.Text = "R.I.P."; rip.Parent = gui
+	local nm = Instance.new("TextLabel"); nm.BackgroundTransparency = 1; nm.Position = UDim2.fromScale(0, 0.45); nm.Size = UDim2.new(1, 0, 0.3, 0)
+	nm.Font = Enum.Font.Garamond; nm.TextScaled = true; nm.TextColor3 = Color3.fromRGB(42, 42, 46); nm.Text = string.upper(string.sub(char.Name, 1, 12)); nm.Parent = gui
+	local face = CFrame.lookAt(at, Vector3.new(from.X, at.Y, from.Z)) * CFrame.Angles(0, 0, (math.random() - 0.5) * 0.16)
+	animate(3.2, function(t, _dt)
+		if t >= 3.2 then slab:Destroy(); top:Destroy(); return end
+		local k = if t < 0.45 then -1 + (1 - (1 - t / 0.45) ^ 3) elseif t > 2.6 then -math.min(1, (t - 2.6) / 0.6) else 0
+		local y = 1.35 + k * 4
+		slab.CFrame = face * CFrame.new(0, y, 0)
+		top.CFrame = face * CFrame.new(0, y + 1.35, 0) * CFrame.Angles(0, math.pi / 2, 0)
+	end)
+	burstEmitter(at + Vector3.new(0, 0.3, 0), { Color = ColorSequence.new(Color3.fromRGB(74, 58, 40), Color3.fromRGB(46, 36, 26)), Lifetime = NumberRange.new(0.6, 1.1),
+		Speed = NumberRange.new(8, 16), SpreadAngle = Vector2.new(50, 50), Acceleration = Vector3.new(0, -40, 0), Size = NumberSequence.new(0.35, 0.2) }, 26, 1.5)
+	burstEmitter(at + Vector3.new(0, 0.6, 0), { Texture = "rbxasset://textures/particles/smoke_main.dds", Color = ColorSequence.new(Color3.fromRGB(74, 154, 96)),
+		LightEmission = 0.6, Lifetime = NumberRange.new(1.5, 2.5), Speed = NumberRange.new(0.5, 1.5), Size = NumberSequence.new(2, 3.5), Transparency = NumberSequence.new(0.5, 1) }, 10, 3)
+	light(at + Vector3.new(0, 4, 0) - away * 2.8, Color3.fromRGB(154, 255, 176), 16, 3, 3.2)
+	sound("rbxasset://sounds/collide.wav", at, 0.9, 0.5)
+end
+
 -- ---------- réception ----------
 fxEvent.OnClientEvent:Connect(function(id: string, char: Model?, pos: Vector3, _killerId: number)
 	local fn = EFFECTS[id]

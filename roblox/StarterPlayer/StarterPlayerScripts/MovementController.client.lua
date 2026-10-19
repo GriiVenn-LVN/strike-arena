@@ -14,6 +14,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local ModeConfig = require(ReplicatedStorage.Shared.ModeConfig)
 local S = require(ReplicatedStorage.Shared.ClientState)
+local A = require(ReplicatedStorage.Shared.Attachments)    -- mobilité des accessoires de l'armurier
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -74,7 +75,7 @@ local function tryMantle(hum: Humanoid, root: BasePart): boolean
 	if workspace:Raycast(top.Position + Vector3.new(0, 0.2, 0), Vector3.new(0, 5, 0), params) then return false end
 	endSlide(); stopSprint()
 	S.mantle = true
-	local g = workspace.Gravity
+	local g = workspace.Gravity * (if root.Parent and root.Parent:GetAttribute("MutLune") then 0.5 else 1)   -- gravité lunaire
 	root.AssemblyLinearVelocity = fwd * 10 + Vector3.new(0, math.sqrt(2 * g * (h + 0.9)), 0)
 	S.fireBlockedUntil = math.max(S.fireBlockedUntil, os.clock() + 0.45)
 	task.delay(0.45, function() S.mantle = false end)
@@ -180,11 +181,12 @@ RunService.RenderStepped:Connect(function(dt: number)
 	-- vitesse : le serveur met WalkSpeed à 0 pour figer un joueur (fin de partie, décompte d'un duel) : on n'y touche pas
 	if hum.WalkSpeed > 0 then
 		local w = S.weapon and Config.WEAPONS[S.weapon]
-		local mult = (if w then w.speed else 1)
+		local mult = (if w and S.weapon then w.speed * A.modsOf(A.activeOf(player, S.weapon)).mob else 1)
 		if S.sprint then mult *= if S.tactical then MV.TAC else MV.SPR
 		elseif S.crouch then mult *= MV.CROUCH
 		elseif S.aiming then mult *= 0.75 end
-		hum.WalkSpeed = BASE_SPEED * mult
+		local ch = hum.Parent
+		hum.WalkSpeed = BASE_SPEED * mult * ((ch and ch:GetAttribute("SpeedMult") :: number?) or 1)   -- modificateur « Turbo »
 	end
 
 	-- caméra plus basse accroupi / en glissade

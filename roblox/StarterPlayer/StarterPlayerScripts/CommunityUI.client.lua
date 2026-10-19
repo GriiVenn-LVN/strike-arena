@@ -191,15 +191,21 @@ local queueLabel = make("TextLabel", { AnchorPoint = Vector2.new(0.5, 1), Positi
 
 local function refreshZone()
 	local zone = player:GetAttribute("Zone")
-	local hasLobby = joinMatch ~= nil
-	playBtn.Visible = hasLobby and zone == "lobby"
-	lobbyBtn.Visible = hasLobby and zone == "tdm"
-	side.Visible = zone ~= "duel"
+	playBtn.Visible = false    -- remplacés par le menu principal (JOUER, « Quitter la partie »)
+	lobbyBtn.Visible = false
+	side.Visible = zone ~= "duel" and player:GetAttribute("MenuOpen") ~= true
 	local q = player:GetAttribute("DuelQueued")
 	queueLabel.Text = if zone == "lobby" and q then "⏳ En attente d'adversaires… reste sur la plateforme" else ""
 end
 player:GetAttributeChangedSignal("Zone"):Connect(refreshZone)
 player:GetAttributeChangedSignal("DuelQueued"):Connect(refreshZone)
+player:GetAttributeChangedSignal("MenuOpen"):Connect(refreshZone)
+do   -- menu principal (MainMenu) : ouvre les panneaux Codes et Groupe
+	local registry = require(ReplicatedStorage.Shared.ClientState).panels
+	gui.DisplayOrder = 30   -- au-dessus du menu (qui est à 19, au-dessus du HUD de partie)
+	registry.codes = function() setOpen(if openPanel == codesPanel then nil else codesPanel) end
+	registry.group = function() task.spawn(refreshGroup); setOpen(if openPanel == groupPanel then nil else groupPanel) end
+end
 refreshZone()
 
 -- ==========================================================================================

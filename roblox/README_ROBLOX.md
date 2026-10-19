@@ -37,6 +37,17 @@ Pour les mises à jour suivantes : synchronise avec Rojo (section 1) ou rouvre u
   puis mets son numéro dans `ModeConfig.SOUND_SHEET`. En attendant, les sons fournis avec Roblox servent de remplacement.
 - **Robux** : tous les numéros de produits se mettent dans un seul fichier, `ReplicatedStorage/Shared/ProductIds.lua` (nom et prix en commentaire).
 
+## 0 ter. Soldats du web : apparence, animations, ragdoll
+
+- **Même soldat que le web** : soldat photo-réaliste CC0 (Mesh2Motion) aux couleurs de l'équipe — Attaquants (T, camouflage désert), Défenseurs (CT, bleu nuit), sans équipe (chacun-pour-soi, gris teinté de la couleur du joueur) — avec gilet, casque, poches et sac du soldat procédural ; les **tenues de la boutique** gardent le soldat procédural du web (couleurs et coiffe de chaque tenue).
+  Données dans `ReplicatedStorage/Shared/SoldierMeshes` (≈ 870 Ko), refaites avec
+  `node tools/soldiers/export_soldiers_web.js /tmp/soldats.json && python3 tools/soldiers/soldiers_to_lua.py /tmp/soldats.json`
+  (Playwright + Chromium, Pillow). Même réglage que les armes : *Allow Mesh / Image APIs* ; sans lui, l'avatar R15 reste visible.
+- **Habillage** (`SoldierController`, `SoldierModels`) : chaque client découpe le soldat en 15 morceaux soudés aux membres R15 (cachés sur ce client). Joueurs, bots et soi-même (ombre, kill-cam) ; à la première personne on ne voit que le viewmodel, comme sur le web.
+- **Animations du web** (`SoldierAnim`, port de `45_models.js` et `8T_anim.js`) : marche et course selon la vitesse, accroupi, glissade, sprint et sprint tactique, saut/chute/réception, escalade, buste qui suit le regard, recharge, recul, bras qui tiennent l'arme (IK), 8 danses (touche T quand la danse n'a pas d'animation importée), mort. Appliquées aux `Motor6D.Transform` à chaque image : aucune animation à importer. L'état (glissade, sprint, accroupi, visée) passe par le remote `SoldierAnim`, la recharge par l'attribut `ReloadT`, la tenue par l'attribut `Outfit` du joueur (`SoldierService`).
+- **Ragdoll** (`SoldierService`, comme `8Zb_ragdoll.js`) : à la mort, les articulations deviennent des `BallSocketConstraint` (limites par articulation) et le corps part dans le sens du tir qui tue (plus fort au fusil à pompe et au sniper, différent sur un tir à la tête). La réapparition et la kill-cam ne changent pas.
+- **Pas vérifié dans Studio** : rien n'a pu tourner ici. Points à surveiller : rendu des pièces EditableMesh soudées (orientation, taille) et le passage de l'animation au ragdoll (les membres repartent de la pose « naturelle » vue par le serveur).
+
 ## 1. Mise en place (15 minutes)
 
 1. Installe **Roblox Studio** puis **Rojo** (extension VS Code `evaera.vscode-rojo` + plugin Studio).
@@ -49,7 +60,9 @@ Pour les mises à jour suivantes : synchronise avec Rojo (section 1) ou rouvre u
 ReplicatedStorage/Shared/Config.lua      armes, raretés, caisses, récompenses, danses, skins (valeurs du prototype)
 ReplicatedStorage/Shared/ShopCatalog.lua catalogue de la boutique (armes, skins, viseurs, tenues, produits Robux)
 ReplicatedStorage/Shared/ModeConfig.lua  mode lancé (tdm / bomb), réglages du match à mort, des bots et des sons de combat
-ReplicatedStorage/Shared/MapData.lua     3 cartes exportées du prototype (généré par tools/export_maps_lua.pl)
+ReplicatedStorage/Shared/MapData.lua     grille de jeu des 10 cartes du web (généré par tools/scene_to_lua.py)
+ReplicatedStorage/Shared/MapScenes/      décor 3D des 10 cartes du web (blocs, maillages, textures, lampes, ambiance)
+ReplicatedStorage/Shared/MapScene.lua    lecture de MapScenes (client + serveur)
 ServerScriptService/DataService.lua      DataStore : profil, XP, pièces, inventaire, stats, défis, série quotidienne
 ServerScriptService/RewardService.lua    niveaux, récompense quotidienne, défis du jour, récompenses de fin de partie
 ServerScriptService/LootService.server.lua  caisses : tirage pondéré + pitié + doublons
@@ -57,8 +70,9 @@ ServerScriptService/ShopService.server.lua  boutique : achats en pièces, offres
 ServerScriptService/WeaponService.lua    tir hitscan validé serveur : cadence, munitions, recharge, 3 armes, couteau, bouclier → gilet → santé (joueurs et bots)
 ServerScriptService/BotService.lua       bots R15 : patrouille (PathfindingService), vision, temps de réaction, rafales
 ServerScriptService/TDMService.lua       match à mort par équipe : équipes, bots, réapparition, protection, objets, fil, séries, assistances, fin
-ServerScriptService/MapBuilder.lua       construit la carte (Parts, rampes en escaliers, plafonds, spawns, sites)
-ServerScriptService/RoundService.lua     mode compétitif 5v5 : cinématique → achat → manche → fin, bombe (ProximityPrompt, pas encore branchée ; ModeConfig.MODE = "bomb")
+ServerScriptService/MapBuilder.lua       construit une carte : collision exacte du web (invisible) + décor du web ; plusieurs cartes à la fois
+StarterPlayerScripts/MapDetailController.client.lua  maillages détaillés, textures du web, halos, ciel / brouillard / lumière de la carte
+ServerScriptService/Modes/rounds.lua    modes à manches (Compétitif, Désamorçage rapide, Duel) : achat → manche → fin, bombe, économie, mi-temps ; koth / dom / ctf : zone, drapeaux ; HUD : ModeHud.client.lua
 ServerScriptService/Main.server.lua      point d'entrée + RemoteFunctions (profil, daily, défis, danses, skins)
 StarterPlayerScripts/CinematicController.client.lua   cinématique d'arrivée en hélicoptère (caméra scriptée, barres de cinéma)
 StarterPlayerScripts/EmoteController.client.lua       danses (touche T) via Animator
@@ -90,7 +104,34 @@ Manette : RT/LT/X/Y, Select pour les scores. Téléphone : boutons Tir / Viser /
 
 **Ce que je n'ai pas pu vérifier** : rien n'a tourné dans Studio (pas de compte). La syntaxe Luau de chaque fichier est vérifiée avec `luau-compile`, mais le premier test dans Studio montrera sûrement des réglages à ajuster (position de l'arme dans la main, vitesse des bots, volume des sons). Envoie-moi la fenêtre *Output* s'il y a une erreur rouge.
 
-Régénérer les cartes après modification du prototype : `perl tools/export_maps_lua.pl > roblox/ReplicatedStorage/Shared/MapData.lua`
+Régénérer les cartes après modification du prototype : voir la section 0 ter.
+
+## 0 ter. Les 10 cartes du web, à l'identique
+
+Village, Entrepôt, Station polaire, Port de nuit, Métro, Temple perdu, Stand de tir, Laboratoire, Asile hanté et Manoir hanté
+sont relevées **sur le jeu web en marche** (le vrai `buildWorld()` de chaque carte), puis reconstruites dans Roblox :
+
+- **Jeu (serveur, `MapBuilder`)** : la collision vient de la grille du web (cases, hauteurs, rampes en pente continue, plafonds),
+  en blocs invisibles. Murs, toits, rampes, plafonds et lignes de vue se comportent comme sur le web ; les balles, les bots et
+  l'escalade ne touchent que ces blocs. Le décor (blocs, boules, cylindres du web, ~1 300 à 1 800 pièces par carte) est en Parts
+  non collisionnables et ignorées des rayons (`CanQuery = false`), avec les couleurs et une matière Roblox proche de la texture du web.
+- **Détails (client, `MapDetailController`)** : textures canvas du web sur les blocs (murs crépis, briques, caisses, sol avec ses
+  marquages et son grain), tous les objets non primitifs (fûts, palmiers, feuilles, rochers, statues, citrouilles, relief lointain…)
+  en maillages `EditableMesh` regroupés par matériau, halos des lampes, et l'ambiance du thème de la carte où l'on se trouve
+  (ciel dégradé, brouillard, couleur et hauteur du soleil). Au lobby, l'éclairage d'origine revient.
+  Il faut **Allow Mesh / Image APIs** (comme pour les armes) ; sinon les cartes restent en couleurs unies avec des blocs simples.
+- **Plusieurs matchs à la fois** : `MapBuilder.build(id, origine, nom)` construit la carte dans `workspace[nom]` (attributs `MapId`,
+  `Origin`, `Theme`), décalée de `origine` ; l'objet renvoyé a `cellToWorld`, `groundAt`, `toCell`, `spawns`, `sites`.
+  `MapBuilder.destroy(carte)` la retire, `MapBuilder.list()` donne `{ id, name, desc, theme }` des 10 cartes dans l'ordre du web.
+  Le client applique l'ambiance de la carte nommée par l'attribut `MatchMap` du personnage (sinon celle sous la caméra).
+- Carte du match à mort : `ModeConfig.TDM.map` (`"village"`, `"warehouse"`, `"station"`, `"harbor"`, `"metro"`, `"jungle"`, `"range"`, `"labo"`, `"asile"`, `"manoir"`).
+
+**Régénérer** (depuis la racine du dépôt, après une modification des cartes du web) :
+```
+bash build.sh
+NODE_PATH=$(npm root -g) node tools/export_scene.js /tmp/cartes      # Playwright + Chromium
+python3 tools/scene_to_lua.py /tmp/cartes                            # Pillow ; réécrit MapData.lua et MapScenes/
+```
 
 ## 1 ter. Lobby, duels, codes, effets d'élimination, classement, groupe
 
@@ -109,11 +150,25 @@ Tout se règle dans `ReplicatedStorage/Shared/CommunityConfig.lua` (sauf les cod
 
 **Pour tester dans Studio** : active *Game Settings → Security → Enable Studio Access to API Services* (sinon les classements et la sauvegarde ne marchent pas). Pour un duel 1v1, lance *Test → Clients and Servers* avec 2 joueurs et mets-les sur la même plateforme. La souris se libère avec **M** pour cliquer sur les boutons de gauche.
 
+## 1 quater. Armurier, viseurs, grenades et mines (comme sur le web)
+
+- **Armurier** (`Attachments.lua` pour les données et les règles, `AttachmentModels.lua` pour la 3D, `ArmoryService` côté serveur). Ce sont les 21 accessoires du web : bouche, viseur, poignée, chargeur, laser et lampe. On en met 5 au maximum, ils se débloquent par niveau et par éliminations, et ils changent les mêmes stats que sur le web : dégâts, portée et chute des dégâts, recul, précision, mobilité, temps de visée, rechargement, chargeur et bruit. Les accessoires se voient en 3D sur l'arme, à la 1re et à la 3e personne. Avec une poignée verticale, la main gauche se place sur la poignée.
+- **Viseurs** : les 5 modèles Blender du web (`OpticMeshes/*.lua`, ~222 Ko au total) sont reconstruits en EditableMesh sur le client. Si ça ne marche pas, des pièces simples les remplacent. On choisit la forme et la couleur du réticule pour chaque viseur. Le zoom en visée (ADS) et la sensibilité sont ceux du web. Les lunettes de sniper ont un réticule plein écran.
+- **Panneaux** : `ArsenalPanels.arms(frame)` et `ArsenalPanels.sights(frame)`. Pour l'instant, on les ouvre depuis le menu **B**, onglets « Armurier » et « Viseurs ».
+- **Grenades et mines** (`Grenades.lua` partagé, `GrenadeService` sur le serveur, `GrenadeController` sur le client) :
+  - touches **G** pour la frag, **F** pour la flash, **H** pour la fumigène, **X** pour poser une mine ;
+  - même trajectoire, mêmes rebonds, mêmes minuteries et mêmes dégâts que sur le web ;
+  - alerte quand une grenade est proche, et le nombre de grenades est affiché en bas à droite.
+- **Remotes** : `Armory` (RemoteFunction : get, set, ret, all), `ThrowGrenade`, `PlaceMine`, `GrenadeFx`, `GrenadeToast`.
+- **Attributs du joueur** : `Att_<arme>` (« muzzle=sil,optic=reddot »), `Ret_<viseur>` (« forme|#couleur »), `Nades` (« frag,flash,fumi,mine ») et `BlindUntil` pour les bots aveuglés.
+- **Régénérer les viseurs** : `python3 tools/export_optics_lua.py` (lit `models/optics/*.glb`).
+
 ## 2. Correspondance prototype web → Roblox
 
 | Prototype web | Roblox |
 |---|---|
 | Grille 40×40, 1 case = 2 m, hauteurs, rampes, plafonds | `MapData.lua` + `MapBuilder.lua` (1 stud ≈ 0,28 m ⇒ `STUDS_PER_METER = 3.571`) |
+| `buildWorld()` : décor 3D, textures canvas, thèmes | `MapScenes/` + `MapBuilder.lua` (blocs) + `MapDetailController` (maillages, textures, ambiance) |
 | `shoot()` / `hurt()` (client = serveur) | Le **client** envoie origine + direction (`FireWeapon`), le **serveur** valide et applique les dégâts (anti-triche) |
 | Bots (A* + vision + objectifs) | `PathfindingService` + PNJ R15 ; la logique d'objectif (poser / défendre / chasser) se porte telle quelle |
 | Particules GPU, impacts, douilles | `ParticleEmitter` / `Beam` / `Trail` ; décalques via `Decal` sur `result.Instance` |

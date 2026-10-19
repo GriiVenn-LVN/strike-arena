@@ -2,7 +2,7 @@
 -- StarterPlayerScripts/LoadoutUI (LocalScript)
 -- Menu de chargement (touche B ou bouton « 🔫 Armes ») : choisir son arme principale et son pistolet.
 -- Les armes non débloquées sont affichées avec un cadenas et leur prix en pièces (achat dans la Boutique).
--- Le serveur revérifie tout (SetLoadout dans TDMService) ; le choix est gardé dans le profil et appliqué à la prochaine apparition.
+-- Le serveur revérifie tout (SetLoadout dans MatchService) ; le choix est gardé dans le profil et appliqué à la prochaine apparition.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local ContextActionService = game:GetService("ContextActionService")
@@ -77,7 +77,8 @@ end
 local function current(slot: number): string
 	local attr = player:GetAttribute(if slot == 0 then "Primary" else "Secondary")
 	if typeof(attr) == "string" then return attr end
-	local team = player.Team and player.Team.Name
+	local t = player:GetAttribute("Team")
+	local team = if typeof(t) == "string" then t else nil
 	local base = team and ModeConfig.TDM.loadout[team]
 	if base then return if slot == 0 then base.primary else base.secondary end
 	return if slot == 0 then "galil" else "glock"
@@ -93,7 +94,28 @@ local function choose(key: string)
 	render()
 end
 
+-- onglets Armurier / Viseurs (panneaux de l'Arsenal du web)
+local host = make("Frame", { Size = UDim2.new(1, -48, 1, -160), Position = UDim2.fromOffset(24, 134), BackgroundTransparency = 1, ClipsDescendants = true,
+	Visible = false, ZIndex = 51 }, win)
+local panel: { destroy: () -> (), refresh: () -> () }? = nil
+local panelTab: string? = nil
+local Panels: any = nil
+pcall(function() Panels = require(ReplicatedStorage.Shared.ArsenalPanels) end)
+
 render = function()
+	local isPanel = state.tab == "arms" or state.tab == "sights"
+	list.Visible = not isPanel; host.Visible = isPanel
+	if panel and panelTab ~= state.tab then pcall(panel.destroy); panel = nil; panelTab = nil end
+	if isPanel then
+		if not panel and Panels then
+			local ok, p = pcall(Panels[state.tab], host)
+			if ok then panel = p; panelTab = state.tab else warn("ArsenalPanels:", p) end
+		end
+		for _, b in ipairs(tabs:GetChildren()) do
+			if b:IsA("TextButton") then b.BackgroundColor3 = if b.Name == state.tab then C.accent else C.panel end
+		end
+		return
+	end
 	for _, c in ipairs(list:GetChildren()) do if c:IsA("GuiObject") then c:Destroy() end end
 	local slot = if state.tab == "primary" then 0 else 1
 	local selected = current(slot)
@@ -130,7 +152,7 @@ render = function()
 	end
 end
 
-for _, t in ipairs({ { "primary", "Arme principale" }, { "secondary", "Pistolet" } }) do
+for _, t in ipairs({ { "primary", "Arme principale" }, { "secondary", "Pistolet" }, { "arms", "Armurier" }, { "sights", "Viseurs" } }) do
 	local b = make("TextButton", { Name = t[1], Size = UDim2.fromOffset(180, 40), BackgroundColor3 = C.panel, Text = t[2], TextSize = 16, ZIndex = 52 }, tabs)
 	corner(b)
 	b.MouseButton1Click:Connect(function() state.tab = t[1]; render() end)
@@ -144,6 +166,7 @@ local function setOpen(on: boolean)
 		task.spawn(function()
 			local data = getProfile:InvokeServer()
 			state.profile = data and data.profile
+			if Panels then Panels.reload() end
 			render()
 		end)
 		render()
@@ -156,3 +179,8 @@ ContextActionService:BindAction("Loadout", function(_, st)
 	return Enum.ContextActionResult.Sink
 end, false, Enum.KeyCode.B, Enum.KeyCode.DPadLeft)
 player:GetAttributeChangedSignal("Primary"):Connect(function() if win.Visible then render() end end)
+
+-- ---------- menu principal (MainMenu) : bouton caché pendant que le menu est ouvert, fenêtre ouvrable depuis le menu ----------
+player:GetAttributeChangedSignal("MenuOpen"):Connect(function() openBtn.Visible = player:GetAttribute("MenuOpen") ~= true end)
+gui.DisplayOrder = 30   -- au-dessus du menu (19)
+require(ReplicatedStorage.Shared.ClientState).panels.loadout = function() setOpen(not win.Visible) end

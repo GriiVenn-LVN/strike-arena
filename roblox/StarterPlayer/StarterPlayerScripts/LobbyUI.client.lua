@@ -53,10 +53,14 @@ for i, id in ipairs({ "std", "prem" }) do
 		local res = openBox:InvokeServer(id)
 		if res and res.ok then
 			print("Tirage :", Config.RARITY[res.rarity].name, res.item.kind, res.duplicate and "(doublon)" or "")
-			-- ICI : joue l'animation 3D (ViewportFrame) comme dans le prototype web : caisse qui tombe, secoue, explose, révèle l'objet
+			-- animation 3D d'ouverture du web (src/8V_crate.js) : caisse qui tombe, loquets, lumière, ouverture, objet révélé
+			require(ReplicatedStorage.Shared.CrateOpening).play(nil, res, id)
 		else
 			warn("Ouverture impossible :", res and res.err)
 		end
 		refresh()
 	end)
 end
+
+-- Remplacée par le menu principal (MainMenu : profil, récompense du jour, défis, Arsenal › Caisses) : on la cache.
+gui.Enabled = false

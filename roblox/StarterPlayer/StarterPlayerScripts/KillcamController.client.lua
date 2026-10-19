@@ -4,7 +4,7 @@
 -- quand on se fait éliminer en match à mort par équipe, on revoit les dernières secondes par les yeux du tueur,
 -- avec son arme et ses bras en vue subjective, au ralenti autour du tir. La cible est zoomée quand le tueur la vise,
 -- surlignée en rouge seulement quand un mur la cache, et un repère avec son nom flotte au-dessus d'elle.
--- ESPACE ou clic pour passer. La réapparition attend la fin de la kill-cam (KillcamHold, TDMService).
+-- ESPACE ou clic pour passer. La réapparition attend la fin de la kill-cam (KillcamHold, MatchService).
 --
 -- Enregistrement : chaque client garde en mémoire les 4 dernières secondes de tous les soldats (position de chaque
 -- pièce du corps, regard, arme) et des tirs. À la mort, on fait des copies des soldats et on les rejoue.

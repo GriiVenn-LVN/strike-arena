@@ -104,14 +104,14 @@ Config.SKINS = {                                  -- rarity 1..4 ; rarity 1 = gr
 	{ name = "Néo-noir", rarity = 2, pattern = "cs_noir" },
 	{ name = "Volcan bleu", rarity = 3, pattern = "cs_vulcan" },
 	{ name = "Imprimé nacré", rarity = 2, pattern = "cs_print" },
-	-- Halloween (src/8H_halloween.js)
-	{ name = "Bonbon d'Halloween", rarity = 2, pattern = "hw_candy" },
-	{ name = "Citrouille", rarity = 3, pattern = "hw_pumpkin" },
-	{ name = "Toile maudite", rarity = 3, pattern = "hw_web" },
-	{ name = "Ossuaire", rarity = 3, pattern = "hw_bones" },
-	{ name = "Ectoplasme", rarity = 4, pattern = "hw_ecto" },
-	{ name = "Sang de vampire", rarity = 4, pattern = "hw_vampire" },
-	{ name = "Nuit des sorcières", rarity = 4, pattern = "hw_witch" },
+	-- Halloween (src/8W_halloween.js) : ev = "hw" -> jamais dans les caisses, le passe ou la boutique ; paliers de citrouilles seulement
+	{ name = "Bonbon d'Halloween", rarity = 2, pattern = "hw_candy", ev = "hw" },
+	{ name = "Citrouille", rarity = 3, pattern = "hw_pumpkin", ev = "hw" },
+	{ name = "Toile maudite", rarity = 3, pattern = "hw_web", ev = "hw" },
+	{ name = "Ossuaire", rarity = 3, pattern = "hw_bones", ev = "hw" },
+	{ name = "Ectoplasme", rarity = 4, pattern = "hw_ecto", ev = "hw" },
+	{ name = "Sang de vampire", rarity = 4, pattern = "hw_vampire", ev = "hw" },
+	{ name = "Nuit des sorcières", rarity = 4, pattern = "hw_witch", ev = "hw" },
 }
 
 -- Tenues de soldat (rarity 1 = gratuit)
@@ -130,6 +130,9 @@ Config.OUTFITS = {
 	{ name = "Roi doré", rarity = 4, head = "crown" },
 	{ name = "Licorne", rarity = 4, head = "unicorn" },
 	{ name = "Robot chrome", rarity = 4, head = "robot" },
+	-- Halloween (src/8W_halloween.js) : récompenses de l'événement (paliers de citrouilles), ni en caisse ni en boutique
+	{ name = "Tête de citrouille", rarity = 4, head = "pumpkin", ev = "hw" },
+	{ name = "Faucheuse", rarity = 4, head = "reaper", ev = "hw" },
 }
 
 -- Armes (valeurs identiques au prototype web). cat : pistol/smg/shotgun/rifle/sniper/lmg/melee

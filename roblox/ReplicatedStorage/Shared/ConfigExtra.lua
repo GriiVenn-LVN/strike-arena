@@ -97,7 +97,22 @@ X.ACHIEVEMENTS = {
 -- ---------- Événement limité ----------
 X.EVENT = {
 	id = "hw", name = "Nuit d'Halloween", from = "2026-10-01", to = "2026-11-07", pumpkinsPerMatch = 7,
-	goals = { { n = 10, coins = 300 }, { n = 25, box = "std", coins = 200 }, { n = 50, box = "prem" }, { n = 100, box = "prem", coins = 800, dance = "moonwalk" } },
+	-- paliers du web (src/66_progress.js EVENT.goals + src/8W_halloween.js HW_GOALS) : skin = motif d'un skin d'Halloween
+	-- (donné pour toutes les armes), outfit = nom de la tenue, fx = effet d'élimination
+	goals = {
+		{ n = 5, skin = "hw_candy" },
+		{ n = 10, coins = 300, skin = "hw_pumpkin" },
+		{ n = 15, fx = "bats" },
+		{ n = 25, box = "std", coins = 200, skin = "hw_web" },
+		{ n = 35, outfit = "Tête de citrouille" },
+		{ n = 50, box = "prem", skin = "hw_bones" },
+		{ n = 60, fx = "soul" },
+		{ n = 70, skin = "hw_ecto" },
+		{ n = 85, fx = "grave", skin = "hw_vampire" },
+		{ n = 100, box = "prem", coins = 800, dance = "moonwalk", outfit = "Faucheuse", skin = "hw_witch" },
+	},
+	killDropChance = 0.25,     -- un adversaire éliminé lâche parfois une citrouille (web : 25 %, 12 au sol au plus)
+	killDropMax = 12,
 }
 
 -- ---------- Ambiance ----------

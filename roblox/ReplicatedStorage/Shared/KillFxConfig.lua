@@ -8,6 +8,7 @@
 --   "robux"  = exclusif payant (robux + productId à créer dans le Creator Hub, 0 = « Bientôt »)
 --   "code"   = seulement avec un code promo (ServerScriptService/CodeList)
 --   "group"  = seulement en rejoignant le groupe Roblox (CommunityConfig.GROUP)
+--   "event"  = récompense d'un palier de citrouilles de l'événement d'Halloween (pk = citrouilles), utilisable pendant l'événement
 local KillFxConfig = {}
 
 KillFxConfig.LIST = {
@@ -20,6 +21,10 @@ KillFxConfig.LIST = {
 	{ id = "blackhole", name = "Trou noir", rarity = 5, source = "robux", robux = 299, productId = 0 },
 	{ id = "pumpkins", name = "Pluie de citrouilles", rarity = 4, source = "code" },
 	{ id = "spirit", name = "Esprit du groupe", rarity = 4, source = "group" },
+	-- événement d'Halloween (src/8W_halloween.js) : paliers 15, 60 et 85 citrouilles
+	{ id = "bats", name = "Nuée de chauves-souris", rarity = 4, source = "event", pk = 15 },
+	{ id = "soul", name = "Âme damnée", rarity = 4, source = "event", pk = 60 },
+	{ id = "grave", name = "Pierre tombale", rarity = 4, source = "event", pk = 85 },
 }
 
 local byId: { [string]: any } = {}

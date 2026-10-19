@@ -13,9 +13,9 @@ local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
 
 local Config = require(ReplicatedStorage.Shared.Config)
-local X = require(ReplicatedStorage.Shared.ConfigExtra)
 local ModeConfig = require(ReplicatedStorage.Shared.ModeConfig)
 local S = require(ReplicatedStorage.Shared.ClientState)      -- partagé avec MovementController et ViewmodelController
+local A = require(ReplicatedStorage.Shared.Attachments)      -- effets des accessoires de l'armurier (recul, zoom, son)
 
 local fireRemote = ReplicatedStorage:WaitForChild("FireWeapon") :: RemoteEvent
 local switchRemote = ReplicatedStorage:WaitForChild("SwitchWeapon") :: RemoteEvent
@@ -55,7 +55,7 @@ end
 
 -- ---------- sons ----------
 local Sfx = require(ReplicatedStorage.Shared.Sfx)
-local function playSound(def: any, at: Vector3?) Sfx.play(def, at) end
+local function playSound(def: any, at: Vector3?, vol: number?) Sfx.play(def, at, vol) end
 
 local function fireSound(key: string): any
 	local w = Config.WEAPONS[key]
@@ -82,6 +82,8 @@ end
 
 local function muzzleFlash(char: Model?)
 	local held = char and char:FindFirstChild("HeldWeapon")
+	local key = held and held:GetAttribute("Key")
+	if held and typeof(key) == "string" and A.modsOf(A.list(key, A.decode(held:GetAttribute("Att")), nil, true)).noFlash then return end
 	local muzzle = held and held:FindFirstChild("Muzzle", true)
 	if not muzzle then return end
 	local light = Instance.new("PointLight"); light.Color = Color3.fromRGB(255, 200, 120); light.Range = 10; light.Brightness = 4
@@ -109,7 +111,11 @@ tracerRemote.OnClientEvent:Connect(function(origin: Vector3, endPos: Vector3, sh
 	tracer(origin, endPos, false)
 	if shooter then
 		local key = shooter:GetAttribute("Weapon")
-		if typeof(key) == "string" and Config.WEAPONS[key] then playSound(fireSound(key), origin) end
+		if typeof(key) == "string" and Config.WEAPONS[key] then
+			local held = shooter:FindFirstChild("HeldWeapon")
+			local m = A.modsOf(A.list(key, A.decode(held and held:GetAttribute("Att")), nil, true))
+			playSound(fireSound(key), origin, m.snd)          -- silencieux : tir à 35 % du volume
+		end
 		muzzleFlash(shooter :: Model)
 	end
 end)
@@ -128,10 +134,10 @@ end
 local function tryFire()
 	local key = W.weapon
 	-- la pause entre deux parties ne bloque que les joueurs du match (pas le lobby ni les duels)
-	local blocked = not W.matchLive and player:GetAttribute("Zone") == "tdm"
+	local blocked = not W.matchLive and player:GetAttribute("Zone") == "match"
 	if not key or not alive() or blocked or W.menu or player:GetAttribute("UiOpen") == true then return end
 	-- on ne tire pas en sprintant ni pendant une escalade ; à la sortie du sprint l'arme met un instant à revenir
-	if S.sprint or S.mantle or os.clock() < S.fireBlockedUntil then return end
+	if S.sprint or S.mantle or os.clock() < S.fireBlockedUntil or os.clock() < S.drinkUntil then return end
 	local w = Config.WEAPONS[key]
 	if not w.auto and not W.fresh then return end
 	local t = os.clock()
@@ -143,9 +149,10 @@ local function tryFire()
 		return
 	end
 	W.fresh = false
-	W.nextShot = t + 60 / w.rpm
+	local rateMult = player.Character and player.Character:GetAttribute("RateMult")    -- Zombies : Double Détente
+	W.nextShot = t + 60 / (w.rpm * (if typeof(rateMult) == "number" then rateMult else 1))
 	local cf = camera.CFrame
-	fireRemote:FireServer(cf.Position, cf.LookVector)
+	fireRemote:FireServer(cf.Position, cf.LookVector, W.aiming)
 	if not w.melee then
 		W.mag -= 1
 		local params = RaycastParams.new(); params.FilterType = Enum.RaycastFilterType.Exclude
@@ -156,13 +163,12 @@ local function tryFire()
 	end
 	S.inspectStart = -1
 	S.shot:Fire(key)                                   -- recul de l'arme, éclair et douille dans le viewmodel
-	playSound(fireSound(key))
-	-- recul : plus fort à la hanche, réduit par la poignée verticale
-	local att = player:GetAttribute("Attachments_" .. key)
-	local grip = typeof(att) == "string" and att:find("\"grip\":true") ~= nil
-	local mult = (if W.aiming then 0.65 else 1) * (if grip then X.ATTACHMENTS.grip.recoilMult else 1)
-	W.recoilPitch += w.recoil * 0.9 * mult
-	W.recoilYaw += (math.random() - 0.5) * w.recoil * 0.5 * mult
+	local m = A.modsOf(A.activeOf(player, key))
+	playSound(fireSound(key), nil, m.snd)
+	-- recul : plus fort à la hanche, accessoires de l'armurier (vertical rec, horizontal recH)
+	local mult = if W.aiming then 0.65 else 1
+	W.recoilPitch += w.recoil * 0.9 * mult * m.rec
+	W.recoilYaw += (math.random() - 0.5) * w.recoil * 0.5 * mult * m.recH
 	publish()
 end
 
@@ -176,7 +182,7 @@ end
 local function onAim(_: string, st: Enum.UserInputState)
 	local key = W.weapon
 	if not key or Config.WEAPONS[key].melee then return Enum.ContextActionResult.Pass end
-	W.aiming = st == Enum.UserInputState.Begin
+	W.aiming = st == Enum.UserInputState.Begin and os.clock() >= S.drinkUntil   -- pas de visée pendant la boisson d'atout
 	publish()
 	return Enum.ContextActionResult.Sink
 end
@@ -240,11 +246,20 @@ RunService:BindToRenderStep("WeaponCamera", Enum.RenderPriority.Camera.Value + 1
 	if S.kc then return end                -- la kill-cam tient la caméra
 	local key = W.weapon
 	local w = key and Config.WEAPONS[key]
-	local targetFov = BASE_FOV
-	if W.aiming and w then targetFov = if (w.zoom or 0) > 0 then BASE_FOV / w.zoom else BASE_FOV * 0.8 end
-	W.fov += (targetFov - W.fov) * math.min(1, dt * 14)
+	-- zoom du web : champ / lerp(1, zoom du viseur, visée) ; sensibilité 1/zoom à la lunette, −25 % en visée sinon,
+	-- × « sensibilité en visée » (menu Réglages, ou attribut AdsSens) comme src/8Zf_confort.js ; champ choisi dans les Réglages
+	local base = S.opt.fov
+	local ads = if w and not w.melee then S.adsT else 0
+	local att = if key then A.activeOf(player, key) else {}
+	local zoom = if key and w and not w.melee then A.sightZoom(key, A.modsOf(att)) else 1
+	local targetFov = base / (1 + (zoom - 1) * ads)
+	W.fov += (targetFov - W.fov) * math.min(1, dt * 18)
 	camera.FieldOfView = W.fov
-	UserInputService.MouseDeltaSensitivity = baseSens * (W.fov / BASE_FOV)
+	local scoped = key ~= nil and ads > 0.92 and A.sightOv(key, att)
+	local adsSens = player:GetAttribute("AdsSens")
+	local aimS = (if typeof(adsSens) == "number" then adsSens else 1) * S.opt.aimSens
+	local am = 1 + (aimS - 1) * math.clamp(ads, 0, 1)
+	UserInputService.MouseDeltaSensitivity = baseSens * S.opt.sens * S.opt.wsens * (if scoped then 1 / zoom else 1 - .25 * ads) * am
 	-- le recul est un décalage visuel ajouté après la caméra Roblox, qui revient tout seul
 	W.recoilPitch *= math.exp(-dt * 9); W.recoilYaw *= math.exp(-dt * 9)
 	camera.CFrame = camera.CFrame * CFrame.Angles(math.rad(W.recoilPitch), math.rad(W.recoilYaw), 0)

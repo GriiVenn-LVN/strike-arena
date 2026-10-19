@@ -17,6 +17,8 @@ function KillFxService.equippedOf(player: Player): string
 	local id = profile and profile.equipped and profile.equipped.killFx or "none"
 	if not KillFxConfig.get(id) then return "none" end
 	if id ~= "none" and not table.find(profile.inv.killfx or {}, id) then return "none" end   -- plus possédé : rien
+	-- effets d'Halloween : seulement pendant l'événement (killFxOwned du web)
+	if KillFxConfig.get(id).source == "event" and not require(script.Parent.ProgressService).eventActive() then return "none" end
 	return id
 end
 
