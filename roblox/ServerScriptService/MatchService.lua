@@ -596,7 +596,12 @@ end
 MatchService.board = board
 
 local function broadcast(m: Match)
-	local info = if m.mod.info then m.mod.info(m) else nil
+	-- la ligne du mode n'existe qu'une fois la partie lancée (les modes préparent leurs données dans start)
+	local info = nil
+	if m.mod.info and m.state ~= "warmup" and m.state ~= "loading" then
+		local ok, r = pcall(m.mod.info, m)
+		if ok then info = r else warn("[MatchService] info", m.mode, r) end
+	end
 	-- modificateurs actifs ajoutés à la sous-ligne du mode, comme le web (« · 🌙 Gravité lunaire »)
 	local muts = {}
 	for _, mu in ipairs(Modes.MUTATORS) do if mutOn(m, mu.k) then table.insert(muts, mu.ic .. " " .. mu.n) end end
@@ -1003,5 +1008,14 @@ loadoutFn.OnServerInvoke = function(player: Player, key: any)
 end
 
 Players.PlayerRemoving:Connect(function(p) MatchService.leave(p, true) end)
+
+-- charge tous les modes dès le démarrage : leurs remotes (ZombieGain, BuyItem…) existent avant que les
+-- scripts clients les attendent, même si personne n'a encore lancé ce mode
+task.defer(function()
+	local folder = script.Parent:FindFirstChild("Modes")
+	for _, ms in ipairs(folder and folder:GetChildren() or {}) do
+		if ms:IsA("ModuleScript") then modeModule(ms.Name) end
+	end
+end)
 
 return MatchService

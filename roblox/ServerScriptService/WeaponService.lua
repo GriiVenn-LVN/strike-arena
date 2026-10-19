@@ -24,7 +24,6 @@ local ammoFx = remoteEvent("AmmoState")           -- serveur -> client : état d
 local hitFx = remoteEvent("HitFeedback")          -- serveur -> tireur : (tête, élimination, dégâts, position)
 local damagedFx = remoteEvent("Damaged")          -- serveur -> victime : (position du tireur, dégâts, tête)
 local tracerFx = remoteEvent("Tracer")            -- serveur -> tous : (origine, impact, personnage du tireur)
-local _flashFx = remoteEvent("FlashFeedback")      -- serveur -> joueur aveuglé (GrenadeService)
 -- client -> serveur : inclinaison du regard (radians), recopiée en attribut « Pitch » du personnage pour la kill-cam
 local pitchFx = Instance.new("UnreliableRemoteEvent"); pitchFx.Name = "AimPitch"; pitchFx.Parent = ReplicatedStorage
 pitchFx.OnServerEvent:Connect(function(player: Player, pitch: any)
