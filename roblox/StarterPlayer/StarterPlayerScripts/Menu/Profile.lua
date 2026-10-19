@@ -1,8 +1,10 @@
 --!strict
 -- StarterPlayerScripts/Menu/Profile (ModuleScript) — rubrique « Profil » (src/66_progress.js, src/86_meta_ui.js, src/8W_showcase.js)
--- Progression : défis du jour / de la semaine, classement, événement d'Halloween, passe de saison (ProgressService)
+-- Progression : classement, événement d'Halloween, passe de saison (ProgressService). Les défis sont sur l'Accueil
+--               (un lien y mène) : avant, ils étaient aux deux endroits.
 -- Statistiques : 8 tuiles, par mode, par carte, armes les plus efficaces (profil de GetProfile)
--- Style : pseudo, couleur de pseudo Premium (LoyaltyService), titre de profil (MenuService), traînée de balles (boutique)
+-- Pseudo et titre (id « Style ») : pseudo, couleur de pseudo Premium (LoyaltyService), titre de profil (MenuService).
+--               La traînée de balles est rangée dans Arsenal › Tenues et effets, avec les autres effets.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local X = require(ReplicatedStorage.Shared.ConfigExtra)
@@ -35,16 +37,16 @@ local function progression(ctx: any, sc: ScrollingFrame)
 	local profile = d and d.profile
 	if not profile then K.para(sc, "Chargement du profil…", 13, C.dim); return end
 	local W = ctx.W - 56
-	-- défis
-	local top = make("Frame", { LayoutOrder = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y }, sc)
-	local two = W >= 1000
-	if two then K.hlist(top, 14, Enum.VerticalAlignment.Top) else K.vlist(top, 12) end
-	local dp = panel(top, 1, { Size = UDim2.new(if two then 0.5 else 1, if two then -7 else 0, 0, 0) })
-	K.label(dp, "DÉFIS DU JOUR", 0, C.dim)
-	for i, m in ipairs(ctx.ch and ctx.ch.daily or profile.missions and profile.missions.list or {}) do K.mission(ctx, dp, m, i, false) end
-	local wp = panel(top, 2, { Size = UDim2.new(if two then 0.5 else 1, if two then -7 else 0, 0, 0) })
-	K.label(wp, "DÉFIS DE LA SEMAINE", 0, C.dim)
-	for i, m in ipairs(ctx.ch and ctx.ch.weekly or profile.wmis and profile.wmis.list or {}) do K.mission(ctx, wp, m, i, true) end
+	-- défis : sur l'Accueil (un seul endroit), avec le nombre à récupérer
+	local ready, total = 0, 0
+	for _, list in ipairs({ ctx.ch and ctx.ch.daily or profile.missions and profile.missions.list or {}, ctx.ch and ctx.ch.weekly or profile.wmis and profile.wmis.list or {} }) do
+		for _, m in ipairs(list) do total += 1; if m.done and not m.claimed then ready += 1 end end
+	end
+	local top = make("Frame", { LayoutOrder = 1, Size = UDim2.new(1, 0, 0, 40) }, sc)
+	text(top, { Text = "🎯  Défis du jour et de la semaine : " .. total .. (if ready > 0 then '  ·  <font color="#ffd23a">' .. ready .. " à récupérer</font>" else ""),
+		Size = UDim2.new(1, -230, 1, 0), TextSize = 13, Font = K.MED, TextColor3 = C.sub, TextWrapped = false, TextTruncate = Enum.TextTruncate.AtEnd })
+	K.btn(top, spaced("VOIR LES DÉFIS", 1) .. "  ▸", if ready > 0 then "gold" else "alt", function() ctx.go("home") end,
+		{ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.fromOffset(210, 34), TextSize = 12 })
 	-- classement
 	local rank = profile.rank or { rp = 0, best = 0 }
 	local rc = panel(sc, 2)
@@ -88,15 +90,15 @@ local function progression(ctx: any, sc: ScrollingFrame)
 	local bp = profile.bp or { xp = 0, premium = false, claimedFree = {}, claimedPremium = {} }
 	local tier = math.min(X.SEASON.tiers, math.floor((bp.xp or 0) / X.SEASON.xpPerTier))
 	local sh = make("Frame", { LayoutOrder = 4, Size = UDim2.new(1, 0, 0, 36) }, sc)
-	text(sh, { Text = spaced(string.upper(X.SEASON.name) .. " — PALIER " .. tier .. " / " .. X.SEASON.tiers, 2), Font = K.BLACK, TextSize = 15, Size = UDim2.new(1, -330, 1, 0), TextWrapped = false })
+	text(sh, { Text = "🎟  " .. spaced(string.upper(X.SEASON.name) .. " — PALIER " .. tier .. " / " .. X.SEASON.tiers, 2), Font = K.BLACK, TextSize = 15, Size = UDim2.new(1, -330, 1, 0), TextWrapped = false })
 	if not bp.premium then
-		K.btn(sh, "Acheter le passe Premium — " .. K.fmt(X.SEASON.premiumCoins) .. " 🪙", "alt", function()
+		K.btn(sh, "🎟  Passe de saison Premium — " .. K.fmt(X.SEASON.premiumCoins) .. " 🪙", "alt", function()
 			local ok = ctx.call("BP_BuyPremium")
 			ctx.toast(if ok then "✔ Passe Premium débloqué !" else "Pas assez de pièces (ou Robux dans la Boutique)", if ok then C.gold else C.accent)
 			ctx.refresh()
 		end, { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.fromOffset(310, 32), TextSize = 12 })
 	else
-		text(sh, { Text = "⭐ PASSE PREMIUM ACTIF", AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.new(0, 300, 1, 0), TextColor3 = C.gold, Font = K.BLACK,
+		text(sh, { Text = "🎟 PASSE DE SAISON PREMIUM ACTIF", AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.new(0, 300, 1, 0), TextColor3 = C.gold, Font = K.BLACK,
 			TextXAlignment = Enum.TextXAlignment.Right })
 	end
 	local sp = panel(sc, 5)
@@ -248,23 +250,7 @@ local function style(ctx: any, sc: ScrollingFrame)
 	for i, id in ipairs(loy and loy.titles or {}) do
 		if L.TITLES[id] then choice(tr, 100 + i, L.TITLES[id], cur == id, nil, function() setTitle(id) end, C.gold) end
 	end
-	-- traînée de balles
-	K.label(sc, "TRAÎNÉE DE BALLES", 7)
-	local trl = chips(8)
-	local eqTrail = profile and profile.equipped and profile.equipped.trail or ""
-	choice(trl, 0, "Standard", eqTrail == "", nil, function() ctx.toast("La traînée standard revient en équipant « Standard » dans la Boutique", C.dim) end)
-	for i, t in ipairs(X.TRAILS) do
-		if t ~= "" then
-			local it = Catalog.get("trail_" .. t)
-			local have = it ~= nil and profile ~= nil and Catalog.owns(profile, it)
-			choice(trl, i, if it then string.gsub(it.name, "^Traînée ", "") else t, eqTrail == t, if have then nil else (if it then K.fmt(it.price) .. " 🪙" else "Boutique"), function()
-				if not have then ctx.panel("shop"); return end
-				ctx.call("ShopEquip", "trail_" .. t); ctx.refresh()
-			end)
-		end
-	end
-	K.label(sc, "ACCESSOIRES D'ARMES", 9)
-	K.para(sc, "Silencieux, poignées, chargeurs… se règlent dans <b>Arsenal › Armes</b>. Les viseurs et leur réticule : <b>Arsenal › Viseurs</b>. Tenues, danses et effets : <b>Arsenal › Casier</b>.", 12, C.sub, 10)
+	K.para(sc, "La traînée de balles, les tenues, les danses et les effets se choisissent dans <b>Arsenal › Tenues et effets</b>.", 12, C.dim, 9)
 end
 
 return function(ctx: any, body: Frame, sub: string?)

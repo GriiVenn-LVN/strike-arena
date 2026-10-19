@@ -1,7 +1,9 @@
 --!strict
 -- StarterPlayerScripts/Menu/Home (ModuleScript) — rubrique « Accueil » (src/87d_lobby.js lobbyDraw)
--- colonne 1 : grande carte JOUER (événement, mode de la semaine), saison et cadeau du jour
--- colonne 2 : défis du jour et de la semaine (récupérables ici) ; colonne 3 : cadeaux, Premium, nouveautés
+-- colonne 1 : grande carte JOUER (partie en ligne avec le mode et la carte choisis), PARTIE RAPIDE, AVEC DES AMIS,
+--             saison et bonus du jour
+-- colonne 2 : défis du jour et de la semaine (récupérables ici, et seulement ici)
+-- colonne 3 : nouveautés, puis « Plus » (codes promo, communauté Roblox). Cadeaux, Premium et Boutique sont dans l'en-tête.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Modes = require(ReplicatedStorage.Shared.Modes)
 local X = require(ReplicatedStorage.Shared.ConfigExtra)
@@ -93,8 +95,9 @@ return function(ctx: any, body: Frame, _sub: string?)
 	local name = string.upper(ctx.player.DisplayName)
 	text(hero, { LayoutOrder = 2, Font = K.BLACK, TextSize = 34, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LineHeight = 1.0,
 		Text = spaced("PRÊT AU COMBAT,", 1) .. '\n<font color="#ff4655">' .. K.esc(spaced(name, 1)) .. "</font> ?" })
-	K.para(hero, "Lance une partie, relève les défis du jour et débloque de nouveaux skins.", 13, C.sub, 3)
-	local sel = modeName(ctx.play.mode) .. " · " .. (Modes.MAP[ctx.play.map] and Modes.MAP[ctx.play.map].n or "")
+	K.para(hero, "JOUER te met dans une partie <b>en ligne</b> avec les autres joueurs. S'il en manque, des bots complètent.", 13, C.sub, 3)
+	local group = ctx.friends == true and ctx.party.id ~= nil
+	local sel = (if group then "Avec ton groupe" else "En ligne") .. " · " .. modeName(ctx.play.mode) .. " · " .. (Modes.MAP[ctx.play.map] and Modes.MAP[ctx.play.map].n or "")
 	local play = K.btn(hero, "", "primary", function() ctx.startPlay() end, { LayoutOrder = 4, Size = UDim2.new(1, 0, 0, 92), Name = "HeroPlay" })
 	text(play, { Text = "▶  " .. spaced("JOUER", 3), Font = K.BLACK, TextSize = 30, Size = UDim2.new(1, 0, 0, 40), Position = UDim2.fromOffset(0, 16),
 		TextXAlignment = Enum.TextXAlignment.Center, TextWrapped = false, ZIndex = play.ZIndex + 1 })
@@ -107,11 +110,11 @@ return function(ctx: any, body: Frame, _sub: string?)
 	local fr = K.btn(row, "👥  " .. spaced("AVEC DES AMIS", 1), "alt", function() ctx.friends = true; ctx.go("play") end,
 		{ Size = UDim2.new(0.5, -5, 1, 0), Position = UDim2.new(0.5, 5, 0, 0), TextSize = 14 })
 	K.cut(q, 10, K.rgb(0x111a2b)); K.cut(fr, 10, K.rgb(0x111a2b))
-	local ch = K.btn(hero, spaced("CHOISIR LE MODE ET LA CARTE", 2), "alt", function() ctx.friends = false; ctx.go("play") end,
-		{ LayoutOrder = 6, Size = UDim2.new(1, 0, 0, 36), TextSize = 12 })
+	local ch = K.btn(hero, "▸  " .. spaced("CHANGER DE MODE OU DE CARTE", 1), "ghost", function() ctx.friends = false; ctx.go("play") end,
+		{ LayoutOrder = 6, Size = UDim2.new(1, 0, 0, 34), TextSize = 11, TextColor3 = C.sub })
 	K.cut(ch, 8, K.rgb(0x0f1626))
 
-	-- saison + cadeau du jour (.lmini)
+	-- saison + bonus du jour (.lmini)
 	local mini = make("Frame", { LayoutOrder = 2, Size = UDim2.new(1, 0, 0, 132) }, cols[1])
 	local bp = profile and profile.bp
 	local tier = if bp then math.min(X.SEASON.tiers, math.floor((bp.xp or 0) / X.SEASON.xpPerTier)) else 0
@@ -127,7 +130,7 @@ return function(ctx: any, body: Frame, _sub: string?)
 	local day = if ds then ds.day else 1
 	local gc = K.card(mini, { Size = UDim2.new(0.5, -7, 1, 0), Position = UDim2.new(0.5, 7, 0, 0), AutomaticSize = Enum.AutomaticSize.None }, function() ctx.claimDaily() end)
 	K.vlist(gc, 8)
-	K.h4(gc, "🎁 CADEAU DU JOUR", nil, 1)
+	K.h4(gc, "📅 BONUS DU JOUR", nil, 1)
 	text(gc, { LayoutOrder = 2, Font = K.BLACK, TextSize = 24, Size = UDim2.new(1, 0, 0, 28), TextWrapped = false,
 		Text = "Jour " .. day .. ' <font size="13" color="#8da0bd">/ 7</font>' })
 	K.bar(gc, (if ds and ds.canClaim then day - 1 else day) / 7, { LayoutOrder = 3 })
@@ -149,31 +152,8 @@ return function(ctx: any, body: Frame, _sub: string?)
 	K.h4(wc, "🏆 DÉFIS DE LA SEMAINE", "nouveaux dans " .. weekLeft(), 0)
 	for i, m in ipairs(ctx.ch and ctx.ch.weekly or profile and profile.wmis and profile.wmis.list or {}) do mission(ctx, wc, m, i, true) end
 
-	-- ============ colonne 3 : cadeaux, Premium, nouveautés ============
-	local lm = make("Frame", { LayoutOrder = 5, Size = UDim2.new(1, 0, 0, 122) }, cols[3])
-	local lp = ctx.loy and ctx.loy.pending and #ctx.loy.pending or 0
-	local cg = K.card(lm, { Size = UDim2.new(0.5, -7, 1, 0), AutomaticSize = Enum.AutomaticSize.None }, function() ctx.panel("gifts") end)
-	if lp > 0 then
-		local st = cg:FindFirstChildOfClass("UIStroke"); if st then st.Color = C.gold; st.Transparency = 0.45 end
-	end
-	K.vlist(cg, 6)
-	K.h4(cg, "🎁 CADEAUX", nil, 1)
-	text(cg, { LayoutOrder = 2, Font = K.BLACK, TextSize = 24, Size = UDim2.new(1, 0, 0, 28), TextWrapped = false,
-		Text = if lp > 0 then lp .. ' <font size="13" color="#8da0bd">à récupérer</font>' else "✔" })
-	if lp > 0 then
-		K.btn(cg, spaced("OUVRIR", 1), "gold", function() ctx.panel("gifts") end, { LayoutOrder = 3, Size = UDim2.fromOffset(90, 24), TextSize = 10 })
-	else
-		K.para(cg, "Plus tu joues, plus tu gagnes", 11, C.dim, 3)
-	end
-	local vip = ctx.loy and ctx.loy.vip
-	local cv = K.card(lm, { Size = UDim2.new(0.5, -7, 1, 0), Position = UDim2.new(0.5, 7, 0, 0), AutomaticSize = Enum.AutomaticSize.None }, function() ctx.panel("vip") end)
-	local sv = cv:FindFirstChildOfClass("UIStroke"); if sv then sv.Color = C.gold; sv.Transparency = 0.67 end
-	K.vlist(cv, 6)
-	K.h4(cv, "👑 PREMIUM", nil, 1)
-	text(cv, { LayoutOrder = 2, Font = K.BLACK, TextSize = 24, Size = UDim2.new(1, 0, 0, 28), TextColor3 = C.gold, TextWrapped = false,
-		Text = if vip then "Actif" else "Découvrir" })
-	K.para(cv, "Récompenses et pseudo en couleur", 11, C.dim, 3)
-
+	-- ============ colonne 3 : nouveautés, puis le reste (codes, communauté) ============
+	-- (Cadeaux, Premium et Boutique : boutons de l'en-tête, visibles sur toutes les pages)
 	local nc = K.card(cols[3], { LayoutOrder = 6 })
 	K.vlist(nc, 0)
 	K.h4(nc, "📰 NOUVEAUTÉS", nil, 0)
@@ -187,6 +167,7 @@ return function(ctx: any, body: Frame, _sub: string?)
 			item.MouseLeave:Connect(function() item.BackgroundTransparency = 1 end)
 			;(item :: any).Activated:Connect(function()
 				if go == "friends" then ctx.friends = true; ctx.go("play")
+				elseif go == "play" then ctx.friends = false; ctx.go("play")
 				elseif go == "boxes" then ctx.go("arsenal", "Caisses")
 				elseif go == "arms" then ctx.go("arsenal", "Armes")
 				elseif string.sub(go, 1, 5) == "mode:" then
@@ -208,4 +189,11 @@ return function(ctx: any, body: Frame, _sub: string?)
 				BackgroundColor3 = C.white }, item)
 		end
 	end
+
+	-- plus : ce qui sert rarement (avant, seulement dans les boutons du lobby, menu fermé)
+	local more = K.card(cols[3], { LayoutOrder = 7 })
+	K.vlist(more, 8)
+	K.h4(more, "➕ PLUS", nil, 0)
+	K.btn(more, "🎟  Codes promo", "alt", function() ctx.panel("codes") end, { LayoutOrder = 1, Size = UDim2.new(1, 0, 0, 34), TextSize = 13 })
+	K.btn(more, "🤝  Communauté Roblox du jeu", "alt", function() ctx.panel("group") end, { LayoutOrder = 2, Size = UDim2.new(1, 0, 0, 34), TextSize = 13 })
 end

@@ -1,8 +1,9 @@
 --!strict
 -- StarterPlayerScripts/Menu/Arsenal (ModuleScript) — rubrique « Arsenal » (src/85_menu.js, src/86_meta_ui.js)
 -- Armes / Viseurs : panneaux de ReplicatedStorage/Shared/ArsenalPanels s'ils existent, sinon une version simple ici
--- (liste des armes, aperçu 3D, statistiques, skins ; viseurs et réticules). Casier : danses, tenues, effets d'élimination
--- avec un aperçu du personnage. Caisses : les deux caisses, probabilités affichées, ouverture animée (LootService).
+-- (liste des armes, aperçu 3D, statistiques, skins ; viseurs et réticules). Tenues et effets (id « Casier ») : tenues,
+-- danses, sprays, effets d'élimination et traînées de balles (avant dans Profil › Style), avec un aperçu du personnage.
+-- Caisses : les deux caisses, probabilités affichées, ouverture animée (LootService).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -206,7 +207,7 @@ local function arms(ctx: any, body: Frame)
 			end, { Size = UDim2.fromOffset(280, 36), TextSize = 13, LayoutOrder = 1 })
 		end
 	end
-	K.btn(act, "🛒  Boutique", "alt", function() ctx.panel("shop") end, { Size = UDim2.fromOffset(140, 36), TextSize = 13, LayoutOrder = 2 })
+	K.btn(act, "🛒  Ouvrir la boutique", "alt", function() ctx.panel("shop") end, { Size = UDim2.fromOffset(190, 36), TextSize = 13, LayoutOrder = 2 })
 	-- skins
 	local skinParent: Instance = midScroll
 	if rw > 0 then
@@ -284,17 +285,19 @@ end
 local function locker(ctx: any, body: Frame)
 	local profile = ctx.data and ctx.data.profile
 	local W = ctx.W - 56
-	local kind = ctx.lockerKind or "dances"
+	local kind = ctx.lockerKind or "outfits"
 	local lw = if W >= 1000 then math.floor(W * 0.42) else W
 	local left = K.scroll(body, { Name = "Locker", Size = UDim2.new(0, lw, 1, 0) })
 	K.vlist(left, 10); K.pad(left, 0, 0, 8, 10)
-	K.label(left, if kind == "dances" then "DANSES & EMOTES — touche T en jeu" elseif kind == "outfits" then "TENUES DE SOLDAT"
-		elseif kind == "sprays" then "SPRAYS — touche J en jeu" else "EFFETS D'ÉLIMINATION", 1, C.dim)
-	local tabs = make("Frame", { Size = UDim2.new(1, 0, 0, 34), LayoutOrder = 2 }, left)
-	K.hlist(tabs, 6)
-	for i, t in ipairs({ { "dances", "Danses" }, { "outfits", "Tenues" }, { "killfx", "Effets d'élimination" }, { "sprays", "Sprays" } }) do
+	-- choix de la catégorie d'abord, puis une phrase qui dit où ça se voit en jeu
+	local tabs = make("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 1 }, left)
+	K.hlist(tabs, 6, Enum.VerticalAlignment.Center, true)
+	for i, t in ipairs({ { "outfits", "👕 Tenues" }, { "dances", "💃 Danses" }, { "sprays", "🎨 Sprays" }, { "killfx", "💥 Effets d'élimination" }, { "trails", "✨ Traînées" } }) do
 		K.chip(tabs, t[2], kind == t[1], function() ctx.lockerKind = t[1]; ctx.render() end, { LayoutOrder = i, Size = UDim2.fromOffset(0, 32) })
 	end
+	K.para(left, if kind == "dances" then "Danses et emotes : touche T en partie." elseif kind == "outfits" then "La tenue de ton soldat, visible à ta prochaine apparition."
+		elseif kind == "sprays" then "Un dessin sur les murs : touche J en partie." elseif kind == "trails" then "La couleur de la traînée de tes balles."
+		else "L'effet qui apparaît quand tu élimines un adversaire.", 12, C.dim, 2)
 	local g = make("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 3 }, left)
 	K.grid(g, UDim2.new(0.5, -5, 0, 56), 10)
 	local status = ""
@@ -342,6 +345,25 @@ local function locker(ctx: any, body: Frame)
 				if ctx.call("ShopEquip", "outfit_" .. i) then ctx.toast("✔ " .. o.name .. " : visible à ta prochaine apparition", C.green) end
 				ctx.refresh()
 			end)
+		end
+	elseif kind == "trails" then
+		-- traînée de balles (boutique, X.TRAILS) : « Standard » = aucune traînée achetée
+		local eqTrail = profile and profile.equipped and profile.equipped.trail or ""
+		if eqTrail == "" then status = "✔ Traînée : Standard" end
+		itemCard(g, 0, "Standard", 1, true, eqTrail == "", function()
+			if eqTrail ~= "" then ctx.toast("La traînée standard revient en équipant « Standard » dans la Boutique", C.dim) end
+		end)
+		for i, t in ipairs(X.TRAILS) do
+			if t ~= "" then
+				local it = Catalog.get("trail_" .. t)
+				local have = it ~= nil and profile ~= nil and Catalog.owns(profile, it)
+				local nm = if it then (string.gsub(it.name, "^Traînée ", "")) else t
+				if eqTrail == t then status = "✔ Traînée : " .. nm end
+				itemCard(g, i, nm .. (if have or not it then "" else "  · " .. K.fmt(it.price) .. " 🪙"), if it then it.rarity else 1, have, eqTrail == t, function()
+					if not have then ctx.panel("shop"); return end
+					ctx.call("ShopEquip", "trail_" .. t); ctx.refresh()
+				end)
+			end
 		end
 	else
 		for i, fx in ipairs(KillFxConfig.LIST) do
@@ -407,7 +429,7 @@ local function crates(ctx: any, body: Frame)
 			text(f, { Text = wgt .. " %", Position = UDim2.fromOffset(108 + wgt, y), Size = UDim2.fromOffset(60, 16), TextSize = 11, TextColor3 = C.dim })
 		end
 		local can = stock > 0 or (profile ~= nil and (profile.coins or 0) >= def.coins)
-		local b = K.btn(f, if stock > 0 then spaced("OUVRIR", 3) else spaced("ACHETER & OUVRIR (🪙 " .. K.fmt(def.coins) .. ")", 1), if can then "primary" else "dark", function()
+		local b = K.btn(f, if stock > 0 then spaced("OUVRIR", 3) else spaced("ACHETER ET OUVRIR (🪙 " .. K.fmt(def.coins) .. ")", 1), if can then "primary" else "dark", function()
 			if ctx.busyCrate then return end
 			ctx.busyCrate = true
 			local res = ctx.call("OpenBox", id)

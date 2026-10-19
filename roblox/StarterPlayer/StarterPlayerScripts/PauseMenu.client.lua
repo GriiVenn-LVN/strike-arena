@@ -1,9 +1,10 @@
 --!strict
 -- StarterPlayerScripts/PauseMenu (LocalScript)
--- Pause en partie (menu Échap du web) : REPRENDRE, OPTIONS, MENU PRINCIPAL, MODE PHOTO, QUITTER LA PARTIE.
+-- Pause en partie (menu Échap du web) : REPRENDRE (action principale), RÉGLAGES, MENU PRINCIPAL, puis plus petits
+-- MODE PHOTO et QUITTER LA PARTIE (deuxième appui pour confirmer).
 -- S'ouvre avec P ou la croix bas (MainMenu passe la main ici quand on est en partie, via S.panels.pause), avec Échap
 -- (Roblox ouvre aussi son propre menu : en le refermant, on retrouve la pause) et avec le bouton ⏸ sur téléphone.
--- Le panneau Options est celui des Réglages du menu principal (Menu/Options) : chaque réglage s'applique tout de suite
+-- Le panneau Réglages est celui du menu principal (Menu/Options, mêmes onglets : MenuConfig.SETTINGS_TABS) : chaque réglage s'applique tout de suite
 -- et est enregistré dans le profil. La partie continue derrière (jeu en ligne) : on ne peut ni tirer ni bouger pendant la pause.
 -- Affiche aussi les compteurs FPS / ping en haut à droite quand ils sont activés dans les options.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -14,6 +15,7 @@ local GuiService = game:GetService("GuiService")
 local RunService = game:GetService("RunService")
 
 local Modes = require(ReplicatedStorage.Shared.Modes)
+local MenuConfig = require(ReplicatedStorage.Shared.MenuConfig)
 local S = require(ReplicatedStorage.Shared.ClientState)
 local MenuDir = script.Parent:WaitForChild("Menu")
 local K = require(MenuDir:WaitForChild("Kit"))
@@ -118,25 +120,27 @@ local function mainView(animate: boolean)
 	local mdef = if typeof(mm) == "string" then Modes.LIST[mm] else nil
 	text(content, { Text = '<font color="#ff4655">●</font>  ' .. spaced("PARTIE EN COURS", 1) .. (if mdef then "  ·  " .. mdef.n else ""), TextSize = 11, TextColor3 = C.dim,
 		Size = UDim2.new(1, 0, 0, 18), TextXAlignment = Enum.TextXAlignment.Center, TextWrapped = false, LayoutOrder = 2 })
-	make("Frame", { Size = UDim2.new(1, 0, 0, 6), LayoutOrder = 3 }, content)
+	text(content, { Text = "La partie continue pendant la pause.", TextSize = 11, TextColor3 = C.mute, Size = UDim2.new(1, 0, 0, 16),
+		TextXAlignment = Enum.TextXAlignment.Center, TextWrapped = false, LayoutOrder = 3 })
 	local list: { GuiObject } = {}
-	local function add(label: string, kind: string, cb: () -> ()): TextButton
-		local b = K.btn(content, label, kind, cb, { Size = UDim2.new(1, 0, 0, 46), TextSize = 14, LayoutOrder = 10 + #list })
+	local function add(label: string, kind: string, cb: () -> (), h: number?): TextButton
+		local b = K.btn(content, label, kind, cb, { Size = UDim2.new(1, 0, 0, h or 46), TextSize = if h then 12 else 14, LayoutOrder = 10 + #list })
 		table.insert(list, b)
 		return b
 	end
-	local resume = add("▶  " .. spaced("REPRENDRE", 2), "primary", function() setOpen(false) end)
-	add("⚙  " .. spaced("OPTIONS", 2), "alt", function() view = "options"; render() end)
+	local resume = add("▶  " .. spaced("REPRENDRE", 2), "primary", function() setOpen(false) end, 54)
+	resume.TextSize = 16
+	add("⚙  " .. spaced("RÉGLAGES", 2), "alt", function() view = "options"; render() end)
 	add("☰  " .. spaced("MENU PRINCIPAL", 2), "alt", function()
 		setOpen(false)
 		local m = S.panels.menu
 		if m then task.spawn(m) end
 	end)
-	add("📷  " .. spaced("MODE PHOTO", 2), "alt", function()
+	add("📷  " .. spaced("MODE PHOTO", 2), "dark", function()
 		setOpen(false)
 		local ok, err = pcall(function() require(ReplicatedStorage.Shared.PhotoMode).enter() end)
 		if not ok then warn("[PauseMenu] PhotoMode", err) end
-	end)
+	end, 38)
 	-- quitter : deuxième appui pour confirmer (le web demande aussi une confirmation)
 	local quit: TextButton
 	quit = add(spaced("QUITTER LA PARTIE", 1), "dark", function()
@@ -151,7 +155,7 @@ local function mainView(animate: boolean)
 				if quit.Parent and os.clock() - quitArmed >= 3 then quit.Text = spaced("QUITTER LA PARTIE", 1); quit.TextColor3 = C.white end
 			end)
 		end
-	end)
+	end, 38)
 	text(content, { Text = "P · Échap · B pour reprendre", TextSize = 11, TextColor3 = C.mute, Size = UDim2.new(1, 0, 0, 16),
 		TextXAlignment = Enum.TextXAlignment.Center, TextWrapped = false, LayoutOrder = 40 })
 	if animate then stagger(list) end
@@ -165,11 +169,12 @@ local function optionsView(slide: number?)
 	-- en-tête : retour, titre, onglets
 	local back = K.btn(content, "◀  " .. spaced("RETOUR", 1), "dark", function() view = "main"; render() end,
 		{ Position = UDim2.fromOffset(20, 18), Size = UDim2.fromOffset(110, 32), TextSize = 11 })
-	text(content, { Text = spaced("OPTIONS", 3), Font = K.BLACK, TextSize = 22, Position = UDim2.fromOffset(146, 18), Size = UDim2.fromOffset(240, 32), TextWrapped = false })
+	text(content, { Text = spaced("RÉGLAGES", 3), Font = K.BLACK, TextSize = 22, Position = UDim2.fromOffset(146, 18), Size = UDim2.fromOffset(240, 32), TextWrapped = false })
 	local tabs = make("Frame", { Position = UDim2.fromOffset(20, 62), Size = UDim2.new(1, -40, 0, 36) }, content)
 	K.hlist(tabs, 6)
 	for i, sub in ipairs(Options.SUBS) do
-		K.chip(tabs, spaced(sub, 1), sub == optSub, function()
+		local def = MenuConfig.settingsTab(sub)
+		K.chip(tabs, spaced(if def then def.n else sub, 1), sub == optSub, function()
 			if sub == optSub then return end
 			local old = table.find(Options.SUBS, optSub) or 1
 			optSub = sub
@@ -177,16 +182,20 @@ local function optionsView(slide: number?)
 			-- le contenu glisse depuis le côté de l'onglet choisi
 			local area = content:FindFirstChild("Area")
 			if area and area:IsA("GuiObject") then
-				area.Position = UDim2.fromOffset(20 + (if i > old then 30 else -30), 110)
-				K.tween(area, 0.26, { Position = UDim2.fromOffset(20, 110) }, Enum.EasingStyle.Quint)
+				area.Position = UDim2.fromOffset(20 + (if i > old then 30 else -30), 128)
+				K.tween(area, 0.26, { Position = UDim2.fromOffset(20, 128) }, Enum.EasingStyle.Quint)
 			end
 		end, { LayoutOrder = i })
 	end
-	local area = make("Frame", { Name = "Area", Position = UDim2.fromOffset(20 + (slide or 0), 110), Size = UDim2.new(1, -40, 1, -126) }, content)
+	-- phrase d'aide de l'onglet
+	local cur = MenuConfig.settingsTab(optSub)
+	text(content, { Text = if cur then cur.help else "", Position = UDim2.fromOffset(20, 102), Size = UDim2.new(1, -40, 0, 18), TextSize = 12, Font = K.MED,
+		TextColor3 = C.sub, TextWrapped = false, TextTruncate = Enum.TextTruncate.AtEnd })
+	local area = make("Frame", { Name = "Area", Position = UDim2.fromOffset(20 + (slide or 0), 128), Size = UDim2.new(1, -40, 1, -144) }, content)
 	local sc = K.scroll(area, { Name = "Opt" .. optSub })
 	K.vlist(sc, 14); K.pad(sc, 0, 4, 8, 12)
 	Options.build(sc, math.floor(size.X - 50), optSub, function() render() end)
-	if slide then K.tween(area, 0.26, { Position = UDim2.fromOffset(20, 110) }, Enum.EasingStyle.Quint) end
+	if slide then K.tween(area, 0.26, { Position = UDim2.fromOffset(20, 128) }, Enum.EasingStyle.Quint) end
 	if UserInputService.GamepadEnabled then GuiService.SelectedObject = back end
 end
 

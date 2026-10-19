@@ -2,7 +2,14 @@
 -- StarterPlayerScripts/MainMenu (LocalScript)
 -- Menu principal du jeu web (index.html #menu, src/87_nav.js, src/87d_lobby.js) : plein écran par-dessus le lobby,
 -- logo STRIKE ARENA, navigation Accueil / Jouer / Arsenal / Profil / Réglages, encart du profil (niveau, XP, pièces,
--- caisses, RÉCOMPENSE), boutons CADEAUX et PREMIUM. Chaque rubrique est un module de Menu/ (Home, Play, Arsenal, Profile, Settings).
+-- caisses, BONUS DU JOUR), boutons BOUTIQUE, CADEAUX et PREMIUM. Chaque rubrique est un module de Menu/ (Home, Play, Arsenal, Profile, Settings).
+-- Sous les onglets : une ligne « RUBRIQUE › SOUS-PARTIE · phrase d'aide » (TABS), pour savoir tout de suite où l'on est.
+-- Organisation (une action principale par écran) :
+--   ACCUEIL   JOUER (partie en ligne), partie rapide, avec des amis · saison, bonus du jour · défis · nouveautés, codes, communauté
+--   JOUER     EN LIGNE / AVEC DES AMIS · 1 Mode · 2 Carte · 3 Jouer (parties en cours, réglages si une partie est créée)
+--   ARSENAL   Armes · Viseurs · Tenues et effets (tenues, danses, sprays, effets d'élimination, traînées) · Caisses
+--   PROFIL    Progression (rang, événement, saison) · Statistiques · Pseudo et titre
+--   RÉGLAGES  Général · Point de visée · Son · Touches · Accessibilité (les mêmes que dans la pause)
 -- S'ouvre à l'arrivée au lobby et au retour d'une partie ; se rouvre avec le bouton en haut à gauche, la touche P ou la croix
 -- bas de la manette. En partie, P ouvre la pause (PauseMenu : Reprendre, Options, Menu principal, Quitter la partie),
 -- d'où l'on rejoint ce menu, avec « Reprendre » et « Quitter la partie ». Le serveur vérifie tout (MatchService, PartyService, MenuService…).
@@ -16,6 +23,7 @@ local GuiService = game:GetService("GuiService")
 local TweenService = game:GetService("TweenService")
 
 local Modes = require(ReplicatedStorage.Shared.Modes)
+local MenuConfig = require(ReplicatedStorage.Shared.MenuConfig)
 local S = require(ReplicatedStorage.Shared.ClientState)
 local MenuDir = script.Parent:WaitForChild("Menu")
 local K = require(MenuDir:WaitForChild("Kit"))
@@ -86,12 +94,23 @@ local openBtn = K.btn(openGui, "☰  " .. spaced("MENU", 1) .. '  <font color="#
 	{ Position = UDim2.fromOffset(16, 10), Size = UDim2.fromOffset(132, 40), TextSize = 14, Visible = false })
 
 -- ---------- état ----------
-local TABS = {
-	{ id = "home", n = "ACCUEIL", ic = "⌂" },
-	{ id = "play", n = "JOUER", ic = "▶" },
-	{ id = "arsenal", n = "ARSENAL", ic = "✦", subs = { "Armes", "Viseurs", "Casier", "Caisses" }, hint = "Armes, viseurs, tenues et caisses · enregistré automatiquement" },
-	{ id = "profile", n = "PROFIL", ic = "★", subs = { "Progression", "Statistiques", "Style" }, hint = "Niveau, défis, statistiques et style du profil" },
-	{ id = "settings", n = "RÉGLAGES", ic = "⚙", subs = { "Général", "Viseur", "Son", "Touches", "Accessibilité" }, hint = "Appliqués tout de suite et enregistrés · aussi dans la pause (P)" },
+-- rubriques : n = nom de l'onglet, help = phrase d'aide ; subs = sous-parties { id (clé gardée dans ctx.sub), n (nom affiché), help }
+type Sub = { id: string, n: string, help: string }
+local TABS: { { id: string, n: string, ic: string, help: string?, subs: { Sub }? } } = {
+	{ id = "home", n = "ACCUEIL", ic = "⌂", help = "Lance une partie, récupère tes cadeaux et relève les défis du jour." },
+	{ id = "play", n = "JOUER", ic = "▶", help = "Trois étapes : choisis un mode, puis une carte, puis appuie sur JOUER." },
+	{ id = "arsenal", n = "ARSENAL", ic = "✦", subs = {
+		{ id = "Armes", n = "Armes", help = "Choisis tes armes, compare leurs statistiques et mets-leur un skin." },
+		{ id = "Viseurs", n = "Viseurs", help = "L'optique posée sur chaque arme et le réticule qu'on voit dedans." },
+		{ id = "Casier", n = "Tenues et effets", help = "Tenue du soldat, danses (T), sprays (J), effets d'élimination et traînées de balles." },
+		{ id = "Caisses", n = "Caisses", help = "Ouvre des caisses pour gagner des skins, des danses et des tenues." },
+	} },
+	{ id = "profile", n = "PROFIL", ic = "★", subs = {
+		{ id = "Progression", n = "Progression", help = "Ton rang, l'événement en cours et la saison. Les défis sont sur l'Accueil." },
+		{ id = "Statistiques", n = "Statistiques", help = "Tes résultats : parties, victoires, précision et armes préférées." },
+		{ id = "Style", n = "Pseudo et titre", help = "La couleur de ton pseudo et le titre affiché à côté de ton nom." },
+	} },
+	{ id = "settings", n = "RÉGLAGES", ic = "⚙", subs = MenuConfig.SETTINGS_TABS },
 }
 local PAGES: { [string]: any } = {}
 for _, id in ipairs({ "Home", "Play", "Arsenal", "Profile", "Settings" }) do
@@ -272,6 +291,10 @@ end
 local header = make("Frame", { Name = "Header", Size = UDim2.new(1, 0, 0, 90) }, root)
 local subRow = make("Frame", { Name = "SubRow", Size = UDim2.new(1, -56, 0, 40), Position = UDim2.fromOffset(28, 96) }, root)
 local body = make("Frame", { Name = "Body", Size = UDim2.new(1, -56, 1, -170), Position = UDim2.fromOffset(28, 140), ClipsDescendants = true }, root)
+-- en haut de chaque page : « RUBRIQUE › SOUS-PARTIE   phrase d'aide » ; la page elle-même est dessinée dans « pageBox »
+local helpBar = text(body, { Name = "HelpBar", Size = UDim2.new(1, 0, 0, 22), TextSize = 13, TextColor3 = C.white, Font = K.MED, TextWrapped = false,
+	TextTruncate = Enum.TextTruncate.AtEnd, Text = "" })
+local pageBox = make("Frame", { Name = "Page", Position = UDim2.fromOffset(0, 30), Size = UDim2.new(1, 0, 1, -30), ClipsDescendants = true }, body)
 local footer = text(root, { Name = "Footer", AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 28, 1, -8), Size = UDim2.new(1, -56, 0, 16),
 	TextSize = 11, TextColor3 = C.mute, Font = K.MED, TextWrapped = false,
 	Text = 'P : menu (en partie : pause)  •  Tous les réglages sont sauvegardés automatiquement  •  <u>Crédits</u> : modèles d\'armes « Low-Poly » de TastyTony (CC BY 4.0)' })
@@ -333,9 +356,11 @@ local function buildHeader()
 		Text = if d then K.fmt(d.xp) .. " / " .. K.fmt(d.xpNeed) .. " XP" else "…" })
 	local coinsL = text(pbox, { Position = UDim2.fromOffset(186, 16), Size = UDim2.fromOffset(100, 28), Font = K.BLACK, TextSize = 16, TextWrapped = false,
 		TextXAlignment = Enum.TextXAlignment.Right, Text = "" })
-	local rew = K.btn(pbox, "🎁  " .. spaced("RÉCOMPENSE", 1), "primary", ctx.claimDaily,
-		{ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0), Size = UDim2.fromOffset(150, 40), TextSize = 12 })
-	K.setBtnColor(rew, K.rgb(0xff5f48))
+	-- bonus du jour (ClaimDaily) : rouge quand il attend, discret une fois récupéré
+	local canClaim = d ~= nil and d.daily ~= nil and d.daily.canClaim == true
+	local rew = K.btn(pbox, "📅  BONUS DU JOUR", if canClaim or not d then "primary" else "alt", ctx.claimDaily,
+		{ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0), Size = UDim2.fromOffset(150, 40), TextSize = 12, Name = "DailyBonus" })
+	if canClaim or not d then K.setBtnColor(rew, K.rgb(0xff5f48)) end
 	-- CADEAUX, BOUTIQUE et PREMIUM sous l'encart
 	local row = make("Frame", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -150, 0, 84), Size = UDim2.fromOffset(400, 32) }, header)
 	local lay = K.hlist(row, 10); lay.HorizontalAlignment = Enum.HorizontalAlignment.Right
@@ -379,20 +404,23 @@ local function buildSubRow()
 	K.clear(subRow)
 	local t: any = nil
 	for _, x in ipairs(TABS) do if x.id == ctx.tab then t = x end end
-	local row = make("Frame", { Size = UDim2.new(1, -640, 1, 0), AutomaticSize = Enum.AutomaticSize.None }, subRow)
+	local row = make("Frame", { Size = UDim2.new(1, if ctx.inMatch() then -640 else 0, 1, 0), AutomaticSize = Enum.AutomaticSize.None }, subRow)
 	K.hlist(row, 8)
 	if t and t.subs then
 		for i, s in ipairs(t.subs) do
-			local on = ctx.sub[t.id] == s
-			local b = K.btn(row, spaced(s, 1), if on then "white" else "dark", function() if ctx.sub[t.id] ~= s then ctx.goSub(t.id, s) end end,
+			local on = ctx.sub[t.id] == s.id
+			local b = K.btn(row, spaced(s.n, 1), if on then "white" else "dark", function() if ctx.sub[t.id] ~= s.id then ctx.goSub(t.id, s.id) end end,
 				{ LayoutOrder = i, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 32), TextSize = 13, Font = K.BLACK })
 			K.pad(b, 16, 0); K.corner(b, 16)
 			local c = b:FindFirstChildOfClass("UICorner"); if c then c.CornerRadius = UDim.new(0, 16) end
 		end
 	end
-	if t and t.hint and ctx.W >= 1300 then
-		text(subRow, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.55, 0.5), Size = UDim2.fromOffset(520, 16), Text = spaced(t.hint, 0),
-			TextSize = 11, TextColor3 = C.mute, TextXAlignment = Enum.TextXAlignment.Center, TextWrapped = false })
+	-- ligne d'aide : où l'on est et à quoi sert cette page
+	if t then
+		local subDef: Sub? = nil
+		for _, s in ipairs(t.subs or {}) do if s.id == ctx.sub[t.id] then subDef = s end end
+		local where = t.n .. (if subDef then "  ›  " .. K.upper(subDef.n) else "")
+		helpBar.Text = "<b>" .. spaced(where, 1) .. '</b>    <font color="#b8c5da">' .. K.esc(if subDef then subDef.help else (t.help or "")) .. "</font>"
 	end
 	-- en partie : on peut reprendre ou quitter
 	if ctx.inMatch() then
@@ -408,8 +436,8 @@ local function buildSubRow()
 			local ok, err = pcall(function() require(ReplicatedStorage.Shared.PhotoMode).enter() end)
 			if not ok then warn("[MainMenu] PhotoMode", err) end
 		end, { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -280, 0.5, 0), Size = UDim2.fromOffset(124, 28), TextSize = 11 })
-		K.btn(strip, "REPRENDRE", "alt", function() ctx.close() end, { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -150, 0.5, 0), Size = UDim2.fromOffset(124, 28), TextSize = 12 })
-		K.btn(strip, "QUITTER LA PARTIE", "primary", function()
+		K.btn(strip, "▶  REPRENDRE", "primary", function() ctx.close() end, { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -150, 0.5, 0), Size = UDim2.fromOffset(124, 28), TextSize = 12 })
+		K.btn(strip, "QUITTER LA PARTIE", "dark", function()
 			ctx.leaveMatch(); ctx.go("home")
 		end, { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.fromOffset(146, 28), TextSize = 11 })
 	end
@@ -418,11 +446,11 @@ end
 -- ---------- rendu d'une rubrique ----------
 local function scrollPositions(): { [string]: Vector2 }
 	local out = {}
-	for _, d in ipairs(body:GetDescendants()) do if d:IsA("ScrollingFrame") then out[d.Name] = d.CanvasPosition end end
+	for _, d in ipairs(pageBox:GetDescendants()) do if d:IsA("ScrollingFrame") then out[d.Name] = d.CanvasPosition end end
 	return out
 end
 -- changement d'onglet (dir = -1 / 1) : la page arrive en glissant et en fondu (tpin du web), puis ses cartes en cascade.
--- Le fondu passe par un CanvasGroup le temps de l'animation ; ensuite la page est remise directement dans « body »
+-- Le fondu passe par un CanvasGroup le temps de l'animation ; ensuite la page est remise directement dans « pageBox »
 -- (un CanvasGroup permanent rendrait le texte un peu flou).
 local fadeN, fadeAt = 0, 0
 local function animateIn(host: CanvasGroup, dir: number)
@@ -435,8 +463,8 @@ local function animateIn(host: CanvasGroup, dir: number)
 		K.cascade(host)
 		local tw = K.tween(host, 0.28, { GroupTransparency = 0, Position = UDim2.fromOffset(0, 0) }, Enum.EasingStyle.Quint)
 		tw.Completed:Connect(function()
-			if my ~= fadeN or host.Parent ~= body then return end
-			for _, c in ipairs(host:GetChildren()) do c.Parent = body end
+			if my ~= fadeN or host.Parent ~= pageBox then return end
+			for _, c in ipairs(host:GetChildren()) do c.Parent = pageBox end
 			host:Destroy()
 		end)
 	end)
@@ -445,12 +473,12 @@ local function renderWith(dir: number?)
 	if not open then return end
 	local keep = scrollPositions()
 	buildHeader(); buildSubRow()
-	K.clear(body)
-	local host: GuiObject = body
-	if dir then host = make("CanvasGroup", { Name = "PageFade", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1 }, body) end
-	local page = PAGES[ctx.tab]
-	if page then
-		local ok, err = pcall(page, ctx, host, ctx.sub[ctx.tab])
+	K.clear(pageBox)
+	local host: GuiObject = pageBox
+	if dir then host = make("CanvasGroup", { Name = "PageFade", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1 }, pageBox) end
+	local pageFn = PAGES[ctx.tab]
+	if pageFn then
+		local ok, err = pcall(pageFn, ctx, host, ctx.sub[ctx.tab])
 		if not ok then
 			warn("[MainMenu] rubrique " .. ctx.tab, err)
 			text(host, { Text = "Cette rubrique n'a pas pu s'afficher.", TextColor3 = C.dim, Size = UDim2.new(1, 0, 0, 30) })
@@ -458,7 +486,7 @@ local function renderWith(dir: number?)
 	end
 	if dir and host:IsA("CanvasGroup") then animateIn(host, dir) end
 	task.defer(function()
-		for _, d in ipairs(body:GetDescendants()) do
+		for _, d in ipairs(pageBox:GetDescendants()) do
 			if d:IsA("ScrollingFrame") and keep[d.Name] then d.CanvasPosition = keep[d.Name] end
 		end
 	end)
@@ -466,7 +494,7 @@ end
 -- un rafraîchissement (profil reçu juste après l'ouverture…) attend la fin de l'animation au lieu de la couper
 local renderLater = false
 render = function()
-	if body:FindFirstChild("PageFade") and os.clock() - fadeAt < 1 then
+	if pageBox:FindFirstChild("PageFade") and os.clock() - fadeAt < 1 then
 		if not renderLater then
 			renderLater = true
 			task.delay(0.35, function() renderLater = false; render() end)
@@ -484,8 +512,11 @@ end
 -- sous-onglet (Armes / Viseurs…, Général / Son…) : glisse depuis le côté où il se trouve
 function ctx.goSub(tab: string, s: string)
 	local t = TABS[tabIndex(tab)]
-	local old = table.find(t.subs or {}, ctx.sub[tab]) or 1
-	local new = table.find(t.subs or {}, s) or 1
+	local function at(id: string?): number
+		for i, x in ipairs(t.subs or {}) do if x.id == id then return i end end
+		return 1
+	end
+	local old, new = at(ctx.sub[tab]), at(s)
 	ctx.sub[tab] = s
 	renderWith(if new >= old then 1 else -1)
 end
@@ -494,7 +525,7 @@ function ctx.go(tab: string, sub: string?)
 	local dir = if tabIndex(tab) >= tabIndex(ctx.tab) then 1 else -1
 	local changed = tab ~= ctx.tab or (sub ~= nil and sub ~= ctx.sub[tab])
 	if tab ~= ctx.tab then
-		for _, d in ipairs(body:GetDescendants()) do if d:IsA("ScrollingFrame") then d.CanvasPosition = Vector2.zero end end
+		for _, d in ipairs(pageBox:GetDescendants()) do if d:IsA("ScrollingFrame") then d.CanvasPosition = Vector2.zero end end
 	end
 	if ctx.tab == "home" then ctx.newsSeen = true end
 	ctx.tab = tab
