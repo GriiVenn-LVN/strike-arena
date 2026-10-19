@@ -1,7 +1,9 @@
 --!strict
 -- Modes/rounds : moteur commun des modes à manches du web (src/60_game.js resetRound / endRound / afterEnd, bombe,
 -- boutique ; src/8Zc_eco.js économie ; src/8G_rounds.js mi-temps ; src/61_variants.js Désamorçage rapide ;
--- src/8B_duel.js Duel). Ce n'est pas un mode : bomb.lua, rapid.lua et duel.lua appellent Rounds.make(variante).
+-- src/8B_duel.js Duel). Ce n'est pas un mode : bomb.lua, rapid.lua, duel.lua et gunfight.lua appellent Rounds.make(variante).
+-- Gunfight (Call of Duty) : comme le Duel, mais sans boutique : tout le monde reçoit les MÊMES armes (principale, pistolet,
+-- une grenade), tirées au sort toutes les 2 manches ; manches de 40 s, positions révélées à 15 s de la fin.
 --
 -- Une manche : phase d'achat figée (20 s / 10 s / 6 s), puis la manche (100 s / 45 s / 60 s), sans réapparition.
 -- Bombe (Compétitif, Désamorçage rapide) : un attaquant au hasard la porte ; il la pose sur un site (maintenir E, 3,2 s),
@@ -35,7 +37,11 @@ local VARIANTS = {
 	bomb = { round = 100, freeze = 20, bomb = true, half = true },
 	rapid = { round = 45, freeze = 10, bomb = true, half = true },
 	duel = { round = 60, freeze = 6, bomb = false, half = false },
+	gunfight = { round = 40, freeze = 5, bomb = false, half = false, reveal = 15, kitEvery = 2 },
 }
+-- armes de Gunfight : une principale et un pistolet pour tout le monde, avec une grenade ou un flash (kits de COD)
+local GF_PRIMARY = { "ak", "m4", "famas", "galil", "sg553", "aug", "mp9", "ump", "p90", "mac10", "nova", "xm", "ssg", "awp", "negev" }
+local GF_PISTOL = { "glock", "usp", "p250", "fiveseven", "deagle" }
 
 local ITEM_PRICE: { [string]: number } = {}
 for _, it in ipairs(Modes.BUY_ITEMS) do ITEM_PRICE[it.k] = it.price end
@@ -136,7 +142,8 @@ function Rounds.make(variant: string): any
 	local M: any = {}
 	M.noPickups = true      -- web : pas d'objets à ramasser dans les modes à bombe (setupPickups seulement hors « bomb »)
 
-	local function ecoOn(m: any): boolean return m.settings.eco == 1 and variant ~= "rapid" and variant ~= "duel" end
+	local duelLike = variant == "duel" or variant == "gunfight"   -- sans bombe : départage aux survivants, positions révélées
+	local function ecoOn(m: any): boolean return m.settings.eco == 1 and variant ~= "rapid" and not duelLike end
 	local function cap(m: any): number return if ecoOn(m) then ECO.max else 16000 end
 	local function free(m: any): boolean return m.settings.eco ~= 1 end
 	local function startMoney(m: any): number return if m.settings.eco == 1 and variant == "bomb" then ECO.start else 16000 end
@@ -269,7 +276,7 @@ function Rounds.make(variant: string): any
 	local function endRound(m: any, win: string, reason: string)
 		local d = m.data
 		if d.phase ~= "live" then return end
-		if variant == "duel" and reason == "Temps écoulé" then
+		if duelLike and reason == "Temps écoulé" then
 			-- départage du duel : le plus de survivants, puis le plus de points de vie
 			local al, hp = { [T] = 0, [CT] = 0 }, { [T] = 0, [CT] = 0 }
 			for _, c in ipairs(O.alive(m)) do
@@ -305,7 +312,7 @@ function Rounds.make(variant: string): any
 		for p in pairs(m.players) do
 			local mine = WeaponService.teamOf(p) == win
 			local r = reason
-			if variant == "duel" and string.find(reason, "Temps écoulé", 1, true) ~= 1 then r = if mine then "Adversaire éliminé" else "Ton équipe est éliminée" end
+			if duelLike and string.find(reason, "Temps écoulé", 1, true) ~= 1 then r = if mine then "Adversaire éliminé" else "Ton équipe est éliminée" end
 			MS().announce(m, if mine then "MANCHE GAGNÉE" else "MANCHE PERDUE", r, if mine then O.GOOD else O.BAD, p)
 			setAttr(p, "UseProg", nil); setAttr(p, "UseMsg", nil); setAttr(p, "UseHint", nil)
 		end
@@ -330,6 +337,7 @@ function Rounds.make(variant: string): any
 	end
 	local function doBuy(m: any, c: any, k: string): (boolean, string?)
 		local d = m.data
+		if variant == "gunfight" then return false, "Gunfight : tout le monde a les mêmes armes" end
 		if d.phase ~= "freeze" then return false, "Achats possibles seulement en début de manche" end
 		local i = inv(m, c)
 		local team = WeaponService.teamOf(c)
@@ -375,6 +383,7 @@ function Rounds.make(variant: string): any
 	end
 	function M.buy(m: any, p: Player, k: string?): any
 		if not m.data.inv then return nil end
+		if variant == "gunfight" then return { closed = "Gunfight : pas de boutique, tout le monde a les mêmes armes (" .. tostring(m.data.kitName or "…") .. ")" } end
 		local ok, msg = true, nil
 		if k then ok, msg = doBuy(m, p, k); syncMoney(m, p) end
 		local st = buyState(m, p)
@@ -384,7 +393,7 @@ function Rounds.make(variant: string): any
 
 	-- achats d'un bot (botBuy du web)
 	local function botBuy(m: any, b: Model)
-		if m.data.phase ~= "freeze" or not b.Parent then return end
+		if m.data.phase ~= "freeze" or not b.Parent or variant == "gunfight" then return end
 		local i = inv(m, b)
 		local function try(k: string) doBuy(m, b, k) end
 		local aff = {}
@@ -469,7 +478,7 @@ function Rounds.make(variant: string): any
 	local function resetRound(m: any)
 		local d = m.data
 		d.round += 1
-		d.pistol = variant ~= "duel" and (d.round == 1 or d.halfPistol)
+		d.pistol = not duelLike and (d.round == 1 or d.halfPistol)
 		d.halfPistol = false
 		d.phase = "freeze"; d.phaseEnd = now() + V.freeze; m.endsAt = d.phaseEnd
 		d.revealed = false; d.use = {}; d.retake = {}; d.roam = {}
@@ -477,10 +486,26 @@ function Rounds.make(variant: string): any
 		b.carrier = nil; b.prog = 0; b.defProg = {}; b.pos = nil; b.site = nil; b.explodeAt = nil
 		bombState(m, if V.bomb then "carried" else "none")
 		showBomb(m, nil)
+		-- Gunfight : nouvelles armes pour tout le monde toutes les 2 manches
+		local newKit = false
+		if variant == "gunfight" and (not d.kit or (d.round - 1) % (V.kitEvery or 2) == 0) then
+			local prev = d.kit and d.kit.primary
+			local pool = {}
+			for _, k in ipairs(GF_PRIMARY) do if Config.WEAPONS[k] and k ~= prev then table.insert(pool, k) end end
+			local prim = pool[math.random(#pool)]
+			d.kit = { primary = prim, secondary = GF_PISTOL[math.random(#GF_PISTOL)], nade = if math.random() < 0.5 then "frag" else "flash" }
+			d.kitName = Config.WEAPONS[prim].name .. " + " .. Config.WEAPONS[d.kit.secondary].name .. " + " .. (if d.kit.nade == "frag" then "grenade" else "flash")
+			newKit = true
+		end
 		-- inventaire de la manche (web : resetRound, Duel : armes du profil, gilet)
 		for _, e in ipairs(members(m)) do
 			local i = invOf(m, e.key, e.team)
-			if not i.keep then
+			if variant == "gunfight" then
+				-- Gunfight : chacun repart avec le kit de la manche, même les survivants
+				i.armor = 0; i.shield = 0; i.kit = false; i.frag = 0; i.flash = 0; i.smoke = 0; i.mine = 0
+				i.primary = d.kit.primary; i.secondary = d.kit.secondary
+				if d.kit.nade == "frag" then i.frag = 1 else i.flash = 1 end
+			elseif not i.keep then
 				i.armor = 0; i.shield = 0; i.kit = false; i.frag = 0; i.flash = 0; i.smoke = 0; i.mine = 0
 				i.primary = nil; i.secondary = pistolOf(e.team)
 				local p = if O.isPlayer(e.c) then e.c :: Player else nil
@@ -502,7 +527,7 @@ function Rounds.make(variant: string): any
 					end
 				end
 			end
-			if free(m) or variant == "duel" then i.money = 16000 end
+			if free(m) or duelLike then i.money = 16000 end
 			i.keep = false
 		end
 		-- points d'apparition : chaque équipe à son départ, une place chacun
@@ -525,7 +550,9 @@ function Rounds.make(variant: string): any
 				if d.round == round and d.phase == "freeze" then botBuy(m, bot) end
 			end)
 		end
-		if variant == "duel" then
+		if variant == "gunfight" then
+			MS().announce(m, if newKit then "NOUVELLES ARMES" else "MANCHE " .. d.round, (if newKit then "Manche " .. d.round .. " · " else "") .. d.kitName, Color3.fromRGB(90, 209, 255))
+		elseif variant == "duel" then
 			MS().announce(m, "MANCHE " .. d.round, "Premier à " .. tostring(m.limit) .. " — touche B pour changer d'arme (" .. V.freeze .. " s)", PINK)
 		elseif d.pistol then
 			MS().announce(m, "MANCHE AU PISTOLET", "Pistolets uniquement — achète avec B (" .. V.freeze .. " s)", GOLD)
@@ -805,10 +832,10 @@ function Rounds.make(variant: string): any
 				end
 			end
 			-- duel : positions révélées à 20 s de la fin
-			if variant == "duel" and not d.revealed and d.phaseEnd - t <= REVEAL then
+			if duelLike and not d.revealed and d.phaseEnd - t <= (V.reveal or REVEAL) then
 				d.revealed = true
 				d.roam = {}
-				MS().announce(m, "POSITIONS RÉVÉLÉES", "Plus que " .. REVEAL .. " s", PINK)
+				MS().announce(m, "POSITIONS RÉVÉLÉES", "Plus que " .. (V.reveal or REVEAL) .. " s", PINK)
 			end
 			if b.state ~= "planted" then
 				m.endsAt = d.phaseEnd
@@ -851,7 +878,7 @@ function Rounds.make(variant: string): any
 			kind = "rounds", variant = variant, phase = d.phase, round = d.round, pistol = d.pistol, limit = m.limit, bombMode = V.bomb,
 			left = if d.phaseEnd < math.huge then math.max(0, d.phaseEnd - t) else 0, freeze = V.freeze, half = d.halfDone,
 			bomb = { state = b.state, site = b.site, pos = b.pos, carrier = carrierName, left = if b.explodeAt then math.max(0, b.explodeAt - t) else nil },
-			sites = sites, revealed = d.revealed, lastWin = d.lastWin, lastReason = d.lastReason,
+			sites = sites, revealed = d.revealed, lastWin = d.lastWin, lastReason = d.lastReason, kit = d.kitName,
 		}
 	end
 
@@ -909,8 +936,10 @@ function Rounds.make(variant: string): any
 		local col = m.def.c
 		if not d.started then return { line = "Premier à " .. tostring(m.limit) .. " manches", color = col } end
 		local sub = "Premier à " .. tostring(m.limit) .. " manches" .. (if V.half and not d.halfDone and (m.limit or 0) > 1 then " · mi-temps après la manche " .. ((m.limit or 1) - 1) else "")
+		if variant == "gunfight" and d.kitName then sub = d.kitName .. " · " .. sub end
 		if d.phase == "freeze" then
-			local line = if variant == "duel" then "MANCHE " .. d.round .. " — CHOISIS TON ARME (B)"
+			local line = if variant == "gunfight" then "MANCHE " .. d.round .. " — " .. string.upper(tostring(d.kitName))
+				elseif variant == "duel" then "MANCHE " .. d.round .. " — CHOISIS TON ARME (B)"
 				elseif d.pistol then "MANCHE AU PISTOLET — PHASE D'ACHAT (B)" else "MANCHE " .. d.round .. " — PHASE D'ACHAT (B)"
 			return { line = line, sub = sub, color = GOLD }
 		elseif d.phase == "end" then
@@ -921,7 +950,7 @@ function Rounds.make(variant: string): any
 			return { line = "💣 BOMBE POSÉE — SITE " .. (b.site or "?"), sub = "Explosion dans " .. math.max(0, math.ceil((b.explodeAt or 0) - now())) .. " s", subWarn = true, color = Color3.fromRGB(255, 185, 56) }
 		elseif b.state == "dropped" then
 			return { line = "MANCHE " .. d.round .. " — 💣 BOMBE LÂCHÉE", sub = sub, color = Color3.fromRGB(255, 185, 56) }
-		elseif variant == "duel" and d.revealed then
+		elseif duelLike and d.revealed then
 			return { line = "MANCHE " .. d.round .. " — POSITIONS RÉVÉLÉES", sub = sub, color = PINK }
 		end
 		return { line = "MANCHE " .. d.round, sub = sub, color = col }

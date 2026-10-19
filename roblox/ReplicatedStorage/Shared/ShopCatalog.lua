@@ -13,6 +13,7 @@ local Catalog = {}
 -- ---------- Prix ----------
 Catalog.PRICE_BY_RARITY = { 0, 800, 2000, 5000 }  -- commun (gratuit), rare, épique, légendaire (~35 pièces gagnées par partie)
 Catalog.OFFER_DISCOUNT = 0.25                     -- -25 % sur les offres du jour
+Catalog.FEATURED_DISCOUNT = 0.4                   -- -40 % sur l'offre vedette du jour (un objet épique ou légendaire)
 
 -- Armes disponibles dès le départ ; les autres se débloquent une fois pour toutes avec des pièces
 Catalog.STARTER_WEAPONS = { knife = true, glock = true, usp = true, p250 = true, mac10 = true, nova = true, galil = true, famas = true }
@@ -25,6 +26,7 @@ end
 
 -- Onglets dans l'ordre d'affichage
 Catalog.TABS = {
+	{ id = "featured", name = "À la une 🔥" },
 	{ id = "weapons", name = "Armes" },
 	{ id = "skins", name = "Skins" },
 	{ id = "sights", name = "Viseurs" },
@@ -32,7 +34,22 @@ Catalog.TABS = {
 	{ id = "killfx", name = "Effets 💥" },
 	{ id = "premium", name = "Premium ⭐" },
 	{ id = "exclusive", name = "Exclusifs ✨" },
-	{ id = "robux", name = "Robux" },
+	{ id = "robux", name = "Pièces 🪙" },
+}
+
+-- Présentation des lots de pièces (onglet « Pièces ») : étiquette et bonus calculé par rapport au plus petit lot
+Catalog.BUNDLE_TAGS = { coins_m = "POPULAIRE", coins_xl = "MEILLEURE VALEUR" } :: { [string]: string }
+
+-- Pack de départ (offre unique par compte, comme les « Starter Packs » de Fortnite / COD) : Developer Product à 99 R$,
+-- crédité dans ShopService.ProcessReceipt ; après l'achat il disparaît de la boutique (profile.purchases.pack_starter).
+-- Valeur ~4× un lot de pièces : 1 500 pièces, 2 caisses Premium, 5 boosts d'XP (+50 % sur 5 parties), titre « Pionnier ».
+Catalog.STARTER = { id = "pack_starter", robux = 99, name = "Pack de départ", coins = 1500, box = "prem", boxes = 2, boost = 5, title = "starter",
+	lines = { "1 500 pièces", "2 caisses Premium", "5 boosts d'XP (+50 %)", "Titre « 🎖 Pionnier »" } }
+
+-- Passe de jeu (Game Pass, acheté une fois pour toutes) : XP ×2 en fin de partie. Les pièces ne sont pas doublées.
+-- Vérifié par ShopService (UserOwnsGamePassAsync) qui pose l'attribut PassXp2 lu par RewardService.
+Catalog.GAMEPASSES = {
+	{ id = "gp_xp2", name = "XP ×2 pour toujours", robux = 299, attr = "PassXp2", desc = "Double l'XP de base de chaque partie (niveaux et passe de combat plus rapides). Les pièces ne sont pas doublées." },
 }
 
 -- ---------- Liste des objets ----------
@@ -107,6 +124,16 @@ for _, it in ipairs(X.SHOP) do
 	end
 end
 
+-- Pack de départ (offre unique) et passes de jeu : onglet « À la une »
+do
+	local st = Catalog.STARTER
+	add({ id = st.id, tab = "featured", kind = "devproduct", name = st.name, rarity = 5, robux = st.robux, productId = 0,
+		coins = st.coins, box = st.box, boxes = st.boxes, boost = st.boost, title = st.title, once = true })
+	for _, g in ipairs(Catalog.GAMEPASSES) do
+		add({ id = g.id, tab = "featured", kind = "gamepass", name = g.name, rarity = 5, robux = g.robux, passId = 0, attr = g.attr, desc = g.desc })
+	end
+end
+
 -- Exclusifs (Robux uniquement, permanents) : camos animés, ou lot de plusieurs camos
 for _, it in ipairs(X.EXCLUSIVES) do
 	add({ id = it.id, tab = "exclusive", kind = "exclusive", name = it.name, rarity = 5, robux = it.robux, productId = it.productId,
@@ -123,7 +150,9 @@ do
 	local ids = require(script.Parent.ProductIds) :: { [string]: number }
 	for _, it in ipairs(items) do
 		local n = ids[it.id]
-		if n and n > 0 then it.productId = n end
+		if n and n > 0 then
+			if it.kind == "gamepass" then it.passId = n else it.productId = n end
+		end
 	end
 end
 
@@ -135,7 +164,8 @@ end
 -- ---------- Possession ----------
 -- Inventaire du profil (voir DataService) : inv.weapons, inv.skins[arme], inv.outfits, inv.sights, inv.reticles, inv.misc
 function Catalog.owns(profile: any, it: any): boolean
-	if it.kind == "devproduct" or it.kind == "vip" then return false end   -- se rachète (jours cumulables)
+	if it.once then return profile.purchases ~= nil and profile.purchases[it.id] == true end   -- pack de départ : une seule fois
+	if it.kind == "devproduct" or it.kind == "vip" or it.kind == "gamepass" then return false end   -- se rachète (jours cumulables) ; passe : vérifié par Roblox
 	local inv = profile.inv
 	if it.kind == "exclusive" then
 		for _, c in ipairs(it.camos) do
@@ -170,21 +200,37 @@ function Catalog.dailyOffers(day: number): { string }
 	if offersCache.day == day then return offersCache.ids end
 	local rng = Random.new(day * 7919 + 17)
 	local picked = {}
+	-- jamais un objet d'événement (il ne s'achète pas : ShopService le refuse)
+	local function buyable(it: any): boolean return (it.price or 0) > 0 and not it.event end
 	for _, tab in ipairs({ "weapons", "skins", "sights", "style" }) do   -- une offre par onglet
 		local pool = {}
 		for _, it in ipairs(items) do
-			if it.tab == tab and it.price > 0 then table.insert(pool, it.id) end
+			if it.tab == tab and buyable(it) then table.insert(pool, it.id) end
 		end
 		if #pool > 0 then table.insert(picked, pool[rng:NextInteger(1, #pool)]) end
 	end
+	-- 5e offre = offre vedette (-40 %) : un objet épique ou légendaire, toutes catégories
+	local pool = {}
+	for _, it in ipairs(items) do
+		if buyable(it) and (it.rarity or 0) >= 3 and it.tab ~= "featured" and not table.find(picked, it.id) then table.insert(pool, it.id) end
+	end
+	if #pool > 0 then table.insert(picked, pool[rng:NextInteger(1, #pool)]) end
 	offersCache = { day = day, ids = picked }
 	return picked
 end
 
+-- offre vedette du jour : la 5e de dailyOffers
+function Catalog.featuredOffer(day: number): string?
+	return Catalog.dailyOffers(day)[5]
+end
+function Catalog.discountFor(it: any, day: number): number
+	local i = table.find(Catalog.dailyOffers(day), it.id)
+	if not i then return 0 end
+	return if i == 5 then Catalog.FEATURED_DISCOUNT else Catalog.OFFER_DISCOUNT
+end
 function Catalog.priceFor(it: any, day: number): number
-	if table.find(Catalog.dailyOffers(day), it.id) then
-		return math.floor(it.price * (1 - Catalog.OFFER_DISCOUNT) / 10 + 0.5) * 10
-	end
+	local d = Catalog.discountFor(it, day)
+	if d > 0 then return math.floor(it.price * (1 - d) / 10 + 0.5) * 10 end
 	return it.price
 end
 

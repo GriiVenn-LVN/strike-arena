@@ -2,7 +2,9 @@
 -- ServerScriptService/ShopService (Script)
 -- Boutique : achats en pièces (armes, skins, viseurs, tenues), offres du jour, équipement, produits Robux et exclusifs payants.
 -- Le catalogue est dans ReplicatedStorage/Shared/ShopCatalog. Le serveur revérifie TOUT (prix, possession, pièces) : ne jamais croire le client.
--- C'est le SEUL ProcessReceipt du jeu (Roblox n'en accepte qu'un) : pièces, caisses, passe de combat et abonnement Premium passent tous par ici.
+-- C'est le SEUL ProcessReceipt du jeu (Roblox n'en accepte qu'un) : pièces, caisses, passe de combat, abonnement Premium et
+-- pack de départ passent tous par ici. Les passes de jeu (XP ×2) sont vérifiés à l'arrivée (UserOwnsGamePassAsync).
+-- Un produit dont le numéro vaut 0 dans ProductIds n'est jamais proposé : le serveur répond « Bientôt disponible ».
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
@@ -15,6 +17,8 @@ local ProgressService = require(script.Parent.ProgressService)
 local LoyaltyService = require(script.Parent.LoyaltyService)
 local LoyaltyConfig = require(ReplicatedStorage.Shared.LoyaltyConfig)
 local KillFxConfig = require(ReplicatedStorage.Shared.KillFxConfig)
+local RateLimit = require(script.Parent.RateLimit)
+local SOON = "Bientôt disponible"
 
 local receipts = require(script.Parent.Stores).get("StrikeArenaReceipts_v1")
 
@@ -44,6 +48,12 @@ MarketplaceService.ProcessReceipt = function(info)
 	if it.box then profile.boxes[it.box] = (profile.boxes[it.box] or 0) + (it.boxes or 1) end
 	if it.premium then ProgressService.grantPremium(player) end
 	if it.kind == "vip" then LoyaltyService.grantVip(player, it.days) end   -- abonnement Premium : jours ajoutés + caisse offerte
+	if it.once then                                                           -- pack de départ : boosts, titre, marqué comme acheté
+		profile.purchases = profile.purchases or {}
+		profile.purchases[it.id] = true
+		LoyaltyService.give(profile, { boost = it.boost, title = it.title })
+		LoyaltyService.publish(player, profile)
+	end
 	if it.kind == "exclusive" then                                            -- camos animés : ajoutés pour toujours
 		profile.inv.exclusive = profile.inv.exclusive or {}
 		for _, c in ipairs(it.camos) do
@@ -90,16 +100,24 @@ getShop.OnServerInvoke = function(player: Player)
 		if Catalog.owns(profile, it) then owned[it.id] = true end
 	end
 	local offers = {}
-	for _, id in ipairs(Catalog.dailyOffers(day)) do
-		table.insert(offers, { id = id, price = Catalog.priceFor(Catalog.get(id), day) })
+	for i, id in ipairs(Catalog.dailyOffers(day)) do
+		local it = Catalog.get(id)
+		table.insert(offers, { id = id, price = Catalog.priceFor(it, day), was = it.price, off = math.floor(Catalog.discountFor(it, day) * 100 + 0.5), featured = i == 5 })
+	end
+	-- produits Robux disponibles (numéro renseigné dans ProductIds) et passes possédés
+	local live, passes = {}, {}
+	for _, it in ipairs(Catalog.ITEMS) do
+		if (it.productId or 0) > 0 or (it.passId or 0) > 0 then live[it.id] = true end
+		if it.kind == "gamepass" then passes[it.id] = player:GetAttribute(it.attr) == true end
 	end
 	return { coins = profile.coins, owned = owned, offers = offers, equipped = profile.equipped, equippedSkins = profile.equippedSkins or {},
-		secondsToReset = 86400 - os.time() % 86400 }
+		secondsToReset = 86400 - os.time() % 86400, live = live, passes = passes, boxes = profile.boxes }
 end
 
 local buy = remoteFunction("ShopBuy")
 buy.OnServerInvoke = function(player: Player, id: any)
 	if typeof(id) ~= "string" then return { ok = false, err = "Objet inconnu" } end
+	if not RateLimit.ok(player, "ShopBuy", 0.4) then return { ok = false, err = "Doucement : un achat à la fois" } end
 	local profile = DataService.get(player)
 	if not profile then return { ok = false, err = "Profil pas encore chargé" } end
 	local it = Catalog.get(id)
@@ -108,9 +126,17 @@ buy.OnServerInvoke = function(player: Player, id: any)
 	-- objets d'événement (skins, tenues et effets d'Halloween) : seulement avec les paliers de citrouilles
 	if it.event then return { ok = false, err = if Catalog.owns(profile, it) then "Déjà possédé" else "Récompense de l'événement d'Halloween (citrouilles)" } end
 
+	-- passe de jeu (Game Pass) : Roblox affiche sa fenêtre, PromptGamePassPurchaseFinished pose l'attribut
+	if it.kind == "gamepass" then
+		if player:GetAttribute(it.attr) == true then return { ok = false, err = "Déjà possédé" } end
+		if (it.passId or 0) <= 0 then return { ok = false, err = SOON } end
+		MarketplaceService:PromptGamePassPurchase(player, it.passId)
+		return { ok = true, pending = true }
+	end
+
 	if it.kind == "devproduct" or it.kind == "exclusive" or it.kind == "vip" then
-		if it.kind == "exclusive" and Catalog.owns(profile, it) then return { ok = false, err = "Déjà possédé" } end
-		if it.productId <= 0 then return { ok = false, err = "Bientôt disponible" } end
+		if (it.kind == "exclusive" or it.once) and Catalog.owns(profile, it) then return { ok = false, err = "Déjà possédé" } end
+		if it.productId <= 0 then return { ok = false, err = SOON } end
 		MarketplaceService:PromptProductPurchase(player, it.productId)   -- le crédit se fait dans ProcessReceipt
 		return { ok = true, pending = true }
 	end
@@ -119,11 +145,12 @@ buy.OnServerInvoke = function(player: Player, id: any)
 		if Catalog.owns(profile, it) then return { ok = false, err = "Déjà possédé" } end
 		if it.source == "code" then return { ok = false, err = "S'obtient avec un code promo" } end
 		if it.source == "group" then return { ok = false, err = "S'obtient en rejoignant le groupe Roblox" } end
-		if it.productId <= 0 then return { ok = false, err = "Bientôt disponible" } end
+		if it.productId <= 0 then return { ok = false, err = SOON } end
 		MarketplaceService:PromptProductPurchase(player, it.productId)
 		return { ok = true, pending = true }
 	end
 
+	if (it.price or 0) <= 0 then return { ok = false, err = "Objet inconnu" } end
 	if Catalog.owns(profile, it) then return { ok = false, err = "Déjà possédé" } end
 	local price = Catalog.priceFor(it, Catalog.today())
 	if profile.coins < price then return { ok = false, err = "Pièces insuffisantes" } end
@@ -165,12 +192,30 @@ equip.OnServerInvoke = function(player: Player, id: any, weapon: any)
 	return true
 end
 
+-- ---------- passes de jeu : possession vérifiée par Roblox à l'arrivée et après un achat ----------
+local function checkPasses(player: Player)
+	for _, it in ipairs(Catalog.ITEMS) do
+		if it.kind == "gamepass" and (it.passId or 0) > 0 then
+			local ok, owns = pcall(function() return MarketplaceService:UserOwnsGamePassAsync(player.UserId, it.passId) end)
+			if ok and owns then player:SetAttribute(it.attr, true) end
+		end
+	end
+end
+Players.PlayerAdded:Connect(checkPasses)
+for _, p in ipairs(Players:GetPlayers()) do task.spawn(checkPasses, p) end
+MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player: Player, passId: number, purchased: boolean)
+	if not purchased then return end
+	for _, it in ipairs(Catalog.ITEMS) do
+		if it.kind == "gamepass" and it.passId == passId then player:SetAttribute(it.attr, true) end
+	end
+end)
+
 -- Vérification au démarrage : un productId en double ferait créditer le mauvais produit
 do
 	local seen = {}
-	for _, list in ipairs({ X.SHOP, X.EXCLUSIVES, LoyaltyConfig.VIP.offers, KillFxConfig.LIST }) do for _, it in ipairs(list) do
+	for _, list in ipairs({ Catalog.ITEMS }) do for _, it in ipairs(list) do   -- numéros finaux (ProductIds compris)
 		if (it.productId or 0) > 0 then
-			if seen[it.productId] then warn("[ShopService] productId en double dans ConfigExtra.SHOP :", it.productId) end
+			if seen[it.productId] then warn("[ShopService] productId en double (ProductIds.lua) :", it.productId, it.id) end
 			seen[it.productId] = true
 		end
 	end end

@@ -1,6 +1,10 @@
 --!strict
 -- ServerScriptService/RewardService (ModuleScript)
 -- XP / niveaux, récompense quotidienne (série de 7 jours), défis du jour, récompenses de fin de partie.
+-- Fin de partie : le détail des gains (lignes XP / pièces) part dans le résumé MatchEnd (RecapService le complète,
+-- RewardScreen l'affiche côté client) ; chaque montée de niveau est envoyée au joueur (remote « LevelUp ») avec sa récompense.
+-- Bonus : XP ×2 le week-end (samedi et dimanche UTC) et passe de jeu « XP ×2 » (attribut PassXp2 posé par ShopService) ;
+-- les pièces, elles, ne sont pas doublées (économie lente).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Modes = require(ReplicatedStorage.Shared.Modes)
@@ -37,6 +41,15 @@ local function levelReward(level: number)
 	if level % 5 == 0 then return { coins = 120 } end
 	return { coins = 30 + level * 3 }
 end
+RewardService.levelReward = levelReward
+
+-- montée de niveau : fenêtre « NIVEAU SUPÉRIEUR » côté client (RewardScreen), avec la récompense et le prochain gros palier
+local levelUpEvent = Instance.new("RemoteEvent"); levelUpEvent.Name = "LevelUp"; levelUpEvent.Parent = ReplicatedStorage
+local function nextMilestone(level: number): any
+	local l = level + 1
+	while l % 5 ~= 0 do l += 1 end
+	return { level = l, reward = levelReward(l) }
+end
 
 function RewardService.addXP(player: Player, amount: number)
 	local profile = DataService.get(player)
@@ -50,7 +63,15 @@ function RewardService.addXP(player: Player, amount: number)
 		applyReward(profile, r)
 		table.insert(ups, { level = l, reward = r })
 	end
+	if #ups > 0 then levelUpEvent:FireClient(player, { ups = ups, level = after, milestone = nextMilestone(after) }) end
 	return ups
+end
+
+-- ---------- bonus d'XP ----------
+-- week-end : samedi ou dimanche (UTC), XP ×2 en fin de partie
+function RewardService.weekend(): boolean
+	local wd = (os.date("!*t", os.time()) :: any).wday   -- 1 = dimanche, 7 = samedi
+	return wd == 1 or wd == 7
 end
 
 -- ---------- récompense quotidienne ----------
@@ -101,6 +122,9 @@ local MISSION_POOL = {
 	{ id = "z_wave", n = "Survis à {t} manches de Zombies", target = 5, coins = 200, xp = 80 },
 	{ id = "inf_surv", n = "Termine {t} partie d'Infecté sans être infecté", target = 1, coins = 250, xp = 100 },
 	{ id = "kcTag", n = "Ramasse {t} plaques en Élimination confirmée", target = 10, coins = 150, xp = 70 },
+	-- modes ajoutés : Gunfight et Survolté
+	{ id = "w_gunfight", n = "Gagne {t} Gunfight", target = 1, coins = 220, xp = 90 },
+	{ id = "w_survolte", n = "Gagne {t} partie de Survolté", target = 1, coins = 220, xp = 90 },
 }
 -- défis de la semaine (src/8O_defis.js WPOOL) : 3 par semaine (lundi), plus longs et mieux payés
 local WEEKLY_POOL = {
@@ -127,6 +151,19 @@ end
 
 -- défi terminé : petit message au joueur (uiMissionDone / uiToast du web)
 local doneEvent = Instance.new("RemoteEvent"); doneEvent.Name = "ChallengeDone"; doneEvent.Parent = ReplicatedStorage
+-- défis terminés depuis la dernière fin de partie : listés sur l'écran de fin (RecapService les relève)
+local doneLog: { [Player]: { any } } = {}
+local function logDone(player: Player, d: any)
+	local l = doneLog[player] or {}
+	if #l < 12 then table.insert(l, d) end
+	doneLog[player] = l
+end
+function RewardService.takeDone(player: Player): { any }
+	local l = doneLog[player] or {}
+	doneLog[player] = nil
+	return l
+end
+game:GetService("Players").PlayerRemoving:Connect(function(p) doneLog[p] = nil end)
 
 local function ensureMissions(profile: any)
 	local t = today()
@@ -177,7 +214,10 @@ function RewardService.missionEvent(player: Player, id: string, n: number?)
 			if m.progress >= m.target then
 				m.done = true
 				local d = poolDef(MISSION_POOL, m.id)
-				if d then doneEvent:FireClient(player, { weekly = false, text = missionText(d), coins = m.coins, xp = m.xp }) end
+				if d then
+					local info = { weekly = false, text = missionText(d), coins = m.coins, xp = m.xp }
+					doneEvent:FireClient(player, info); logDone(player, info)
+				end
 			end
 		end
 	end
@@ -187,7 +227,10 @@ function RewardService.missionEvent(player: Player, id: string, n: number?)
 			if m.progress >= m.target then
 				m.done = true
 				local d = poolDef(WEEKLY_POOL, m.id)
-				if d then doneEvent:FireClient(player, { weekly = true, text = missionText(d), coins = m.coins, xp = m.xp }) end
+				if d then
+					local info = { weekly = true, text = missionText(d), coins = m.coins, xp = m.xp }
+					doneEvent:FireClient(player, info); logDone(player, info)
+				end
 			end
 		end
 	end
@@ -232,7 +275,7 @@ function RewardService.challenges(player: Player): any
 end
 
 -- ---------- fin de partie ----------
-function RewardService.finishMatch(player: Player, summary)
+function RewardService.finishMatch(player: Player, summary: any)
 	-- summary = { kills, deaths, hs, dmg, shots, hits, plants, defuses, won, seconds, mode, map, weaponKills = {} }
 	local profile = DataService.get(player)
 	if not profile then return end
@@ -247,17 +290,36 @@ function RewardService.finishMatch(player: Player, summary)
 	LeaderboardService.addKills(player, summary.kills)    -- classement géant de la semaine (lobby)
 	table.insert(profile.history, 1, { t = os.time(), mode = summary.mode, map = summary.map, won = summary.won, k = summary.kills, d = summary.deaths })
 	while #profile.history > 25 do table.remove(profile.history) end
-	local xp = 40 + summary.kills * 10 + summary.hs * 5 + (summary.won and 120 or 0) + (summary.plants + summary.defuses) * 25
-	if summary.mode == Modes.featured() then xp *= 2 end   -- mode de la semaine : XP ×2 (affiché sur l'accueil du menu)
+	-- détail des gains, ligne par ligne (écran de fin de partie)
+	local lines = {}
+	local function line(t: string, x: number)
+		if x > 0 then table.insert(lines, { t = t, xp = x }) end
+	end
+	local obj = summary.plants + summary.defuses
+	line("Participation", 40)
+	line("Éliminations ×" .. summary.kills, summary.kills * 10)
+	line("Tirs à la tête ×" .. summary.hs, summary.hs * 5)
+	if summary.won then line("Victoire", 120) end
+	line("Objectifs ×" .. obj, obj * 25)
+	local xp = 40 + summary.kills * 10 + summary.hs * 5 + (summary.won and 120 or 0) + obj * 25
+	local base = xp
+	if summary.mode == Modes.featured() then xp *= 2; line("Mode de la semaine ×2", base) end   -- mode de la semaine : XP ×2 (affiché sur l'accueil du menu)
 	local coins = math.floor(xp * 0.15)   -- ~35 pièces par partie : progression lente, comme sur le web
-	local bonusXp, bonusCoins, bonusLines = LoyaltyService.matchBonus(player, xp, coins, summary.won)   -- fidélité, Premium, boost, 1re victoire
+	-- XP ×2 du week-end et du passe XP ×2 : chacun ajoute l'XP de base de la partie (pas de pièces en plus)
+	local weekend = RewardService.weekend()
+	if weekend then xp += base; line("Week-end XP ×2", base) end
+	if player:GetAttribute("PassXp2") == true then xp += base; line("Passe XP ×2", base) end
+	local bonusXp, bonusCoins, bonusLines, firstWin = LoyaltyService.matchBonus(player, xp, coins, summary.won)   -- fidélité, Premium, boost, 1re victoire
+	local matchCoins = coins
 	xp += bonusXp; coins += bonusCoins
 	profile.coins += coins
 	RewardService.missionEvent(player, "matches")
 	if summary.won then RewardService.missionEvent(player, "win") end
 	RewardService.missionEvent(player, "dmg", summary.dmg)
+	local xpStart = profile.xp
 	local ups = RewardService.addXP(player, xp)
-	return { xp = xp, coins = coins, levelUps = ups, bonus = bonusLines }
+	return { xp = xp, coins = coins, levelUps = ups, bonus = bonusLines, lines = lines, matchCoins = matchCoins,
+		xpStart = xpStart, weekend = weekend, firstWin = firstWin == true }
 end
 
 return RewardService

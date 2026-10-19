@@ -7,6 +7,8 @@ local M = {}
 
 -- Nouveautés de l'accueil ; go = où mène un clic (onglet du menu)
 M.NEWS = {
+	{ id = "n_rewards", ic = "🎁", t = "Récompenses et passe de combat", d = "Bilan détaillé en fin de partie, calendrier de 7 jours, XP ×2 le week-end et nouveau passe de combat." },
+	{ id = "n_gunfight", ic = "🔫", t = "Nouveaux modes : Gunfight et Survolté", d = "Gunfight : 2 contre 2, mêmes armes pour tous. Survolté : élimine toutes les 30 s ou explose !", go = "mode:gunfight" },
 	{ id = "n_lobby", ic = "🏠", t = "Nouvel accueil", d = "Défis, nouveautés et récompenses dès l'ouverture du jeu." },
 	{ id = "n_online", ic = "🌐", t = "Parties en ligne", d = "JOUER te met avec les autres joueurs du serveur. Les bots complètent s'il en manque.", go = "play" },
 	{ id = "n_friends", ic = "👥", t = "Jouer avec des amis, en un écran", d = "Crée un groupe, invite tes amis, lance la partie.", go = "friends" },
@@ -29,6 +31,7 @@ M.MISSIONS = {
 	k_rifle = "Élimine {t} adversaires au fusil d'assaut", w_duel = "Gagne {t} Duel", w_dom = "Gagne {t} partie de Domination",
 	w_gg = "Gagne {t} Course aux armes", z_wave = "Survis à {t} manches de Zombies", inf_surv = "Termine {t} partie d'Infecté sans être infecté",
 	kcTag = "Ramasse {t} plaques en Élimination confirmée",
+	w_gunfight = "Gagne {t} Gunfight", w_survolte = "Gagne {t} partie de Survolté",
 }
 M.WEEKLY = {
 	kills = "Élimine {t} adversaires", hs = "Fais {t} headshots", win = "Gagne {t} parties", matches = "Joue {t} parties",

@@ -216,8 +216,11 @@ function ctx.panel(name: string): boolean
 	return false
 end
 
--- récompense du jour (bouton RÉCOMPENSE et carte « Cadeau du jour »)
+-- récompense du jour (bouton RÉCOMPENSE et carte « Cadeau du jour ») : ouvre le calendrier de connexion (DailyUI)
+-- s'il est chargé ; sinon récupère directement comme avant
 function ctx.claimDaily()
+	local cal = S.panels.daily
+	if cal then task.spawn(cal); return end
 	local d = ctx.data
 	if d and d.daily and not d.daily.canClaim then
 		ctx.toast("Déjà récupérée · série de " .. tostring(d.daily.streak) .. " jour(s) · reviens demain", C.dim); return
@@ -232,6 +235,12 @@ function ctx.claimDaily()
 		ctx.toast("🎁 Jour " .. tostring(res.day) .. " : " .. table.concat(parts, " · "), C.gold)
 	end
 	ctx.refresh()
+end
+
+-- passe de combat : la fenêtre du passe (PassUI) si elle est chargée, sinon l'onglet Progression du profil
+function ctx.openPass()
+	local f = S.panels.pass
+	if f then task.spawn(f) else ctx.go("profile", "Progression") end
 end
 
 -- ---------- lancer une partie ----------
@@ -637,6 +646,8 @@ end, false, Enum.KeyCode.P, Enum.KeyCode.DPadDown)
 -- la pause ouvre le menu principal (bouton MENU PRINCIPAL) ; « settings » l'ouvre sur les Réglages
 S.panels.menu = function() setOpen(true) end
 S.panels.settings = function() ctx.open("settings", "Général") end
+-- les autres fenêtres (passe, calendrier, boutique) demandent de rafraîchir le menu après une récupération
+S.panels.menuRefresh = function() task.spawn(ctx.refresh) end
 
 -- arrivée au lobby et retour d'une partie : le menu s'ouvre ; une partie commence : il se ferme
 local lastZone = zone()

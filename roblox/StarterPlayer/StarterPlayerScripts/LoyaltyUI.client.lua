@@ -9,6 +9,7 @@ local TweenService = game:GetService("TweenService")
 local TextChatService = game:GetService("TextChatService")
 local MarketplaceService = game:GetService("MarketplaceService")
 local L = require(ReplicatedStorage.Shared.LoyaltyConfig)
+local Catalog = require(ReplicatedStorage.Shared.ShopCatalog)
 
 local player = Players.LocalPlayer
 local loyGet = ReplicatedStorage:WaitForChild("Loy_Get") :: RemoteFunction
@@ -227,14 +228,17 @@ local function renderVip()
 	local orow = make("Frame", { Size = UDim2.new(1, -24, 0, 54), Position = UDim2.fromOffset(12, 38), BackgroundTransparency = 1 }, o)
 	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 10) }, orow)
 	for _, off in ipairs(L.VIP.offers) do
-		local b = make("TextButton", { Size = UDim2.fromOffset(330, 54), BackgroundColor3 = if off.productId > 0 then GOLD else MUTED,
+		-- numéro du produit : celui de ProductIds.lua (repris par ShopCatalog), pas la valeur par défaut de LoyaltyConfig
+		local it = Catalog.get(off.id)
+		local pid = if it then it.productId or 0 else off.productId
+		local b = make("TextButton", { Size = UDim2.fromOffset(330, 54), BackgroundColor3 = if pid > 0 then GOLD else MUTED,
 			Text = string.format("%s%s · R$ %d", if off.best then "🔥 " else "", off.name, off.robux), TextSize = 17,
-			TextColor3 = if off.productId > 0 then Color3.fromRGB(42, 26, 0) else Color3.new(1, 1, 1) }, orow)
+			TextColor3 = if pid > 0 then Color3.fromRGB(42, 26, 0) else Color3.new(1, 1, 1) }, orow)
 		corner(b, 8)
-		if off.productId > 0 then
+		if pid > 0 then
 			b.MouseButton1Click:Connect(function() shopBuy:InvokeServer(off.id) end)   -- ShopService ouvre la fenêtre de paiement
 		else
-			b.Text ..= " · bientôt"
+			b.Text ..= " · bientôt disponible"
 		end
 	end
 end

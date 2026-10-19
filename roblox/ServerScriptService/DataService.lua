@@ -31,6 +31,7 @@ local function template()
 		missions = { day = 0, list = {} },
 		binds = {},                 -- touches personnalisées (synchronisées avec le client)
 		codes = {},                 -- codes promo déjà utilisés (CodeService)
+		purchases = {},             -- offres uniques déjà achetées en Robux (pack de départ : ShopService)
 		social = {},                -- social.group = date de la récompense du groupe Roblox
 		duel = { elo = 1000, w = 0, l = 0, best = 1000 },   -- duels 1v1 / 2v2 (DuelService)
 		lobby = { rangeBest = 0, rangeRewarded = false, parkourBest = 0, parkourRewarded = false },

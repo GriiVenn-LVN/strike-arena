@@ -3,8 +3,13 @@
 -- LE SEUL fichier à remplir pour activer les achats en Robux.
 -- Pour chaque ligne : Creator Hub (create.roblox.com) → ton expérience → Monétisation → Produits pour développeurs
 -- → « Créer un produit » avec le MÊME nom et le MÊME prix, puis colle ici le numéro du produit (ID).
--- Tant qu'un numéro vaut 0, le bouton correspondant affiche « Bientôt ».
+-- Tant qu'un numéro vaut 0, le bouton correspondant affiche « Bientôt disponible » (rien n'est vendu).
+-- Les passes de jeu (gp_…) se créent ailleurs : Monétisation → Passes (Game Passes) → « Créer un passe », puis colle son ID.
 return {
+	-- Offre unique : pack de départ (Developer Product)
+	pack_starter = 0,   -- Pack de départ · 99 R$ (1 500 pièces, 2 caisses Premium, 5 boosts d'XP, titre Pionnier)
+	-- Passes de jeu (Game Pass, achetés une fois)
+	gp_xp2 = 0,         -- XP ×2 pour toujours · 299 R$
 	-- Robux : pièces, caisses, passe de combat
 	pass_premium = 0,   -- Passe de combat Premium · 399 R$
 	coins_s = 0,        -- 300 pièces · 49 R$
