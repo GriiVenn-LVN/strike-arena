@@ -35,6 +35,13 @@ Pour les mises à jour suivantes : synchronise avec Rojo (section 1) ou rouvre u
 - **Vrais sons du web** : les 40 sons synthétisés du jeu web sont rendus dans un seul fichier, `strike-arena-sons.ogg`
   (`node tools/render_sounds.js <dossier>`, positions dans `SoundSheet.lua`). Importe-le sur create.roblox.com (*Créations → Audio*),
   puis mets son numéro dans `ModeConfig.SOUND_SHEET`. En attendant, les sons fournis avec Roblox servent de remplacement.
+- **Sons réalistes (deuxième planche)** : `roblox/assets/strike-arena-sons-2.ogg` (91 sons, 66 s, refait par
+  `node tools/render_sounds_real.js`, positions dans `SoundSheet2.lua`) : tirs en couches (détonation, culasse, queue
+  dehors / dedans, tir lointain grave et retardé), claquement des balles qui frôlent, douilles selon le sol, pas selon le
+  matériau avec tissu et équipement, glissade, réception, escalade, recharge en étapes (`Sfx.reloadStep`), impacts
+  (métal, bois, béton, chair, terre), touché confirmé, sifflement d'oreille. Importe-la comme la première
+  (*Créations → Audio*) et mets son numéro dans `ModeConfig.SOUND_SHEET_2` ; tant qu'il vaut 0, la première planche sert.
+  (MeshUploader ne peut pas l'envoyer : Roblox n'accepte pas d'audio fabriqué depuis Studio par `CreateAssetAsync`.)
 - **Robux** : tous les numéros de produits se mettent dans un seul fichier, `ReplicatedStorage/Shared/ProductIds.lua` (nom et prix en commentaire).
 
 ## 0 ter. Soldats du web : apparence, animations, ragdoll

@@ -667,12 +667,13 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 		ry -= tilt * 0.1 - mw * 0.22
 		px -= tilt * 0.02 + mw * 0.07; py -= tilt * 0.055 - mw * 0.05 - slap * 0.014; pz += rack * 0.028 - tilt * 0.02
 		leftOff = if VM.hasMag then tilt else 0
-		local function snd(i: number, at: number, name: string)
-			if VM.relSnd < i and rl >= at then VM.relSnd = i; sfx(name, 0.8) end
+		-- étapes de recharge (Sfx.reloadStep : "out" / "in" / "bolt" / "shell"), calées sur la durée de recharge
+		local function snd(i: number, at: number, step: string)
+			if VM.relSnd < i and rl >= at then VM.relSnd = i; Sfx.reloadStep(w.cat, step, nil, 0.8) end
 		end
 		if VM.hasMag then
-			snd(1, 0.28, "magout"); snd(2, 0.71, "magin")
-			if VM.relEmpty and VM.hasBolt then snd(3, if VM.pistol then 0.84 else 0.85, "rack") end
+			snd(1, 0.28, "out"); snd(2, 0.71, "in")
+			if VM.relEmpty and VM.hasBolt then snd(3, if VM.pistol then 0.84 else 0.85, "bolt") end
 		elseif w.cat == "shotgun" then
 			local n = VM.relShells
 			local aa = clamp((rl - 0.15) / 0.65, 0, 0.999)
@@ -680,9 +681,9 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 			local ph2 = aa * n % 1
 			if rl > 0.15 and rl < 0.8 then
 				leftOff = math.sin(ph2 * math.pi) * 0.6
-				if VM.relSnd <= i and ph2 > 0.55 then VM.relSnd = i + 1; sfx("shellin", 0.7) end
+				if VM.relSnd <= i and ph2 > 0.55 then VM.relSnd = i + 1; Sfx.reloadStep(w.cat, "shell", nil, 0.7) end
 			end
-			if VM.relEmpty and VM.hasBolt then snd(99, 0.85, "pump") end   -- à vide : on pompe à la fin
+			if VM.relEmpty and VM.hasBolt then snd(99, 0.85, "bolt") end   -- à vide : on pompe à la fin
 		end
 	end
 
