@@ -266,13 +266,17 @@ local function flush(b: Build, ch: Chunk, m: any, look: { color: Color3, img: Co
 		if look.img then
 			mp.TextureContent = look.img :: Content
 			if m.cut then        -- feuilles, toiles : découpe par la transparence de la texture
-				pcall(function()
+				local okCut = pcall(function()
 					local sa = Instance.new("SurfaceAppearance")
 					sa.AlphaMode = Enum.AlphaMode.Transparency
 					sa.ColorMapContent = look.img :: Content
 					sa.Parent = mp
 				end)
+				-- sans découpe, l'herbe et les toiles s'affichaient en carrés noirs : on ne les montre pas
+				if not okCut then mp:Destroy(); if em then em:Destroy() end; return end
 			end
+		elseif m.cut then
+			mp:Destroy(); if em then em:Destroy() end; return
 		end
 		mp.CFrame = CFrame.new(b.origin + center)
 		mp.Parent = b.details

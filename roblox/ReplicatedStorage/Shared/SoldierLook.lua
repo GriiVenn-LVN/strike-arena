@@ -132,14 +132,35 @@ function Look.rootOffset(hum: Humanoid, hrp: BasePart): CFrame
 	return CFrame.new(0, hum.HipHeight + hrp.Size.Y / 2, 0)
 end
 
-export type Joint = { m: Motor6D, p0: BasePart, p1: BasePart }
--- renvoie les repères naturels (studs) et les Motor6D dans l'ordre parent -> enfant
+-- Articulation : Motor6D, ou AnimationConstraint quand Roblox applique « Avatar Joint Upgrade »
+-- (Attachment0 = côté parent, comme C0 ; Attachment1 = côté enfant, comme C1 ; même propriété Transform)
+export type Joint = { m: any, p0: BasePart, p1: BasePart }
+local function ends(d: Instance): (BasePart?, BasePart?)
+	if d:IsA("Motor6D") then return d.Part0, d.Part1 end
+	if d:IsA("AnimationConstraint") then
+		local a0, a1 = d.Attachment0, d.Attachment1
+		local p0 = a0 and a0.Parent
+		local p1 = a1 and a1.Parent
+		return if p0 and p0:IsA("BasePart") then p0 else nil, if p1 and p1:IsA("BasePart") then p1 else nil
+	end
+	return nil, nil
+end
+function Look.jointC0(m: any): CFrame
+	if m:IsA("Motor6D") then return m.C0 end
+	return if m.Attachment0 then m.Attachment0.CFrame else CFrame.identity
+end
+function Look.jointC1(m: any): CFrame
+	if m:IsA("Motor6D") then return m.C1 end
+	return if m.Attachment1 then m.Attachment1.CFrame else CFrame.identity
+end
+
+-- renvoie les repères naturels (studs) et les articulations dans l'ordre parent -> enfant
 function Look.natural(char: Model, hum: Humanoid, hrp: BasePart): ({ [BasePart]: CFrame }, { Joint })
 	local N: { [BasePart]: CFrame } = { [hrp] = Look.rootOffset(hum, hrp) }
-	local byP0: { [BasePart]: { Motor6D } } = {}
+	local byP0: { [BasePart]: { any } } = {}
 	for _, d in ipairs(char:GetDescendants()) do
-		if d:IsA("Motor6D") and d.Part0 and d.Part1 then
-			local p0 = d.Part0 :: BasePart
+		local p0, p1 = ends(d)
+		if p0 and p1 then
 			byP0[p0] = byP0[p0] or {}
 			table.insert(byP0[p0], d)
 		end
@@ -150,9 +171,10 @@ function Look.natural(char: Model, hum: Humanoid, hrp: BasePart): ({ [BasePart]:
 	while qi <= #queue do
 		local p = queue[qi]; qi += 1
 		for _, m in ipairs(byP0[p] or {}) do
-			local c = m.Part1 :: BasePart
-			if not N[c] then
-				N[c] = N[p] * baseC0(m) * m.C1:Inverse()
+			local _, c = ends(m)
+			if c and not N[c] then
+				local c0 = if m:IsA("Motor6D") then baseC0(m) else Look.jointC0(m)
+				N[c] = N[p] * c0 * Look.jointC1(m):Inverse()
 				table.insert(order, { m = m, p0 = p, p1 = c })
 				table.insert(queue, c)
 			end
