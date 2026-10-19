@@ -32,6 +32,7 @@ local BotService = require(script.Parent.BotService)
 local NetService = require(script.Parent.NetService)
 local PartyService = require(script.Parent.PartyService)
 local MapVote = require(script.Parent.MapVote)
+local ArrivalService = require(script.Parent.ArrivalService)
 
 local TDM = ModeConfig.TDM
 local U = Config.STUDS_PER_METER
@@ -816,6 +817,7 @@ local function playOnce(m: Match)
 	for p in pairs(m.players) do task.spawn(spawnPlayer, m, p) end
 	MatchService.balanceBots(m)
 	BotService.freezeMatch(m.id, true)
+	ArrivalService.play(m, WARMUP, function() broadcast(m) end)   -- arrivée en hélicoptère ou en véhicule (modes en équipe)
 	for _ = 1, WARMUP * 2 do task.wait(0.5); broadcast(m) end
 	m.state = "live"
 	BotService.freezeMatch(m.id, false)

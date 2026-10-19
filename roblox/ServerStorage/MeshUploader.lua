@@ -1,7 +1,7 @@
 --!strict
 -- ServerStorage/MeshUploader (ModuleScript, Studio seulement, en mode Edit)
 -- Envoie une seule fois sur le compte Roblox du créateur tous les maillages et textures du jeu web (armes, viseurs,
--- soldats, skins, décor des cartes). Roblox limite très fort la mémoire des EditableMesh / EditableImage chez le
+-- soldats, skins, véhicules des arrivées, décor des cartes). Roblox limite très fort la mémoire des EditableMesh / EditableImage chez le
 -- joueur : avec ces assets, le jeu charge de vrais modèles (MeshStore), aussi sur téléphone.
 -- Il faut la fonctionnalité bêta de Studio « CreateAssetAsync Luau API ». Dans la barre de commande :
 --   require(game.ServerStorage.MeshUploader).start()     -- lance l'envoi (30 par minute au plus), reprend où il s'était arrêté
@@ -137,6 +137,10 @@ local function run()
 	step("skins", function()
 		local SkinPaint = require(Shared.SkinPaint) :: any
 		for _, m in ipairs(Shared.SkinTextures:GetChildren()) do SkinPaint.paint(m.Name, false); SkinPaint.paint(m.Name, true) end
+	end)
+	step("véhicules", function()   -- arrivées : blindé et camion (models/vehicles, VehicleMeshes)
+		local VehicleModels = require(Shared.VehicleModels) :: any
+		VehicleModels.prebuildAll()
 	end)
 	step("cartes", function()
 		local MapScene = require(Shared.MapScene) :: any
