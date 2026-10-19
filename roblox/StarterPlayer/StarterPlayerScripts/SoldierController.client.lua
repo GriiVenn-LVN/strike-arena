@@ -365,7 +365,7 @@ local function update(d: D, dt: number, t: number)
 			local t0 = T[j.p0]
 			local t1 = T[j.p1]
 			if t0 and not t1 then t1 = t0 * d.N[j.p0]:Inverse() * d.N[j.p1]; T[j.p1] = t1 end
-			if t0 and t1 then m.Transform = m.C0:Inverse() * t0:Inverse() * t1 * m.C1 end
+			if t0 and t1 then m.Transform = Look.jointC0(m):Inverse() * t0:Inverse() * t1 * Look.jointC1(m) end
 		end
 	end
 end

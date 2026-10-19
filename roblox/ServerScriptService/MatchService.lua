@@ -936,7 +936,8 @@ function MatchService.list(): { any }
 		if not m.closed and not m.settings.private then
 			table.insert(l, { id = m.id, mode = m.mode, modeName = m.def.n, map = m.settings.map, mapName = Modes.MAP[m.settings.map] and Modes.MAP[m.settings.map].n or m.settings.map,
 				players = humanCount(m), max = MatchService.capacity(m), state = m.state, diff = m.settings.diff,
-				timeLeft = if m.timed then math.max(0, math.floor(m.endsAt - os.clock())) else -1, host = m.host and m.host.DisplayName or "" })
+				timeLeft = if m.timed then math.max(0, math.floor(m.endsAt - os.clock())) else -1, host = m.host and m.host.DisplayName or "",
+				ranked = m.settings.ranked == true, hasMut = next(m.settings.mut or {}) ~= nil })
 		end
 	end
 	table.sort(l, function(a, b) return a.players > b.players end)
@@ -959,6 +960,40 @@ function MatchService.hostFor(p: Player, settings: any): (boolean, string?)
 	return true, nil
 end
 
+-- Parties en ligne : avant d'ouvrir une nouvelle partie publique, on rejoint une partie du même mode où il reste
+-- de la place pour tout le groupe (même carte de préférence, puis la plus remplie). Les bots ne servent qu'à compléter :
+-- balanceBots en retire un à chaque joueur qui arrive. Entraînement et parties avec modificateurs restent à part.
+local function findPublic(s: any, need: number): Match?
+	if s.mode == "train" or next(s.mut or {}) ~= nil then return nil end
+	local best: Match?, bestScore = nil, -1
+	for _, m in pairs(matches) do
+		if not m.closed and not m.settings.private and m.state ~= "over" and m.mode == s.mode
+			and m.settings.ranked == (s.ranked == true) and next(m.settings.mut or {}) == nil
+			and humanCount(m) + need <= MatchService.capacity(m) then
+			local score = humanCount(m) + (if m.settings.map == s.map then 100 else 0)
+			if score > bestScore then best, bestScore = m, score end
+		end
+	end
+	return best
+end
+
+function MatchService.playOnline(p: Player, settings: any): (boolean, string?)
+	if not PartyService.isLeader(p) then return false, "Seul le chef du groupe lance la partie" end
+	local s = Modes.sanitize(settings)
+	if not s.private then
+		local group = PartyService.membersOf(p)
+		local m = findPublic(s, math.max(1, #group))
+		if m then
+			local ok = MatchService.join(p, m, s.side)
+			for _, q in ipairs(group) do
+				if q ~= p and q.Parent then MatchService.join(q, m) end
+			end
+			if ok then return true, nil end
+		end
+	end
+	return MatchService.hostFor(p, settings)
+end
+
 -- Partie rapide : une partie publique d'un mode rapide où il reste de la place, sinon une nouvelle
 function MatchService.quick(p: Player, mode: string?): (boolean, string?)
 	local best: Match? = nil
@@ -976,7 +1011,7 @@ end
 
 createFn.OnServerInvoke = function(p: Player, settings: any)
 	if p:GetAttribute("DuelQueued") or p:GetAttribute("Zone") == "duel" then return false, "Termine ton duel d'abord" end
-	return MatchService.hostFor(p, settings)
+	return MatchService.playOnline(p, settings)
 end
 quickFn.OnServerInvoke = function(p: Player, mode: any)
 	if p:GetAttribute("DuelQueued") or p:GetAttribute("Zone") == "duel" then return false, "Termine ton duel d'abord" end

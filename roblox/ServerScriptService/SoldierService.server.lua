@@ -138,7 +138,7 @@ local function ragdoll(char: Model)
 				local side = if math.abs(dir.Y) > 0.9 then Vector3.xAxis else Vector3.yAxis
 				a0cf = N[p0]:Inverse() * CFrame.fromMatrix(piv * K, dir, side)
 			else
-				a0cf = m.C0
+				a0cf = Look.jointC0(m)
 			end
 			local a0 = Instance.new("Attachment"); a0.Name = "RagdollA0_" .. m.Name; a0.CFrame = a0cf; a0.Parent = p0
 			local a1 = Instance.new("Attachment"); a1.Name = "RagdollA1_" .. m.Name

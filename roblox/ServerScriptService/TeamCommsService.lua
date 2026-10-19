@@ -1,13 +1,13 @@
 --!strict
 -- ServerScriptService/TeamCommsService (ModuleScript, requis par Main)
 -- Communication d'équipe tirée d'autres jeux (ping d'Apex / Valorant, radio de CS) :
---   • Ping (clic molette ou K) : marque un point ou un ennemi pour toute l'équipe pendant quelques secondes.
---     Remote « TeamPing » (joueur -> serveur : position, modèle visé ou nil) puis « TeamPingShow »
---     (serveur -> coéquipiers : position, genre "spot" | "enemy", nom de l'auteur, modèle visé).
+--   • Ping (clic molette ou K) : marque un point pour toute l'équipe pendant quelques secondes (jamais un ennemi).
+--     Remote « TeamPing » (joueur -> serveur : position, modèle visé ignoré) puis « TeamPingShow »
+--     (serveur -> coéquipiers : position, genre "spot", nom de l'auteur, nil).
 --   • Messages rapides (touche N puis 1 à 6) : « QuickChat » (joueur -> serveur : numéro) puis
 --     « QuickChatShow » (serveur -> coéquipiers : nom, numéro). Les textes sont dans Shared/TeamComms.
--- Le serveur vérifie tout : joueur en vie dans une partie, cadence limitée, point pas trop loin,
--- cible = vrai ennemi de la même partie. En chacun pour soi, seul l'auteur voit son ping.
+-- Le serveur vérifie tout : joueur en vie dans une partie, cadence limitée, point pas trop loin.
+-- En chacun pour soi, seul l'auteur voit son ping.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -51,15 +51,9 @@ pingIn.OnServerEvent:Connect(function(p: Player, pos: any, target: any)
 	local root = aliveRoot(p)
 	if not root or (pos - root.Position).Magnitude > MAX_DIST then return end
 	lastPing[p] = now
+	-- seulement un lieu : Noa a refusé le marquage des ennemis sur le web (PR #8), on ne marque donc pas les adversaires
 	local kind, model = "spot", nil
-	if typeof(target) == "Instance" and target:IsA("Model") then
-		local m = MatchService.matchOf(p)
-		local c = WeaponService.combatantOf(target)
-		local team, mine = WeaponService.teamOf(c), WeaponService.teamOf(p)
-		if m and MatchService.matchOf(c) == m and team and team ~= mine and MatchService.aliveChar(c) then
-			kind, model = "enemy", target
-		end
-	end
+	local _ = target
 	for _, q in ipairs(mates(p)) do pingOut:FireClient(q, pos, kind, p.DisplayName, model) end
 end)
 

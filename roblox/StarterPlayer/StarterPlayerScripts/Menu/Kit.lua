@@ -202,6 +202,14 @@ function K.spaced(s: string, n: number?): string
 	for _, cp in utf8.codes(s) do table.insert(out, utf8.char(cp)) end
 	return table.concat(out, gap)
 end
+-- majuscules avec les accents (string.upper laisse « é » en minuscule : « GéNéRAL »)
+local ACCENTS: { [string]: string } = { ["à"] = "À", ["â"] = "Â", ["ä"] = "Ä", ["ç"] = "Ç", ["é"] = "É", ["è"] = "È", ["ê"] = "Ê", ["ë"] = "Ë",
+	["î"] = "Î", ["ï"] = "Ï", ["ô"] = "Ô", ["ö"] = "Ö", ["ù"] = "Ù", ["û"] = "Û", ["ü"] = "Ü", ["œ"] = "Œ" }
+function K.upper(s: string): string
+	local out = string.upper(s)
+	for lo, up in pairs(ACCENTS) do out = string.gsub(out, lo, up) end
+	return out
+end
 -- texte sûr pour RichText
 function K.esc(s: string): string
 	return (string.gsub(string.gsub(string.gsub(s, "&", "&amp;"), "<", "&lt;"), ">", "&gt;"))

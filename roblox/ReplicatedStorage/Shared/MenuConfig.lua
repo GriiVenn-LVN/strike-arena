@@ -8,6 +8,7 @@ local M = {}
 -- Nouveautés de l'accueil ; go = où mène un clic (onglet du menu)
 M.NEWS = {
 	{ id = "n_lobby", ic = "🏠", t = "Nouvel accueil", d = "Défis, nouveautés et récompenses dès l'ouverture du jeu." },
+	{ id = "n_online", ic = "🌐", t = "Parties en ligne", d = "JOUER te met avec les autres joueurs du serveur. Les bots complètent s'il en manque.", go = "play" },
 	{ id = "n_friends", ic = "👥", t = "Jouer avec des amis, en un écran", d = "Crée un groupe, invite tes amis, lance la partie.", go = "friends" },
 	{ id = "n_tab", ic = "📋", t = "Nouveau tableau des scores", d = "Maintiens Tab en partie : score, chrono, MVP en direct." },
 	{ id = "n_perk", ic = "🍹", t = "Boissons d'atout et caisses animées", d = "Nouvelles animations d'ouverture et de boisson.", go = "boxes" },
@@ -73,7 +74,21 @@ M.KEYS = {
 	{ "Passer la kill-cam", "Espace / clic", "A" },
 }
 
--- ---------- Options (Réglages du menu et panneau Options de la pause) ----------
+-- Onglets des Réglages (menu principal et pause) : nom affiché et phrase d'aide. La clé reste le nom utilisé par
+-- Menu/Options (O.SUBS) ; « Viseur » s'affiche « Point de visée » pour ne pas le confondre avec Arsenal › Viseurs.
+M.SETTINGS_TABS = {
+	{ id = "Général", n = "Général", help = "Qualité de l'image, sensibilité, champ de vision, compteurs FPS et ping." },
+	{ id = "Viseur", n = "Point de visée", help = "La forme et la couleur du repère au centre de l'écran." },
+	{ id = "Son", n = "Son", help = "Le volume général et celui de chaque type de son." },
+	{ id = "Touches", n = "Touches", help = "Toutes les commandes, au clavier et à la manette." },
+	{ id = "Accessibilité", n = "Accessibilité", help = "Couleurs pour daltoniens, sous-titres des sons, taille de l'interface." },
+}
+function M.settingsTab(id: string): { id: string, n: string, help: string }?
+	for _, t in ipairs(M.SETTINGS_TABS) do if t.id == id then return t end end
+	return nil
+end
+
+-- ---------- Options (Réglages du menu et panneau Réglages de la pause) ----------
 -- Même liste côté client (Menu/Options) et côté serveur (OptionsService, qui borne tout avant de l'enregistrer).
 -- { "num", min, max, défaut } · { "int", min, max, défaut } · { "bool", défaut } · { "enum", { valeurs }, défaut }
 M.OPTIONS = ({

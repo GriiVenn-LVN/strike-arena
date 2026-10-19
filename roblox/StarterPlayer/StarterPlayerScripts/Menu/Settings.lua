@@ -1,7 +1,8 @@
 --!strict
 -- StarterPlayerScripts/Menu/Settings (ModuleScript) — rubrique « Réglages » (src/85_menu.js, src/68_access.js)
--- Général, Viseur, Son, Accessibilité : Menu/Options (le même panneau que dans la pause, réglages appliqués tout de suite
--- et gardés dans le profil). Touches : les commandes du jeu Roblox.
+-- Général, Point de visée (id « Viseur »), Son, Accessibilité : Menu/Options (le même panneau que dans la pause, réglages
+-- appliqués tout de suite et gardés dans le profil). Touches : les commandes du jeu Roblox. Noms et phrases d'aide des onglets :
+-- MenuConfig.SETTINGS_TABS (la ligne d'aide est dessinée par MainMenu au-dessus de la page).
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MenuConfig = require(ReplicatedStorage.Shared.MenuConfig)
 local K = require(script.Parent.Kit)
