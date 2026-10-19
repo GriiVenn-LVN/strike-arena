@@ -915,7 +915,7 @@ endRemote.OnClientEvent:Connect(function(r: any)
 	task.spawn(function()
 		local left = r.next or 15
 		while left > 0 and endFrame.Visible do
-			endNext.Text = "Prochaine partie dans " .. left .. " s — même mode, même carte"
+			endNext.Text = "Prochaine partie dans " .. left .. " s — même mode"
 			task.wait(1); left -= 1
 		end
 	end)

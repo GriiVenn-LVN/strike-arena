@@ -14,6 +14,7 @@ require(script.Parent.MedalService)       -- médailles, bilan perso et défis d
 require(script.Parent.AdminService)       -- panneau admin (propriétaire du jeu + code, src/8M_admin.js)
 require(script.Parent.HalloweenService)   -- décor d'Halloween du lobby et des cartes, citrouilles lâchées (src/8W_halloween.js)
 require(script.Parent.SprayService)       -- sprays sur les murs (touche J, src/64_extras.js)
+require(script.Parent.TeamCommsService)   -- ping et messages rapides d'équipe (touches molette/K et N)
 require(script.Parent.PerkDrinkService)   -- boisson d'atout (src/8U_perkdrink.js), appelée quand on prend un atout en Zombies
 local LeaderboardService = require(script.Parent.LeaderboardService)
 local ModeConfig = require(ReplicatedStorage.Shared.ModeConfig)

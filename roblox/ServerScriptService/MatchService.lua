@@ -31,6 +31,7 @@ local WeaponService = require(script.Parent.WeaponService)
 local BotService = require(script.Parent.BotService)
 local NetService = require(script.Parent.NetService)
 local PartyService = require(script.Parent.PartyService)
+local MapVote = require(script.Parent.MapVote)
 
 local TDM = ModeConfig.TDM
 local U = Config.STUDS_PER_METER
@@ -888,7 +889,9 @@ local function playOnce(m: Match)
 	finish(m, winner)
 	m.state = "intermission"
 	m.endsAt = os.clock() + INTERMISSION
-	for _ = 1, INTERMISSION * 2 do task.wait(0.5); if m.closed then return end; broadcast(m) end
+	pcall(MapVote.open, m, INTERMISSION)   -- vote de la carte suivante pendant la pause
+	for _ = 1, INTERMISSION * 2 do task.wait(0.5); if m.closed then pcall(MapVote.close, m); return end; broadcast(m) end
+	pcall(MapVote.close, m)
 end
 
 local function run(m: Match)
