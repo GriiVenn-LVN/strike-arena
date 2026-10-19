@@ -161,8 +161,8 @@ end
 
 -- maillage d'un viseur Blender ; f = transformation (mètres, repère de l'arme : échelle uniforme + décalage)
 -- chaque groupe est construit une fois à sa taille d'origine (MeshStore : asset envoyé, sinon EditableMesh) puis copié et agrandi
-local opticCache: { [string]: { mp: MeshPart, center: Vector3 } } = {}
-local function opticBase(key: string, gi: number, g: any): { mp: MeshPart, center: Vector3 }
+local opticCache: { [string]: { mp: MeshPart, center: Vector3, size: Vector3 } } = {}
+local function opticBase(key: string, gi: number, g: any): { mp: MeshPart, center: Vector3, size: Vector3 }
 	local id = key .. "#" .. gi
 	if opticCache[id] then return opticCache[id] end
 	local raw = decode(g.data)
@@ -189,8 +189,9 @@ local function opticBase(key: string, gi: number, g: any): { mp: MeshPart, cente
 			em:SetFaceNormals(face, { nid[a], nid[b], nid[c] })
 		end
 		return em
-	end)
-	local e = { mp = mp, center = center }
+	end, MeshStore.PRECISE)                -- maillage complet même de loin (comme les armes, voir MeshStore)
+	pcall(function() (mp :: any).DoubleSided = true end)
+	local e = { mp = mp, center = center, size = hi - lo }
 	opticCache[id] = e
 	return e
 end
@@ -209,7 +210,7 @@ local function opticMesh(ctx: Ctx, key: string, f: (Vector3) -> Vector3): boolea
 		for gi, g in ipairs(data.groups) do
 			local base = opticBase(key, gi, g)
 			local mp = base.mp:Clone()
-			mp.Size = base.mp.Size * k
+			mp.Size = (base.size * k):Max(Vector3.one * 0.001)   -- taille d'après les sommets (voir WeaponModels)
 			local m = OMAT[g.mat] or OMAT.body
 			mp.Name = "Att_optic_" .. g.mat; mp.Color = m[1]; mp.Material = m[2]
 			mp.Anchored = true; mp.CanCollide = false; mp.CanQuery = false; mp.CanTouch = false; mp.Massless = true; mp.CastShadow = false

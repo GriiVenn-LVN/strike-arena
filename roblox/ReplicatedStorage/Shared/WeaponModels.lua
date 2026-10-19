@@ -42,21 +42,26 @@ end
 -- ---------- une pièce en EditableMesh ----------
 -- chaque pièce est construite une seule fois (taille 1) puis copiée et agrandie : bien moins de mémoire
 -- (Roblox limite fortement la mémoire des EditableMesh côté joueur)
-local pieceCache: { [string]: { mp: MeshPart, center: Vector3 } } = {}
-local buildPiece: (g: any, id: string) -> (MeshPart?, Vector3)
+-- La taille finale vient de la boîte englobante des sommets (size), pas de mp.Size : si Roblox a arrondi ou borné
+-- la taille du MeshPart à sa création (axe très fin), la pièce n'est plus écrasée ni étirée sur cet axe.
+local MIN_SIZE = 0.001                 -- plus petite taille de pièce acceptée par Roblox, par axe
+local pieceCache: { [string]: { mp: MeshPart, center: Vector3, size: Vector3 } } = {}
+local buildPiece: (g: any, id: string) -> (MeshPart?, Vector3, Vector3)
 local function meshPiece(g: any, id: string, scale: number): (MeshPart?, Vector3)
 	local c = pieceCache[id]
 	if not c then
-		local mp0, center0 = buildPiece(g, id)
+		local mp0, center0, size0 = buildPiece(g, id)
 		if not mp0 then return nil, Vector3.zero end
-		c = { mp = mp0, center = center0 }
+		-- faces visibles des deux côtés (pièces fines à une seule face, normales mal orientées dans le modèle d'origine)
+		pcall(function() (mp0 :: any).DoubleSided = true end)
+		c = { mp = mp0, center = center0, size = size0 }
 		pieceCache[id] = c
 	end
 	local mp = c.mp:Clone()
-	mp.Size = c.mp.Size * scale
+	mp.Size = (c.size * scale):Max(Vector3.one * MIN_SIZE)
 	return mp, c.center * scale
 end
-buildPiece = function(g: any, id: string): (MeshPart?, Vector3)
+buildPiece = function(g: any, id: string): (MeshPart?, Vector3, Vector3)
 	local raw = decode(g.data)
 	local k = 1 / WeaponModels.Q
 	local uvK = UV_SCALE                           -- studs -> mètres -> répétitions de la peinture
@@ -98,8 +103,8 @@ buildPiece = function(g: any, id: string): (MeshPart?, Vector3)
 			em:SetFaceUVs(face, uvs)
 		end
 		return em
-	end)
-	return mp, center
+	end, MeshStore.PRECISE)
+	return mp, center, hi - lo
 end
 
 -- ---------- silhouette en blocs (si EditableMesh est refusé) ----------
