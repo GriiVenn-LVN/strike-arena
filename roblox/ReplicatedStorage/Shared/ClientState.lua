@@ -9,6 +9,7 @@ local reload = Instance.new("BindableEvent")
 return {
 	-- arme (écrit par WeaponController)
 	weapon = nil :: string?, firing = false, mag = 0, reserve = 0, aiming = false, reloading = false, reloadStart = 0, reloadEmpty = false,
+	reloadDur = 0,                           -- durée réelle de la recharge en cours (serveur : accessoires et atouts compris)
 	inspectStart = -1,                       -- os.clock() du début de l'inspection (touche V), -1 = pas d'inspection
 	throwStart = -9,                         -- os.clock() du dernier lancer de grenade / pose de mine (GrenadeController)
 	adsT = 0,                                -- visée lissée 0..1 (WeaponController, vitesse de visée de l'armurier)
@@ -25,6 +26,7 @@ return {
 	muzzle = nil :: Vector3?,                -- bout du canon du viewmodel (point de départ des traceurs)
 	-- kill-cam (écrit par KillcamController) : { key, skin, camo } de l'arme du tueur, nil hors kill-cam
 	kc = nil :: any,
+	spectate = nil :: Model?,                -- soldat suivi en spectateur (SpectateController), nil sinon
 	onSkin = nil :: (() -> ())?,             -- repeint l'arme du viewmodel (ViewmodelController)
 	-- menu principal (MainMenu) : réglages lus par WeaponController, fenêtres des autres interfaces
 	opt = { fov = 70, sens = 1, aimSens = 1, wsens = 1,  -- champ de vision, sensibilité, multiplicateur en visée, réglage par arme

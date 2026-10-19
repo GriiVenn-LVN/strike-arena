@@ -273,11 +273,21 @@ RunService.RenderStepped:Connect(function(dt: number)
 end)
 
 -- secousse de la caméra (G.shake du web), après la caméra Roblox
+-- La caméra Roblox repart de la direction de l'image précédente : on n'ajoute que la différence avec la secousse
+-- déjà posée (sinon les petits angles au hasard s'additionnaient et la visée restait décalée après l'explosion)
+local shX, shY = 0, 0
 RunService:BindToRenderStep("GrenadeShake", Enum.RenderPriority.Camera.Value + 1, function(dt: number)
-	if shake > 0.001 and S.kc == nil then
-		camera.CFrame *= CFrame.Angles((math.random() - .5) * shake * .05, (math.random() - .5) * shake * .05, 0)
+	if S.kc ~= nil or camera.CameraType ~= Enum.CameraType.Custom then
+		shX, shY = 0, 0; shake *= math.exp(-dt * 4)       -- une autre scène pose la caméra elle-même
+		return
+	end
+	local nx, ny = 0, 0
+	if shake > 0.001 then
+		nx, ny = (math.random() - .5) * shake * .05, (math.random() - .5) * shake * .05
 		shake *= math.exp(-dt * 4)
 	end
+	if nx ~= shX or ny ~= shY then camera.CFrame *= CFrame.Angles(nx - shX, ny - shY, 0) end
+	shX, shY = nx, ny
 end)
 
 player.CharacterAdded:Connect(function() blindT = 0; white.BackgroundTransparency = 1; shake = 0 end)

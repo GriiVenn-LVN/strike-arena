@@ -750,20 +750,25 @@ local deathTitle = label(deathFrame, { AnchorPoint = Vector2.new(0.5, 0), Positi
 	ZIndex = 6, RichText = true, TextStrokeTransparency = 0.5, Text = "" })
 local respawnNum = label(deathFrame, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0.36), Size = UDim2.fromOffset(300, 70), TextSize = 64, Font = FONT,
 	ZIndex = 6, TextStrokeTransparency = 0.6, Text = "" })
-label(deathFrame, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0.36, 74), Size = UDim2.fromOffset(700, 20), TextSize = 14, Font = FONT, ZIndex = 6,
+local respawnHint = label(deathFrame, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0.36, 74), Size = UDim2.fromOffset(700, 20), TextSize = 14, Font = FONT, ZIndex = 6,
 	TextColor3 = C.gold, TextStrokeTransparency = 0.6, Text = spaced("RÉAPPARITION — B : CHOISIR UNE ARME", 1) })
+local deathToken = 0
 deathRemote.OnClientEvent:Connect(function(d: any)
 	deathFrame.Visible = true; deathFrame.BackgroundTransparency = 1
 	tween(deathFrame, 0.4, { BackgroundTransparency = 0.6 })
 	deathTitle.Text = spaced("ÉLIMINÉ PAR", 1) .. '  <font color="#ffd75e">' .. tostring(d.killer) .. "</font>   " .. '<font color="#8da0bd">' .. tostring(d.weapon)
 		.. (if d.headshot then " · tête" else "") .. "</font>"
-	local left = d.respawn
+	-- pas de réapparition (manches, Élimination) : respawn est absent ; une nouvelle mort relance le compte à rebours
+	local left = if typeof(d.respawn) == "number" then math.ceil(d.respawn) else 0
+	respawnHint.Visible = left > 0
+	deathToken += 1
+	local my = deathToken
 	task.spawn(function()
-		while left > 0 and deathFrame.Visible do
+		while left > 0 and deathFrame.Visible and my == deathToken do
 			respawnNum.Text = tostring(left)
 			task.wait(1); left -= 1
 		end
-		respawnNum.Text = ""
+		if my == deathToken then respawnNum.Text = "" end
 	end)
 end)
 
@@ -841,7 +846,8 @@ local function showBoard(on: boolean)
 		board.Visible = false
 	end
 end
-UserInputService.InputBegan:Connect(function(input)
+UserInputService.InputBegan:Connect(function(input, processed)
+	if processed then return end   -- Tab dans le chat
 	if input.KeyCode == Enum.KeyCode.Tab or input.KeyCode == Enum.KeyCode.ButtonSelect then showBoard(true) end
 end)
 UserInputService.InputEnded:Connect(function(input)
@@ -879,6 +885,7 @@ endLeave.Activated:Connect(function()
 	if ok then endFrame.Visible = false end
 end)
 
+local endToken = 0
 local function card(title: string, lines: { string }, accent: Color3, delay: number)
 	local f = make("Frame", { Size = UDim2.fromOffset(240, 150), BackgroundColor3 = C.panel2, BackgroundTransparency = 1, ZIndex = 31 }, endCards)
 	corner(f, 4)
@@ -924,9 +931,11 @@ endRemote.OnClientEvent:Connect(function(r: any)
 		if r.progress and (r.progress.tiersGained or 0) > 0 then table.insert(lines, "+" .. r.progress.tiersGained .. " palier(s) du passe") end
 		card("Récompenses", lines, C.green, 0.9)
 	end
+	endToken += 1
+	local my = endToken
 	task.spawn(function()
 		local left = r.next or 15
-		while left > 0 and endFrame.Visible do
+		while left > 0 and endFrame.Visible and my == endToken do
 			endNext.Text = "Prochaine partie dans " .. left .. " s — même mode"
 			task.wait(1); left -= 1
 		end
@@ -1043,7 +1052,8 @@ local ghostHp, ghostT = 100, 0
 player.CharacterAdded:Connect(function(char)
 	deathFrame.Visible = false
 	ghostHp = 100
-	local hum = char:WaitForChild("Humanoid") :: Humanoid
+	local hum = char:WaitForChild("Humanoid", 10) :: Humanoid?
+	if not hum then return end
 	local last = hum.Health
 	hum.HealthChanged:Connect(function(hp)
 		if hp < last then ghostT = os.clock() + 0.45 end
@@ -1058,6 +1068,8 @@ RunService.RenderStepped:Connect(function(dt: number)
 	local maxHp = if hum then hum.MaxHealth else 100
 	local frac = hp / maxHp
 	local t = os.clock()
+	-- spectateur (après la kill-cam, sans réapparition) : le voile rouge de l'écran de mort ne reste pas sur la vue
+	if deathFrame.Visible and S.spectate ~= nil then deathFrame.Visible = false end
 	-- vie : chiffre (rouge et qui pulse sous 30), jauge, traînée blanche qui rattrape la vie restante
 	hpText.Text = tostring(math.ceil(hp))
 	hpText.TextColor3 = if hp > 0 and hp < 30 then (if t % 0.8 < 0.4 then rgb(0xff5050) else rgb(0xff8080)) else C.text
@@ -1117,7 +1129,8 @@ RunService.RenderStepped:Connect(function(dt: number)
 		relBar.Visible = reloading
 		if reloading then
 			local started = player:GetAttribute("ReloadStart") :: number? or t
-			relFill.Size = UDim2.fromScale(clamp((t - started) / math.max(w.reload, 0.1), 0, 1), 1)
+			local dur = player:GetAttribute("ReloadDur")          -- durée réelle (accessoires, atouts) : WeaponController
+			relFill.Size = UDim2.fromScale(clamp((t - started) / math.max(if typeof(dur) == "number" and dur > 0 then dur else w.reload, 0.1), 0, 1), 1)
 		end
 	else
 		relBar.Visible = false

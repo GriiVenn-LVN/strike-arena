@@ -46,6 +46,7 @@ local function publish()
 	player:SetAttribute("Reserve", W.reserve)
 	player:SetAttribute("Reloading", W.reloading)
 	player:SetAttribute("ReloadStart", W.reloadStart)
+	player:SetAttribute("ReloadDur", S.reloadDur)
 	player:SetAttribute("Slot", W.slot)
 	player:SetAttribute("Loadout", table.concat(W.loadout, ","))
 	player:SetAttribute("Aiming", W.aiming)
@@ -97,6 +98,10 @@ ammoState.OnClientEvent:Connect(function(info: any)
 	local changedWeapon = info.weapon ~= W.weapon
 	if info.reloading and not W.reloading then
 		W.reloadStart = os.clock()
+		-- durée envoyée par le serveur (accessoires, atout Speed Cola…) : l'animation et ses sons finissent avec la recharge
+		local w = info.weapon and Config.WEAPONS[info.weapon]
+		S.reloadDur = if typeof(info.reloadDur) == "number" then info.reloadDur
+			elseif w then w.reload * A.modsOf(A.activeOf(player, info.weapon)).rel else 0
 		S.reloadEmpty = W.mag <= 0; S.inspectStart = -1
 		S.reload:Fire(info.weapon, S.reloadEmpty)       -- le viewmodel joue l'animation et ses sons (chargeur dehors / dedans)
 	end
@@ -149,12 +154,17 @@ local function alive(): boolean
 	local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
 	return hum ~= nil and hum.Health > 0
 end
+-- une scène tient la caméra (kill-cam, arrivée) ou un panneau est ouvert (pause, boutique, mode photo…) :
+-- les touches de l'arme ne font rien (R, V, molette, visée)
+local function busy(): boolean
+	return S.kc ~= nil or player:GetAttribute("UiOpen") == true
+end
 
 local function tryFire()
 	local key = W.weapon
 	-- la pause entre deux parties ne bloque que les joueurs du match (pas le lobby ni les duels)
 	local blocked = not W.matchLive and player:GetAttribute("Zone") == "match"
-	if not key or not alive() or blocked or W.menu or player:GetAttribute("UiOpen") == true then return end
+	if not key or not alive() or blocked or W.menu or busy() then return end
 	-- on ne tire pas en sprintant ni pendant une escalade ; à la sortie du sprint l'arme met un instant à revenir
 	if S.sprint or S.mantle or os.clock() < S.fireBlockedUntil or os.clock() < S.drinkUntil then return end
 	local w = Config.WEAPONS[key]
@@ -203,19 +213,19 @@ end
 local function onAim(_: string, st: Enum.UserInputState)
 	local key = W.weapon
 	if not key or Config.WEAPONS[key].melee then return Enum.ContextActionResult.Pass end
-	W.aiming = st == Enum.UserInputState.Begin and os.clock() >= S.drinkUntil   -- pas de visée pendant la boisson d'atout
+	W.aiming = st == Enum.UserInputState.Begin and os.clock() >= S.drinkUntil and not busy() and not W.menu   -- pas de visée pendant la boisson d'atout
 	publish()
 	return Enum.ContextActionResult.Sink
 end
 local function onInspect(_: string, st: Enum.UserInputState)
 	if st ~= Enum.UserInputState.Begin then return Enum.ContextActionResult.Pass end
-	if W.weapon and not W.reloading and not W.aiming and alive() then
+	if W.weapon and not W.reloading and not W.aiming and alive() and not busy() then
 		S.inspectStart = if S.inspectStart > 0 then -1 else os.clock()     -- 2e appui : on arrête l'inspection
 	end
 	return Enum.ContextActionResult.Sink
 end
 local function onReload(_: string, st: Enum.UserInputState)
-	if st == Enum.UserInputState.Begin then reloadRemote:FireServer() end
+	if st == Enum.UserInputState.Begin and alive() and not busy() then reloadRemote:FireServer() end
 	return Enum.ContextActionResult.Sink
 end
 local function switchTo(slot: number)
@@ -225,6 +235,8 @@ local function switchTo(slot: number)
 end
 local function onSwitch(name: string, st: Enum.UserInputState, input: InputObject)
 	if st ~= Enum.UserInputState.Begin and input.UserInputType ~= Enum.UserInputType.MouseWheel then return Enum.ContextActionResult.Pass end
+	-- molette dans une liste de la boutique ou du menu (curseur libre) : on fait défiler, on ne change pas d'arme
+	if busy() or W.menu then return Enum.ContextActionResult.Pass end
 	if name == "Slot1" then switchTo(1) elseif name == "Slot2" then switchTo(2) elseif name == "Slot3" then switchTo(3)
 	elseif name == "NextWeapon" then
 		local dir = if input.UserInputType == Enum.UserInputType.MouseWheel and input.Position.Z > 0 then -1 else 1
@@ -260,6 +272,8 @@ player.CameraMode = Enum.CameraMode.LockFirstPerson
 local baseSens = UserInputService.MouseDeltaSensitivity
 
 RunService.RenderStepped:Connect(function()
+	-- visée lâchée quand un panneau s'ouvre ou qu'une boisson d'atout commence en pleine visée
+	if W.aiming and (busy() or os.clock() < S.drinkUntil) then W.aiming = false; publish() end
 	if W.firing then tryFire() end
 end)
 

@@ -61,6 +61,7 @@ end
 
 local function watch(m: Model?)
 	watching = m
+	S.spectate = m                        -- HudController : l'écran de mort s'efface
 	if m then
 		-- caméra libre placée derrière l'épaule (en vue FPS verrouillée, suivre un autre Humanoid mettrait l'œil dans sa tête)
 		camera.CameraType = Enum.CameraType.Scriptable
@@ -78,7 +79,8 @@ end
 
 local function step(dir: number)
 	local list = mates()
-	if #list == 0 then watch(nil); return end
+	-- personne à suivre : on ne rend la caméra qu'une fois (sinon on la reposait à chaque image)
+	if #list == 0 then if watching then watch(nil) end; return end
 	local i = (watching and table.find(list, watching)) or 0
 	watch(list[(i - 1 + dir) % #list + 1])
 end

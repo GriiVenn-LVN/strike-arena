@@ -55,6 +55,12 @@ local function endSlide()
 	if slideVel then slideVel:Destroy(); slideVel = nil end
 end
 
+-- une scène tient la caméra (arrivée en hélico / véhicule, kill-cam) ou un panneau est ouvert (pause, boutique, photo) :
+-- ni sprint, ni accroupi, ni glissade, ni escalade (sinon on ressortait de la scène accroupi ou en plein geste)
+local function blocked(): boolean
+	return S.kc ~= nil or player:GetAttribute("UiOpen") == true
+end
+
 local function forwardInput(hum: Humanoid): boolean
 	local md = hum.MoveDirection
 	if md.Magnitude < 0.1 then return false end
@@ -129,7 +135,7 @@ local function tryMantle(hum: Humanoid, root: BasePart): boolean
 	S.crouch = false
 	pcall(function() hum:ChangeState(Enum.HumanoidStateType.Physics) end)
 	root.AssemblyLinearVelocity = Vector3.zero
-	Sfx.play("land", nil, 0.45)
+	-- le bruit des mains sur le rebord est joué par AmbienceController (Sfx.foley("climb")) : pas de doublon ici
 	return true
 end
 
@@ -179,7 +185,7 @@ end
 local function onSprint(_: string, state: Enum.UserInputState)
 	if state ~= Enum.UserInputState.Begin then return Enum.ContextActionResult.Pass end
 	local hum = parts()
-	if not hum or S.slide or S.mantle or not forwardInput(hum) then return Enum.ContextActionResult.Pass end
+	if not hum or S.slide or S.mantle or blocked() or not forwardInput(hum) then return Enum.ContextActionResult.Pass end
 	local t = os.clock()
 	if S.sprint and t - st.lastTap < 0.35 and st.tacE > 0.3 then S.tactical = true end
 	S.sprint = true; S.crouch = false; st.lastTap = t
@@ -189,7 +195,7 @@ end
 local function onCrouch(_: string, state: Enum.UserInputState)
 	if state == Enum.UserInputState.Begin then
 		st.crouchKey = true
-		if S.mantle then return Enum.ContextActionResult.Sink end
+		if S.mantle or blocked() then return Enum.ContextActionResult.Sink end
 		local hum, root = parts()
 		if hum and root and S.sprint and st.slideCd <= 0 and hum.FloorMaterial ~= Enum.Material.Air then
 			local v = Vector3.new(root.AssemblyLinearVelocity.X, 0, root.AssemblyLinearVelocity.Z)
@@ -228,7 +234,7 @@ ContextActionService:SetPosition("Sprint", UDim2.new(1, -230, 1, -120)); Context
 -- saut : annule la glissade (en gardant l'élan) ou lance une escalade
 UserInputService.JumpRequest:Connect(function()
 	local hum, root = parts()
-	if not hum or not root or hum.WalkSpeed == 0 or S.mantle then return end
+	if not hum or not root or hum.WalkSpeed == 0 or S.mantle or blocked() then return end
 	if S.slide and st.slideT > 0.08 then
 		local keep = st.slideDir * st.slideV
 		endSlide()
@@ -243,9 +249,10 @@ UserInputService.JumpRequest:Connect(function()
 end)
 
 -- ---------- jauge du sprint tactique (mvHud du web) : petite barre sous le viseur ----------
+-- (10 px sous la barre de recharge de HudController, posée à +46 : les deux se superposaient)
 local tacGui = Instance.new("ScreenGui"); tacGui.Name = "TacBar"; tacGui.ResetOnSpawn = false; tacGui.IgnoreGuiInset = true
 tacGui.DisplayOrder = 4; tacGui.Parent = player:WaitForChild("PlayerGui")
-local tacBg = Instance.new("Frame"); tacBg.AnchorPoint = Vector2.new(0.5, 0); tacBg.Position = UDim2.new(0.5, 0, 0.5, 46)
+local tacBg = Instance.new("Frame"); tacBg.AnchorPoint = Vector2.new(0.5, 0); tacBg.Position = UDim2.new(0.5, 0, 0.5, 56)
 tacBg.Size = UDim2.fromOffset(64, 4); tacBg.BackgroundColor3 = Color3.new(0, 0, 0); tacBg.BackgroundTransparency = 1
 tacBg.BorderSizePixel = 0; tacBg.Parent = tacGui
 local tacCorner = Instance.new("UICorner"); tacCorner.CornerRadius = UDim.new(0, 3); tacCorner.Parent = tacBg
@@ -275,13 +282,19 @@ RunService.RenderStepped:Connect(function(dt: number)
 		return
 	end
 	st.slideCd = math.max(0, st.slideCd - dt)
+	-- l'arrivée prend la main en plein geste : on termine l'escalade, on coupe glissade, sprint et accroupi
+	if S.kc ~= nil then
+		if mt then endMantle(hum, root) end
+		if S.slide then endSlide() end
+		S.sprint = false; S.tactical = false; S.crouch = false
+	end
 	local v = root.AssemblyLinearVelocity
 	S.speed = Vector3.new(v.X, 0, v.Z).Magnitude; S.vy = v.Y
 	S.grounded = hum.FloorMaterial ~= Enum.Material.Air
 	if mt then S.speed = 0; S.vy = 0; S.grounded = true end      -- pendant l'escalade : ni balancement ni « réception »
 
 	-- escalade en plein saut : touche de saut tenue face à un rebord, pas en pleine montée (mvTryMantle du web)
-	if not mt and not S.grounded and hum.Jump and hum.WalkSpeed > 0 and os.clock() > st.jl and v.Y < 4.5 * STUDS and forwardInput(hum) then
+	if not mt and not S.grounded and hum.Jump and hum.WalkSpeed > 0 and not blocked() and os.clock() > st.jl and v.Y < 4.5 * STUDS and forwardInput(hum) then
 		tryMantle(hum, root)
 	end
 
