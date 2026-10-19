@@ -172,7 +172,7 @@ local function make(key: string, scale: number): Model
 						mp.Color = if look then look.color else Color3.fromRGB(g.color[1], g.color[2], g.color[3])
 						mp.Material = if look then look.material else Enum.Material.Metal
 						mp.Anchored = true; mp.CanCollide = false; mp.CanQuery = false; mp.CanTouch = false; mp.Massless = true; mp.CastShadow = false
-						mp:SetAttribute("Piece", g.part); mp:SetAttribute("Offset", CFrame.new(center))
+						mp:SetAttribute("Piece", g.part); mp:SetAttribute("Role", g.role); mp:SetAttribute("Offset", CFrame.new(center))
 						mp.CFrame = grip.CFrame * CFrame.new(center)
 						mp.Parent = model
 					end

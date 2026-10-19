@@ -33,7 +33,7 @@ local C = {
 }
 local RARITY = { rgb(0x9aa6b8), rgb(0x4aa3ff), rgb(0xb36bff), rgb(0xffb938), rgb(0xff3df0) }
 local function spaced(s: string, n: number?): string
-	local gap = string.rep(" ", n or 1)
+	local gap = if (n or 1) >= 2 then "\u{2009}" else "\u{200A}"   -- espaces fines
 	local out = {}
 	for _, cp in utf8.codes(s) do table.insert(out, utf8.char(cp)) end
 	return table.concat(out, gap)
