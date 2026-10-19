@@ -117,7 +117,7 @@ gui.DisplayOrder = 40; gui.Enabled = false; gui.Parent = player:WaitForChild("Pl
 local function make(class: string, props: { [string]: any }, parent: Instance?): any
 	local o: any = Instance.new(class)
 	if class == "TextLabel" then o.BackgroundTransparency = 1; o.Font = Enum.Font.GothamBlack; o.TextColor3 = C.text end
-	o.BorderSizePixel = 0
+	if o:IsA("GuiObject") then o.BorderSizePixel = 0 end   -- UICorner, UIStroke… n'ont pas de bordure (l'erreur arrêtait toute la kill-cam)
 	for k, v in pairs(props) do o[k] = v end
 	o.Parent = parent
 	return o
