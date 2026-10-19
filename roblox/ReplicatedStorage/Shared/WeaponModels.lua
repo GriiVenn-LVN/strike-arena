@@ -27,6 +27,7 @@ local LOOK = {
 }
 
 local decode = require(ReplicatedStorage.Shared.Base64)
+local MeshStore = require(ReplicatedStorage.Shared.MeshStore)
 
 -- répétitions de la peinture par mètre d'arme (web : 1/0,78 × 1,35)
 local UV_SCALE = 1.35 / 0.78
@@ -39,10 +40,26 @@ local function plain(name: string, size: Vector3, color: Color3, material: Enum.
 end
 
 -- ---------- une pièce en EditableMesh ----------
-local function meshPiece(g: any, scale: number): (MeshPart?, Vector3)
+-- chaque pièce est construite une seule fois (taille 1) puis copiée et agrandie : bien moins de mémoire
+-- (Roblox limite fortement la mémoire des EditableMesh côté joueur)
+local pieceCache: { [string]: { mp: MeshPart, center: Vector3 } } = {}
+local buildPiece: (g: any, id: string) -> (MeshPart?, Vector3)
+local function meshPiece(g: any, id: string, scale: number): (MeshPart?, Vector3)
+	local c = pieceCache[id]
+	if not c then
+		local mp0, center0 = buildPiece(g, id)
+		if not mp0 then return nil, Vector3.zero end
+		c = { mp = mp0, center = center0 }
+		pieceCache[id] = c
+	end
+	local mp = c.mp:Clone()
+	mp.Size = c.mp.Size * scale
+	return mp, c.center * scale
+end
+buildPiece = function(g: any, id: string): (MeshPart?, Vector3)
 	local raw = decode(g.data)
-	local k = scale / WeaponModels.Q
-	local uvK = UV_SCALE / scale                   -- studs -> mètres -> répétitions de la peinture
+	local k = 1 / WeaponModels.Q
+	local uvK = UV_SCALE                           -- studs -> mètres -> répétitions de la peinture
 	local pos = table.create(g.nv)
 	local lo, hi = Vector3.new(math.huge, math.huge, math.huge), Vector3.new(-math.huge, -math.huge, -math.huge)
 	for i = 0, g.nv - 1 do
@@ -50,35 +67,38 @@ local function meshPiece(g: any, scale: number): (MeshPart?, Vector3)
 		pos[i + 1] = v; lo = lo:Min(v); hi = hi:Max(v)
 	end
 	local center = (lo + hi) / 2
-	local em = AssetService:CreateEditableMesh({ FixedSize = false })
-	local ids = table.create(g.nv)
-	for i, v in ipairs(pos) do ids[i] = em:AddVertex(v - center) end
-	local base = g.nv * 6
-	for t = 0, g.nt - 1 do
-		local a = buffer.readu16(raw, base + t * 6) + 1
-		local b = buffer.readu16(raw, base + t * 6 + 2) + 1
-		local c = buffer.readu16(raw, base + t * 6 + 4) + 1
-		local face = em:AddTriangle(ids[a], ids[b], ids[c])
-		local n = (pos[b] - pos[a]):Cross(pos[c] - pos[a])
-		if n.Magnitude > 1e-9 then
-			local nid = em:AddNormal(n.Unit)
-			em:SetFaceNormals(face, { nid, nid, nid })      -- normales par face : rendu « low-poly » net comme sur le web
+	local mp = MeshStore.meshPart("w:" .. id .. "/" .. g.nv .. "/" .. g.nt, function()
+		local em = AssetService:CreateEditableMesh({ FixedSize = false })
+		if not em then error("mémoire des maillages pleine (CreateEditableMesh a renvoyé nil)") end
+		local ids = table.create(g.nv)
+		for i, v in ipairs(pos) do ids[i] = em:AddVertex(v - center) end
+		local base = g.nv * 6
+		for t = 0, g.nt - 1 do
+			local a = buffer.readu16(raw, base + t * 6) + 1
+			local b = buffer.readu16(raw, base + t * 6 + 2) + 1
+			local c = buffer.readu16(raw, base + t * 6 + 4) + 1
+			local face = em:AddTriangle(ids[a], ids[b], ids[c])
+			local n = (pos[b] - pos[a]):Cross(pos[c] - pos[a])
+			if n.Magnitude > 1e-9 then
+				local nid = em:AddNormal(n.Unit)
+				em:SetFaceNormals(face, { nid, nid, nid })      -- normales par face : rendu « low-poly » net comme sur le web
+			end
+			-- coordonnées de texture pour les skins : projection continue sur toute l'arme, comme applyPlanarUV() du web
+			-- (côtés en z-y, dessus et dessous en z-x, avant et arrière en x-y)
+			local ax, ay, az = math.abs(n.X), math.abs(n.Y), math.abs(n.Z)
+			local uvs = table.create(3)
+			for j, v in ipairs({ pos[a], pos[b], pos[c] }) do
+				local m = v * uvK
+				local u, w
+				if ax >= ay and ax >= az then u, w = -m.Z, m.Y
+				elseif ay >= az then u, w = -m.Z, m.X + 0.37 * UV_SCALE
+				else u, w = m.X, m.Y end
+				uvs[j] = em:AddUV(Vector2.new(u + 0.5, 0.5 - w))
+			end
+			em:SetFaceUVs(face, uvs)
 		end
-		-- coordonnées de texture pour les skins : projection continue sur toute l'arme, comme applyPlanarUV() du web
-		-- (côtés en z-y, dessus et dessous en z-x, avant et arrière en x-y)
-		local ax, ay, az = math.abs(n.X), math.abs(n.Y), math.abs(n.Z)
-		local uvs = table.create(3)
-		for j, v in ipairs({ pos[a], pos[b], pos[c] }) do
-			local m = v * uvK
-			local u, w
-			if ax >= ay and ax >= az then u, w = -m.Z, m.Y
-			elseif ay >= az then u, w = -m.Z, m.X + 0.37 * UV_SCALE
-			else u, w = m.X, m.Y end
-			uvs[j] = em:AddUV(Vector2.new(u + 0.5, 0.5 - w))
-		end
-		em:SetFaceUVs(face, uvs)
-	end
-	local mp = AssetService:CreateMeshPartAsync(Content.fromObject(em), { CollisionFidelity = Enum.CollisionFidelity.Box })
+		return em
+	end)
 	return mp, center
 end
 
@@ -140,11 +160,12 @@ local function make(key: string, scale: number): Model
 		local ok = false
 		local folder = ReplicatedStorage.Shared:FindFirstChild("WeaponMeshes")
 		local src = folder and folder:FindFirstChild(key)
-		if src and WeaponModels.meshApi then
-			ok = pcall(function()
+		if src and (WeaponModels.meshApi or MeshStore.count() > 0) then
+			local err
+			ok, err = pcall(function()
 				local groups = require(src :: ModuleScript) :: any
-				for _, g in ipairs(groups) do
-					local mp, center = meshPiece(g, scale)
+				for gi, g in ipairs(groups) do
+					local mp, center = meshPiece(g, key .. "#" .. gi, scale)
 					if mp then
 						local look = LOOK[g.role]
 						mp.Name = g.part .. "_" .. g.role
@@ -158,8 +179,13 @@ local function make(key: string, scale: number): Model
 				end
 			end)
 			if not ok then
-				WeaponModels.meshApi = false
-				warn("[WeaponModels] EditableMesh indisponible : coche Game Settings → Security → « Allow Mesh / Image APIs ». Armes en blocs en attendant.")
+				-- seul le refus de Roblox (réglage non coché) coupe tout ; une autre erreur ne touche que cette arme
+				local msg = tostring(err)
+				if string.find(string.lower(msg), "permission") or string.find(string.lower(msg), "not enabled") or string.find(msg, "API") then
+					WeaponModels.meshApi = false
+				end
+				warn("[WeaponModels] arme « " .. key .. " » en blocs : " .. msg
+					.. " (si ça parle de permission : Paramètres du jeu → Sécurité → coche « Allow Mesh / Image APIs »)")
 				for _, c in ipairs(model:GetChildren()) do if c ~= grip then c:Destroy() end end
 			end
 		end

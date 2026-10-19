@@ -49,7 +49,7 @@ local veil2 = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparen
 make("UIGradient", { Color = ColorSequence.new(K.rgb(0x05080e), K.rgb(0x2a1608)), Transparency = NumberSequence.new(0.35, 0.75), Rotation = -90 }, veil2)
 
 local gui = make("ScreenGui", { Name = "MainMenu", ResetOnSpawn = false, DisplayOrder = 19, Enabled = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, playerGui)
-local root = make("Frame", { Name = "Root", Size = UDim2.fromOffset(1600, 900) }, gui)
+local root = make("Frame", { Name = "Root", Size = UDim2.fromOffset(1600, 900), AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0) }, gui)
 local uiScale = make("UIScale", {}, root)
 local modal = make("TextButton", { Text = "", BackgroundTransparency = 1, Size = UDim2.fromOffset(1, 1), Modal = true, Selectable = false }, gui)   -- libère la souris
 
@@ -253,11 +253,13 @@ local function computeScale()
 	local vp = if cam then cam.ViewportSize else Vector2.new(1600, 900)
 	local inset = GuiService:GetGuiInset()
 	local w, h = vp.X, math.max(200, vp.Y - inset.Y)
-	local s = math.clamp(math.min(w / 1560, h / 860), 0.6, 1.3)
+	-- base 1280 × 720 (taille du texte du web sur un écran de portable) ; au-delà de 1600 de large, le menu reste
+	-- centré au lieu de s'étirer sur tout l'écran (fenêtres Studio très larges, écrans 21:9)
+	local s = math.clamp(math.min(w / 1280, h / 720), 0.6, 1.6)
 	-- AccessibilityController pose un UIScale « AccessScale » sur chaque ScreenGui : le menu, lui, doit tenir dans l'écran
 	local acc = gui:FindFirstChild("AccessScale")
 	uiScale.Scale = s / (if acc and acc:IsA("UIScale") and acc.Scale > 0 then acc.Scale else 1)
-	ctx.W, ctx.H = math.floor(w / s), math.floor(h / s)
+	ctx.W, ctx.H = math.min(math.floor(w / s), 1600), math.floor(h / s)
 	root.Size = UDim2.fromOffset(ctx.W, ctx.H)
 end
 
@@ -274,7 +276,7 @@ local function buildHeader()
 	K.clear(header)
 	navButtons = {}
 	local W = ctx.W
-	local wide = W >= 1400
+	local wide = W >= 1570   -- logo (450) + navigation (~620) + encart du profil (480) sur une seule ligne
 	-- logo
 	local logo = make("Frame", { Position = UDim2.fromOffset(28, 22), Size = UDim2.fromOffset(420, 50) }, header)
 	local barL = make("Frame", { Size = UDim2.fromOffset(4, 44), BackgroundTransparency = 0, BackgroundColor3 = C.white }, logo)
@@ -289,7 +291,7 @@ local function buildHeader()
 	local nav = make("Frame", { AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 50), BackgroundTransparency = 0.4, BackgroundColor3 = C.deep }, header)
 	K.corner(nav, 12); K.stroke(nav, C.white, 1, 0.93); K.pad(nav, 4); K.hlist(nav, 2)
 	if wide then
-		nav.AnchorPoint = Vector2.new(0.5, 0); nav.Position = UDim2.new(0.47, 0, 0, 22)
+		nav.AnchorPoint = Vector2.new(0, 0); nav.Position = UDim2.fromOffset(456, 22)   -- juste après le logo, comme le web
 	else
 		nav.AnchorPoint = Vector2.new(0, 0); nav.Position = UDim2.fromOffset(28, 84)
 	end
@@ -328,15 +330,14 @@ local function buildHeader()
 		TextXAlignment = Enum.TextXAlignment.Right, Text = "" })
 	local rew = K.btn(pbox, "🎁  " .. spaced("RÉCOMPENSE", 1), "primary", ctx.claimDaily,
 		{ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0), Size = UDim2.fromOffset(150, 40), TextSize = 12 })
-	local g = rew:FindFirstChildOfClass("UIGradient"); if g then g.Color = ColorSequence.new(C.accent, K.rgb(0xff7a3a)); g.Rotation = 0 end
+	K.setBtnColor(rew, K.rgb(0xff5f48))
 	-- CADEAUX, BOUTIQUE et PREMIUM sous l'encart
 	local row = make("Frame", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -150, 0, 84), Size = UDim2.fromOffset(400, 32) }, header)
 	local lay = K.hlist(row, 10); lay.HorizontalAlignment = Enum.HorizontalAlignment.Right
 	K.btn(row, "🛒  " .. spaced("BOUTIQUE", 1), "alt", function() ctx.panel("shop") end, { Size = UDim2.fromOffset(124, 30), TextSize = 11, LayoutOrder = 1 })
 	local giftB = K.btn(row, "🎁  " .. spaced("CADEAUX", 1), "purple", function() ctx.panel("gifts") end, { Size = UDim2.fromOffset(118, 30), TextSize = 11, LayoutOrder = 2 })
 	local vipB = K.btn(row, "⭐  " .. spaced("PREMIUM", 1), "gold", function() ctx.panel("vip") end, { Size = UDim2.fromOffset(118, 30), TextSize = 11, LayoutOrder = 3 })
-	local gv = vipB:FindFirstChildOfClass("UIGradient")
-	if gv then gv.Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, K.rgb(0xffb300)), ColorSequenceKeypoint.new(0.5, K.rgb(0xfff6c9)), ColorSequenceKeypoint.new(1, K.rgb(0xff9d00)) }); gv.Rotation = 0 end
+	K.setBtnColor(vipB, K.rgb(0xffc53a))
 	row.Position = UDim2.new(1, -28, 0, 84)
 	local giftDot = text(giftB, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 6, 0, -6), Size = UDim2.fromOffset(18, 18), BackgroundTransparency = 0,
 		BackgroundColor3 = C.accent, TextXAlignment = Enum.TextXAlignment.Center, Font = K.BLACK, TextSize = 10, Text = "", Visible = false, ZIndex = giftB.ZIndex + 1 })
@@ -479,11 +480,33 @@ local function bindOpenActions(on: boolean)
 	end
 end
 
+-- interface de partie (vie, munitions, minicarte…) et chat cachés derrière le menu, comme sur le web
+local HUD_GUIS = { "MatchHud", "ModeHud", "ZombieBrHud", "GrenadeHud", "MedalHud", "PerkDrink", "PickupToast", "Scope" }
+local hiddenHud: { ScreenGui } = {}
+local function hideHud(on: boolean)
+	if on then
+		for _, n in ipairs(HUD_GUIS) do
+			local g = playerGui:FindFirstChild(n)
+			if g and g:IsA("ScreenGui") and g.Enabled then g.Enabled = false; table.insert(hiddenHud, g) end
+		end
+	else
+		for _, g in ipairs(hiddenHud) do if g.Parent then g.Enabled = true end end
+		table.clear(hiddenHud)
+	end
+	pcall(function()
+		local TextChatService = game:GetService("TextChatService")
+		local win = TextChatService:FindFirstChildOfClass("ChatWindowConfiguration")
+		local bar = TextChatService:FindFirstChildOfClass("ChatInputBarConfiguration")
+		if win then win.Enabled = not on end
+		if bar then bar.Enabled = not on end
+	end)
+end
 local function setOpen(on: boolean)
 	if on and zone() == "duel" then return end
 	if on == open then return end
 	open = on
 	S.menuOpen = on
+	hideHud(on)
 	gui.Enabled = on; bgGui.Enabled = on; modal.Visible = on
 	openBtn.Visible = not on and zone() == "lobby"
 	player:SetAttribute("UiOpen", on)

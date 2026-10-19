@@ -52,8 +52,122 @@ local arms = {
 for _, k in ipairs({ "uR", "fR", "uL", "fL" }) do
 	local m = Instance.new("SpecialMesh"); m.MeshType = Enum.MeshType.Cylinder; m.Parent = arms[k]
 end
-for _, k in ipairs({ "hR", "hL" }) do
-	local c = Instance.new("SpecialMesh"); c.MeshType = Enum.MeshType.Brick; c.Parent = arms[k]
+-- hR / hL : simples repères invisibles, les gants modelés (ci-dessous) s'y accrochent
+arms.hR.Transparency = 1; arms.hL.Transparency = 1
+for _, k in ipairs({ "uR", "fR", "uL", "fL" }) do arms[k].Material = Enum.Material.Fabric end
+arms.cR.Material = Enum.Material.Fabric; arms.cL.Material = Enum.Material.Fabric
+
+-- ---------- gants tactiques modelés (src/55b_hands.js) ----------
+-- paume arrondie, quatre doigts en trois phalanges enroulés autour de la poignée, pouce opposé,
+-- coque des jointures, sangle de poignet ; la main gauche est le reflet de la droite.
+type GPiece = { p: BasePart, at: CFrame, mat: string }
+local function newGlove(): { GPiece }
+	local list: { GPiece } = {}
+	local function add(p: BasePart, at: CFrame, mat: string)
+		p.Anchored = true; p.CanCollide = false; p.CanQuery = false; p.CanTouch = false; p.CastShadow = false; p.Massless = true
+		p.Material = if mat == "pad" then Enum.Material.SmoothPlastic else Enum.Material.Fabric
+		p.Parent = rig
+		table.insert(list, { p = p, at = at, mat = mat })
+	end
+	local function box(size: Vector3, pos: Vector3, ry: number, mat: string)
+		local p = Instance.new("Part"); p.Name = "Gant"; p.Size = size
+		add(p, CFrame.new(pos) * CFrame.Angles(0, ry, 0), mat)
+	end
+	-- capsule (cylindre + deux demi-sphères) de longueur totale L, axe = up
+	local function caps(center: Vector3, up: Vector3, r: number, L: number, mat: string)
+		-- axe X du cylindre le long de up
+		local side = up:Cross(if math.abs(up.Z) < 0.9 then Vector3.zAxis else Vector3.xAxis).Unit
+		local axis = CFrame.fromMatrix(Vector3.zero, up, side)
+		local h = math.max(0, L / 2 - r)
+		if h > 1e-4 then
+			local c = Instance.new("Part"); c.Name = "Gant"; c.Shape = Enum.PartType.Cylinder; c.Size = Vector3.new(h * 2, r * 2, r * 2)
+			add(c, CFrame.new(center) * axis, mat)
+		end
+		for _, sgn in ipairs({ -1, 1 }) do
+			local b = Instance.new("Part"); b.Name = "Gant"; b.Shape = Enum.PartType.Ball; b.Size = Vector3.new(r * 2, r * 2, r * 2)
+			add(b, CFrame.new(center + up * (h * sgn)), mat)
+		end
+	end
+	local function seg(a: Vector3, b: Vector3, r: number, mat: string)
+		local d = b - a
+		caps((a + b) / 2, d.Unit, r, d.Magnitude + r * 1.6, mat)
+	end
+	local R, D = 0.026, math.pi / 180
+	local function P(phi: number, y: number, rr: number?): Vector3
+		local k = rr or R
+		return Vector3.new(math.cos(phi) * k, y, math.sin(phi) * k)
+	end
+	box(Vector3.new(0.028, 0.084, 0.07), Vector3.new(0.03, -0.036, 0.018), -0.62, "fab")      -- paume + dos
+	box(Vector3.new(0.012, 0.07, 0.026), Vector3.new(0.046, -0.034, -0.006), -0.35, "pad")    -- coque des jointures
+	box(Vector3.new(0.03, 0.05, 0.02), Vector3.new(0.03, -0.03, 0.05), -0.9, "strap")         -- sangle du poignet
+	local F = {
+		{ y = -0.008, L = { 0.042, 0.026, 0.021 }, r = 0.0088 }, { y = -0.027, L = { 0.046, 0.029, 0.022 }, r = 0.0092 },
+		{ y = -0.046, L = { 0.043, 0.027, 0.021 }, r = 0.0088 }, { y = -0.063, L = { 0.034, 0.021, 0.018 }, r = 0.0076 },
+	}
+	for _, f in ipairs(F) do
+		local phi = -14 * D
+		local a = P(phi, f.y)
+		caps(a, Vector3.yAxis, f.r * 1.12, f.r * 2.4, "fab")                                -- jointure
+		for i, L in ipairs(f.L) do
+			local i0 = i - 1
+			phi += -L / R * (if i0 > 0 then 1.05 else 0.95)
+			local b = P(phi, f.y - 0.002 * i0, R - 0.002 * i0)
+			seg(a, b, f.r * (1 - i0 * 0.1), if i0 == 2 then "palm" else "fab")
+			a = b
+		end
+	end
+	do  -- pouce
+		local a = Vector3.new(0.03, -0.03, 0.042)
+		local pts = { P(118 * D, -0.004, 0.03), P(168 * D, 0.004, 0.028), P(205 * D, 0.008, 0.026) }
+		local rr = { 0.0125, 0.0105, 0.0095 }
+		for i, b in ipairs(pts) do seg(a, b, rr[i], "fab"); a = b end
+	end
+	return list
+end
+local WRIST = Vector3.new(0.032, -0.032, 0.07)        -- le bras s'arrête au poignet du gant
+local gloveR, gloveL = newGlove(), newGlove()
+-- reflet en x (main gauche) : position (-x, y, z), rotation S·R·S
+local function mirror(c: CFrame): CFrame
+	local x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22 = c:GetComponents()
+	return CFrame.new(-x, y, z, r00, -r01, -r02, -r10, r11, r12, -r20, r21, r22)
+end
+local LEFT_FLAT = CFrame.new(0, -0.006, 0) * CFrame.Angles(math.pi / 2, 0, 0)   -- main gauche à plat sous le garde-main
+local LEFT_VERT = CFrame.Angles(0, 0.7, 0)                                        -- main gauche autour d'une poignée verticale
+local leftAt: { CFrame } = {}
+local leftVert: boolean? = nil
+local function setLeftHold(vert: boolean)
+	if leftVert == vert then return end
+	leftVert = vert
+	local inner = if vert then LEFT_VERT else LEFT_FLAT
+	for i, g in ipairs(gloveL) do leftAt[i] = mirror(inner * g.at) end
+end
+setLeftHold(false)
+local function leftWrist(): Vector3
+	local w = (if leftVert then LEFT_VERT else LEFT_FLAT) * WRIST
+	return Vector3.new(-w.X, w.Y, w.Z)
+end
+local gloveLook = ""
+local function setGloveColor(glove: Color3)
+	local key = glove:ToHex()
+	if key == gloveLook then return end
+	gloveLook = key
+	local col = {
+		fab = glove:Lerp(Color3.new(1, 1, 1), 0.08), palm = Color3.new(glove.R * 0.75, glove.G * 0.75, glove.B * 0.75),
+		pad = Color3.new(0.025, 0.027, 0.03), strap = Color3.new(glove.R * 0.6, glove.G * 0.6, glove.B * 0.6),
+	}
+	for _, list in ipairs({ gloveR, gloveL }) do
+		for _, g in ipairs(list) do g.p.Color = (col :: any)[g.mat] end
+	end
+end
+local gParts: { BasePart } = {}
+for _, g in ipairs(gloveR) do table.insert(gParts, g.p) end
+for _, g in ipairs(gloveL) do table.insert(gParts, g.p) end
+local gCFs: { CFrame } = table.create(#gParts)
+local function placeGloves(rootR: CFrame, rootL: CFrame?, hiddenCF: CFrame)
+	local n = 0
+	for _, g in ipairs(gloveR) do n += 1; gCFs[n] = rootR * g.at end
+	for i in ipairs(gloveL) do n += 1; gCFs[n] = if rootL then rootL * leftAt[i] else hiddenCF end
+	workspace:BulkMoveTo(gParts, gCFs, Enum.BulkMoveMode.FireCFrameChanged)
 end
 local flash = part("Flash", Vector3.new(0.12, 0.12, 0.12), Color3.fromRGB(255, 214, 140), Enum.Material.Neon)
 flash.Shape = Enum.PartType.Ball
@@ -481,18 +595,24 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 	local handRot = gunCF.Rotation
 	arms.hR.CFrame = camCF * (CFrame.new(rightL) * handRot)
 	-- poignée verticale : la main gauche se referme autour, paume tournée vers l'arrière
-	local leftRot = if model:GetAttribute("LeftV") == true and rl < 0 then CFrame.Angles(math.rad(-75), 0, 0) else CFrame.identity
-	arms.hL.CFrame = camCF * (CFrame.new(leftL) * handRot * leftRot)
-	placeArm(arms.uR, arms.fR, arms.cR, rightL + handRot:VectorToWorldSpace(Vector3.new(0, 0, 0.05)), 1, ads, camCF)
+	setLeftHold(model:GetAttribute("LeftV") == true and rl < 0 and not (ins and ins.lh > 0.3))
+	arms.hL.CFrame = camCF * (CFrame.new(leftL) * handRot)
+	local hidden = camCF * CFrame.new(0, -3, 0)
+	placeGloves(arms.hR.CFrame, if VM.twoHand then arms.hL.CFrame else nil, hidden)
+	placeArm(arms.uR, arms.fR, arms.cR, rightL + handRot:VectorToWorldSpace(WRIST), 1, ads, camCF)
 	if VM.twoHand then
-		placeArm(arms.uL, arms.fL, arms.cL, leftL + handRot:VectorToWorldSpace(Vector3.new(0, 0, 0.05)), -1, ads, camCF)
+		placeArm(arms.uL, arms.fL, arms.cL, leftL + handRot:VectorToWorldSpace(leftWrist()), -1, ads, camCF)
 	else
-		local hidden = camCF * CFrame.new(0, -3, 0)
 		arms.uL.CFrame = hidden; arms.fL.CFrame = hidden; arms.cL.CFrame = hidden; arms.hL.CFrame = hidden
 	end
-	local myTeam = player:GetAttribute("Team")   -- manches aux couleurs de l'équipe de la partie (orange T, bleu CT), kaki sinon
-	local sleeve = if myTeam == "Attaquants" then Color3.fromRGB(196, 110, 52) elseif myTeam == "Défenseurs" then Color3.fromRGB(58, 96, 168) else Color3.fromRGB(86, 96, 74)
+	-- tenue du web (lookMats) : T = treillis sable et gants coyote, CT (et chacun pour soi) = bleu marine et gants noirs
+	local myTeam = player:GetAttribute("Team")
+	local isT = myTeam == "Attaquants"
+	local sleeve = if isT then Color3.fromRGB(169, 148, 104) else Color3.fromRGB(43, 58, 82)
 	arms.uR.Color = sleeve; arms.fR.Color = sleeve; arms.uL.Color = sleeve; arms.fL.Color = sleeve
+	local cuff = if isT then Color3.fromRGB(74, 74, 50) else Color3.fromRGB(27, 31, 39)
+	arms.cR.Color = cuff; arms.cL.Color = cuff
+	setGloveColor(if isT then Color3.fromRGB(138, 122, 85) else Color3.fromRGB(21, 24, 29))
 
 	-- éclair de bouche
 	local muzzleW = world:PointToWorldSpace(VM.muzzle)
