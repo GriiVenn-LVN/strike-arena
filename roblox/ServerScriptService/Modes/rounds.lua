@@ -68,10 +68,63 @@ local function remote(class: string, name: string): Instance
 end
 local buyFn = remote("RemoteFunction", "ModeBuy") :: RemoteFunction
 local useEv = remote("RemoteEvent", "ModeUse") :: RemoteEvent
+-- modes sans manches (match à mort, zones, drapeaux…) : « armurerie gratuite » du web (buyItem quand isDM()),
+-- l'arme est donnée tout de suite ; pas d'achat en Course aux armes, Zombies, Arme tournante, Bataille royale, Infecté
+local NO_BUY = { gg = "Course aux armes : pas d'achat, chaque élimination te donne l'arme suivante",
+	zombies = "Zombies : achète aux murs (craie), à la boîte mystère et aux machines", shp = "Arme tournante : tout le monde a la même arme",
+	br = "Bataille royale : ramasse les armes sur la carte", inf = "Infecté : pas de boutique" }
+local function freeState(m: any, p: Player): any
+	local list = WeaponService.loadoutOf(p)
+	local prim, sec
+	for _, k in ipairs(list) do
+		local w = Config.WEAPONS[k]
+		if w and not w.melee then if w.slot == 0 then prim = prim or k else sec = sec or k end end
+	end
+	local g = GrenadeService.get(p) or { frag = 0, flash = 0, smoke = 0, mine = 0 }
+	return { money = 0, free = true, dm = true, pistol = false, phase = "freeze", team = WeaponService.teamOf(p), bombMode = false,
+		primary = prim, secondary = sec, armor = WeaponService.armorOf(p), shield = WeaponService.shieldOf(p), kit = false,
+		frag = g.frag, flash = g.flash, smoke = g.smoke, mine = g.mine, alive = MS().aliveChar(p) ~= nil }
+end
+local function freeBuy(p: Player, k: string): boolean
+	if not MS().aliveChar(p) then return false end
+	if k == "armor" then
+		if WeaponService.armorOf(p) >= 100 then return false end
+		WeaponService.setArmor(p, 100); return true
+	elseif k == "shield1" or k == "shield2" then
+		local v = if k == "shield1" then 25 else 50
+		if WeaponService.shieldOf(p) >= v then return false end
+		WeaponService.setShield(p, v); return true
+	elseif k == "frag" or k == "flash" or k == "smoke" or k == "mine" then
+		local s = table.clone(GrenadeService.get(p) or { frag = 0, flash = 0, smoke = 0, mine = 0 }) :: any
+		local max = if k == "flash" then 2 elseif k == "mine" then Grenades.MINE.max else 1
+		if (s[k] or 0) >= max then return false end
+		s[k] = (s[k] or 0) + 1
+		GrenadeService.set(p, s.frag, s.flash, s.smoke, s.mine)
+		return true
+	end
+	local w = Config.WEAPONS[k]
+	if not w or not BUYABLE[k] then return false end
+	local st = freeState(MS().matchOf(p), p)
+	if (w.slot == 0 and st.primary == k) or (w.slot ~= 0 and st.secondary == k) then return false end
+	local prim = if w.slot == 0 then k else st.primary
+	local sec = if w.slot ~= 0 then k else st.secondary
+	local list = {}
+	if prim then table.insert(list, prim) end
+	if sec then table.insert(list, sec) end
+	table.insert(list, "knife")
+	WeaponService.setLoadoutKeep(p, list, k)
+	return true
+end
 buyFn.OnServerInvoke = function(p: Player, key: any)
 	local m = MS().matchOf(p)
-	if m and m.mod and m.mod.buy then return m.mod.buy(m, p, if typeof(key) == "string" then key else nil) end
-	return nil
+	if not m then return nil end
+	local k = if typeof(key) == "string" and #key <= 16 then key else nil
+	if m.mod and m.mod.buy then return m.mod.buy(m, p, k) end
+	if NO_BUY[m.mode] then return { closed = NO_BUY[m.mode] } end
+	local ok = if k then freeBuy(p, k) else true
+	local st = freeState(m, p)
+	st.ok = ok
+	return st
 end
 useEv.OnServerEvent:Connect(function(p: Player, on: any)
 	local m = MS().matchOf(p)

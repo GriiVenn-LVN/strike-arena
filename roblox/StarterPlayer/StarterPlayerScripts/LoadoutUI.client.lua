@@ -175,12 +175,21 @@ end
 openBtn.MouseButton1Click:Connect(function() setOpen(not win.Visible) end)
 close.MouseButton1Click:Connect(function() setOpen(false) end)
 ContextActionService:BindAction("Loadout", function(_, st)
+	if player:GetAttribute("Zone") == "match" then return Enum.ContextActionResult.Pass end   -- en partie, B = boutique (BuyMenu)
 	if st == Enum.UserInputState.Begin then setOpen(not win.Visible) end
 	return Enum.ContextActionResult.Sink
 end, false, Enum.KeyCode.B, Enum.KeyCode.DPadLeft)
 player:GetAttributeChangedSignal("Primary"):Connect(function() if win.Visible then render() end end)
 
 -- ---------- menu principal (MainMenu) : bouton caché pendant que le menu est ouvert, fenêtre ouvrable depuis le menu ----------
-player:GetAttributeChangedSignal("MenuOpen"):Connect(function() openBtn.Visible = player:GetAttribute("MenuOpen") ~= true end)
+-- comme le web : pas de bouton « Armes » en partie (la boutique s'ouvre avec B), et rien par-dessus le menu
+local function refreshOpenBtn()
+	local inMatch = player:GetAttribute("Zone") == "match"
+	openBtn.Visible = player:GetAttribute("MenuOpen") ~= true and not inMatch
+	if inMatch and win.Visible then setOpen(false) end
+end
+player:GetAttributeChangedSignal("MenuOpen"):Connect(refreshOpenBtn)
+player:GetAttributeChangedSignal("Zone"):Connect(refreshOpenBtn)
+refreshOpenBtn()
 gui.DisplayOrder = 30   -- au-dessus du menu (19)
 require(ReplicatedStorage.Shared.ClientState).panels.loadout = function() setOpen(not win.Visible) end

@@ -276,7 +276,7 @@ local function buildHeader()
 	K.clear(header)
 	navButtons = {}
 	local W = ctx.W
-	local wide = W >= 1400
+	local wide = W >= 1570   -- logo (450) + navigation (~620) + encart du profil (480) sur une seule ligne
 	-- logo
 	local logo = make("Frame", { Position = UDim2.fromOffset(28, 22), Size = UDim2.fromOffset(420, 50) }, header)
 	local barL = make("Frame", { Size = UDim2.fromOffset(4, 44), BackgroundTransparency = 0, BackgroundColor3 = C.white }, logo)
@@ -291,7 +291,7 @@ local function buildHeader()
 	local nav = make("Frame", { AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 50), BackgroundTransparency = 0.4, BackgroundColor3 = C.deep }, header)
 	K.corner(nav, 12); K.stroke(nav, C.white, 1, 0.93); K.pad(nav, 4); K.hlist(nav, 2)
 	if wide then
-		nav.AnchorPoint = Vector2.new(0.5, 0); nav.Position = UDim2.new(0.47, 0, 0, 22)
+		nav.AnchorPoint = Vector2.new(0, 0); nav.Position = UDim2.fromOffset(456, 22)   -- juste après le logo, comme le web
 	else
 		nav.AnchorPoint = Vector2.new(0, 0); nav.Position = UDim2.fromOffset(28, 84)
 	end

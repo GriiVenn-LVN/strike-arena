@@ -222,19 +222,7 @@ local function toast(text: string)
 end
 
 -- ---------- touches : B (boutique), E (poser / désamorcer) ----------
-ContextActionService:BindActionAtPriority("ModeBuy", function(_, state)
-	if not inMatch or not ROUND_MODES[mode] then return Enum.ContextActionResult.Pass end
-	if state ~= Enum.UserInputState.Begin then return Enum.ContextActionResult.Sink end
-	if buyOpen then setBuy(false)
-	elseif roundPhase() == "freeze" then setBuy(true)
-	else toast("Achats possibles seulement en début de manche") end
-	return Enum.ContextActionResult.Sink
-end, false, Enum.ContextActionPriority.High.Value, Enum.KeyCode.B, Enum.KeyCode.DPadLeft)
-ContextActionService:BindActionAtPriority("ModeBuyClose", function(_, state)
-	if not buyOpen then return Enum.ContextActionResult.Pass end
-	if state == Enum.UserInputState.Begin then setBuy(false) end
-	return Enum.ContextActionResult.Sink
-end, false, Enum.ContextActionPriority.High.Value, Enum.KeyCode.Escape)
+-- la touche B et la fenêtre de la boutique sont dans BuyMenu.client.lua (copie de #buy du web, tous les modes)
 
 local holding = false
 local function setUse(on: boolean)
@@ -343,7 +331,7 @@ local function drawRounds(d: any, dtSince: number)
 	moneyLabel.Visible = typeof(money) == "number"
 	moneyLabel.Text = if typeof(money) == "number" then (if money >= 16000 and mode ~= "bomb" then "$16000" else "$" .. tostring(money)) else ""
 	if buyOpen then renderBuy() end
-	buyTouch.Visible = touch and phase == "freeze"
+	buyTouch.Visible = false   -- bouton ACHAT : BuyMenu
 	-- décompte 3-2-1 avant « C'EST PARTI »
 	local left = math.max(0, (d.left or 0) - dtSince)
 	if phase == "freeze" and left <= 3.2 and left > 0 then
