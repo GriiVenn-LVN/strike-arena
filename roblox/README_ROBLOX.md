@@ -81,7 +81,9 @@ ServerScriptService/MapBuilder.lua       construit une carte : collision exacte 
 StarterPlayerScripts/MapDetailController.client.lua  maillages détaillés, textures du web, halos, ciel / brouillard / lumière de la carte
 ServerScriptService/Modes/rounds.lua    modes à manches (Compétitif, Désamorçage rapide, Duel) : achat → manche → fin, bombe, économie, mi-temps ; koth / dom / ctf : zone, drapeaux ; HUD : ModeHud.client.lua
 ServerScriptService/Main.server.lua      point d'entrée + RemoteFunctions (profil, daily, défis, danses, skins)
-StarterPlayerScripts/CinematicController.client.lua   cinématique d'arrivée en hélicoptère (caméra scriptée, barres de cinéma)
+StarterPlayerScripts/CinematicController.client.lua   arrivée en hélicoptère / camion / blindé des modes en équipe (src/65_cine.js, src/65b_car.js)
+ServerScriptService/ArrivalService.lua                 lance l'arrivée pendant « PRÉPAREZ-VOUS » et attend la fin des scènes
+ReplicatedStorage/Shared/VehicleModels.lua             hélicoptère en pièces, blindé et camion (VehicleMeshes, tools/export_vehicles_lua.py)
 StarterPlayerScripts/EmoteController.client.lua       danses (touche T) via Animator
 StarterPlayerScripts/WeaponController.client.lua  tir à la première personne : clic gauche/droit, R, 1-2-3, molette, manette, tactile, recul, traceurs, sons
 StarterPlayerScripts/HudController.client.lua     HUD : score, vie/bouclier, munitions, marqueur de touche, chiffres de dégâts, direction des dégâts, fil, séries, Tab, fin
@@ -181,7 +183,7 @@ Tout se règle dans `ReplicatedStorage/Shared/CommunityConfig.lua` (sauf les cod
 | Particules GPU, impacts, douilles | `ParticleEmitter` / `Beam` / `Trail` ; décalques via `Decal` sur `result.Instance` |
 | Modèles d'armes procéduraux | `Tool` + `Handle` (MeshPart) ; skins = `SurfaceAppearance` (PBR) |
 | Soldats animés | R15 + animations de tir/recharge ; danses = `Animation` (Animation Editor) |
-| Cinématique hélicoptère | `CinematicController.client.lua` (Camera Scriptable + TweenService) |
+| Arrivée hélicoptère / véhicule | `CinematicController.client.lua` + `ArrivalService.lua` + `VehicleModels.lua` (maillages « v:… » envoyés par MeshUploader, sinon en pièces) |
 | Récompense quotidienne, défis, XP | `RewardService.lua` + DataStore |
 | Caisses 3D | `LootService` (serveur) + `ViewportFrame` côté client pour l'animation |
 | Touches personnalisables | `ContextActionService` + `profile.binds` (sauvegardé dans le DataStore) |
