@@ -256,7 +256,8 @@ function GrenadeService.init(weaponService: any)
 	WS = weaponService
 	throwEvent.OnServerEvent:Connect(function(player: Player, kind: any, look: any)
 		if typeof(kind) ~= "string" then return end
-		if typeof(look) ~= "Vector3" or look.Magnitude < .5 or look.Magnitude > 1.5 then look = nil end
+		-- « not (… and …) » : un NaN échoue aux deux comparaisons et resterait sinon accepté (grenade bloquée à jamais)
+		if typeof(look) ~= "Vector3" or not (look.Magnitude >= .5 and look.Magnitude <= 1.5) then look = nil end
 		GrenadeService.throw(player, kind, false, if look then (look :: Vector3).Unit else nil)
 	end)
 	mineEvent.OnServerEvent:Connect(function(player: Player) GrenadeService.placeMine(player) end)

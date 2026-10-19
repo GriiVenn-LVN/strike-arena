@@ -113,13 +113,17 @@ local function runDuel(def: any, players: { Player }, arena: Arena)
 
 	-- mises : chacun paie en entrant (vérifié juste avant), le pot va aux gagnants
 	local pot = 0
+	local paid: { [Player]: number } = {}   -- mise réellement prise (des pièces ont pu être dépensées depuis la plateforme)
 	for _, p in ipairs(players) do
 		local profile = DataService.get(p)
 		p:SetAttribute("DuelQueued", nil)
 		p:SetAttribute("Zone", "duel")
 		p:SetAttribute("DuelTeam", if table.find(teamA, p) then tagA else tagB)
 		p.Team = nil
-		if def.stake > 0 and profile then profile.coins -= def.stake; pot += def.stake end
+		if def.stake > 0 and profile then
+			local pay = math.clamp(profile.coins, 0, def.stake)   -- jamais de solde négatif
+			profile.coins -= pay; paid[p] = pay; pot += pay
+		end
 	end
 
 	local score = { A = 0, B = 0 }
@@ -235,7 +239,7 @@ local function runDuel(def: any, players: { Player }, arena: Arena)
 			if winnerSide ~= nil then if won then duel.w += 1 else duel.l += 1 end end
 			LeaderboardService.setDuelElo(p, duel.elo)
 			if won then coins = share; profile.coins += share end
-			if winnerSide == nil and def.stake > 0 then coins = def.stake; profile.coins += def.stake end   -- égalité : mise rendue
+			if winnerSide == nil and def.stake > 0 then coins = paid[p] or 0; profile.coins += coins end   -- égalité : mise rendue
 			RewardService.addXP(p, 40 + (if won then 60 else 0))
 			if won then RewardService.missionEvent(p, "win") end
 		end

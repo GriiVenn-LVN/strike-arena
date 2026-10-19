@@ -147,7 +147,7 @@ function Modes.sanitize(s: any): Settings
 	local mode = if typeof(t.mode) == "string" and Modes.LIST[t.mode] then t.mode else "tdm"
 	local maps = Modes.mapsFor(mode)
 	local map = if typeof(t.map) == "string" and table.find(maps, t.map) then t.map else maps[1]
-	local diff = if typeof(t.diff) == "number" then math.clamp(math.floor(t.diff), 1, #Modes.DIFFS) else 3
+	local diff = if typeof(t.diff) == "number" and t.diff == t.diff then math.clamp(math.floor(t.diff), 1, #Modes.DIFFS) else 3   -- NaN refusé
 	local sizes = Modes.sizes(mode)
 	local size = if typeof(t.size) == "number" and table.find(sizes, t.size) then t.size
 		elseif mode == "duel" then 1                       -- web : 1 v 1 par défaut (cfg.duelSize)

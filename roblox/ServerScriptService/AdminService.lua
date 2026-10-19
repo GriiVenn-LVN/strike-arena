@@ -397,14 +397,14 @@ ACTIONS.giveall = function(p) local r = giveAll(p); addLog(r, "#7dff9f"); return
 ACTIONS.coins = function(p, n)
 	local v = tonumber(n)
 	local profile = DataService.get(p)
-	if not v or not profile or v <= 0 or v > 1e6 then return false end
+	if not v or v ~= v or not profile or v <= 0 or v > 1e6 then return false end   -- NaN : profil impossible à sauvegarder
 	profile.coins += math.floor(v)
 	addLog("+" .. math.floor(v) .. " pièces", "#7dff9f")
 	return "+" .. math.floor(v) .. " pièces"
 end
 ACTIONS.lvl = function(p, n)
 	local v = tonumber(n)
-	if not v or v < 1 or v > 100 then return false end
+	if not v or v ~= v or v < 1 or v > 100 then return false end
 	local r = giveLevels(p, math.floor(v)); addLog(r, "#7dff9f"); return r
 end
 ACTIONS.boxes = function(p)

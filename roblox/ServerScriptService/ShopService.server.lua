@@ -20,6 +20,7 @@ local KillFxConfig = require(ReplicatedStorage.Shared.KillFxConfig)
 local RateLimit = require(script.Parent.RateLimit)
 local SOON = "Bientôt disponible"
 
+-- anciens reçus (avant que les achats soient notés dans le profil) : relus seulement, pour ne jamais créditer deux fois
 local receipts = require(script.Parent.Stores).get("StrikeArenaReceipts_v1")
 
 local function remoteFunction(name: string): RemoteFunction
@@ -34,16 +35,9 @@ for _, it in ipairs(Catalog.ITEMS) do
 	end
 end
 
-MarketplaceService.ProcessReceipt = function(info)
-	local player = Players:GetPlayerByUserId(info.PlayerId)
-	if not player then return Enum.ProductPurchaseDecision.NotProcessedYet end
-	local key = info.PlayerId .. "_" .. info.PurchaseId
-	local done = false
-	pcall(function() done = receipts:GetAsync(key) == true end)
-	if done then return Enum.ProductPurchaseDecision.PurchaseGranted end       -- déjà crédité (anti-doublon)
-	local it = byProduct[info.ProductId]
-	local profile = DataService.get(player)
-	if not it or not profile then return Enum.ProductPurchaseDecision.NotProcessedYet end
+-- Anti-doublon : le numéro de l'achat est noté DANS le profil, en même temps que ce qu'il donne, et Roblox n'apprend
+-- que l'achat est crédité qu'une fois ce profil réellement enregistré (sinon il redemande plus tard, sans recréditer).
+local function credit(player: Player, profile: any, it: any)
 	if it.coins then profile.coins += it.coins end
 	if it.box then profile.boxes[it.box] = (profile.boxes[it.box] or 0) + (it.boxes or 1) end
 	if it.premium then ProgressService.grantPremium(player) end
@@ -64,10 +58,43 @@ MarketplaceService.ProcessReceipt = function(info)
 		profile.inv.killfx = profile.inv.killfx or {}
 		if not table.find(profile.inv.killfx, it.fx) then table.insert(profile.inv.killfx, it.fx) end
 	end
-	local ok = pcall(function() receipts:SetAsync(key, true) end)
-	if not ok then return Enum.ProductPurchaseDecision.NotProcessedYet end
-	DataService.save(player)
-	return Enum.ProductPurchaseDecision.PurchaseGranted
+end
+
+local busyReceipt: { [string]: boolean } = {}   -- même achat présenté deux fois en même temps : un seul crédit
+MarketplaceService.ProcessReceipt = function(info)
+	local player = Players:GetPlayerByUserId(info.PlayerId)
+	if not player then return Enum.ProductPurchaseDecision.NotProcessedYet end
+	local it = byProduct[info.ProductId]
+	local profile = DataService.get(player)
+	-- profil absent ou en lecture seule (chargement raté) : rien ne pourrait être enregistré, Roblox réessaiera
+	if not it or not profile or not DataService.canSave(player) then return Enum.ProductPurchaseDecision.NotProcessedYet end
+	local id = tostring(info.PurchaseId)
+	if busyReceipt[id] then return Enum.ProductPurchaseDecision.NotProcessedYet end
+	busyReceipt[id] = true
+	local ok, res = pcall(function()
+		profile.receipts = if typeof(profile.receipts) == "table" then profile.receipts else {}
+		if not profile.receipts[id] then
+			local old = false
+			local okOld = pcall(function() old = receipts:GetAsync(info.PlayerId .. "_" .. info.PurchaseId) == true end)
+			if not okOld then return Enum.ProductPurchaseDecision.NotProcessedYet end
+			if old then return Enum.ProductPurchaseDecision.PurchaseGranted end   -- déjà crédité avant (ancien registre)
+			credit(player, profile, it)
+			profile.receipts[id] = os.time()
+			-- on ne garde que les reçus récents (Roblox ne redemande pas un achat vieux de plus de quelques jours)
+			local n = 0
+			for _ in pairs(profile.receipts) do n += 1 end
+			if n > 40 then
+				for k, t in pairs(profile.receipts) do
+					if typeof(t) ~= "number" or os.time() - t > 14 * 86400 then profile.receipts[k] = nil end
+				end
+			end
+		end
+		if not DataService.save(player) then return Enum.ProductPurchaseDecision.NotProcessedYet end
+		return Enum.ProductPurchaseDecision.PurchaseGranted
+	end)
+	busyReceipt[id] = nil
+	if not ok then warn("[ShopService] achat non traité :", res); return Enum.ProductPurchaseDecision.NotProcessedYet end
+	return res
 end
 
 -- ---------- Ajout à l'inventaire ----------

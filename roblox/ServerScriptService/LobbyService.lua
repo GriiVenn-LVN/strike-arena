@@ -10,6 +10,7 @@ local CommunityConfig = require(ReplicatedStorage.Shared.CommunityConfig)
 local DataService = require(script.Parent.DataService)
 local WeaponService = require(script.Parent.WeaponService)
 local MatchService = require(script.Parent.MatchService)
+local RateLimit = require(script.Parent.RateLimit)
 
 local L = CommunityConfig.LOBBY
 local O = L.origin
@@ -362,7 +363,8 @@ function LobbyService.start()
 	end)
 
 	local joinFn = Instance.new("RemoteFunction"); joinFn.Name = "JoinMatch"; joinFn.Parent = ReplicatedStorage
-	joinFn.OnServerInvoke = function(p) return LobbyService.joinMatch(p) end
+	-- même cadence que MatchQuick : chaque partie rapide peut construire une carte
+	joinFn.OnServerInvoke = function(p) return RateLimit.ok(p, "MatchCreate", 2) and LobbyService.joinMatch(p) end
 	local leaveFn = Instance.new("RemoteFunction"); leaveFn.Name = "LeaveMatch"; leaveFn.Parent = ReplicatedStorage
 	leaveFn.OnServerInvoke = function(p) return LobbyService.leaveMatch(p) end
 end

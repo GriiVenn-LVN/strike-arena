@@ -294,7 +294,7 @@ end)
 remote("EventStatus", function(p) return ProgressService.eventStatus(p) end)
 remote("PumpkinCollected", function(p, id: any)
 	-- la citrouille existe côté serveur (Part nommée "Pumpkin") : on vérifie la distance avant de créditer
-	if typeof(id) ~= "Instance" or id.Name ~= "Pumpkin" or not id:IsDescendantOf(workspace) then return nil end
+	if typeof(id) ~= "Instance" or not id:IsA("BasePart") or id.Name ~= "Pumpkin" or not id:IsDescendantOf(workspace) then return nil end
 	local root = p.Character and p.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
 	if not root or ((id :: BasePart).Position - root.Position).Magnitude > 12 then return nil end
 	id:Destroy()

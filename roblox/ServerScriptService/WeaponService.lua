@@ -408,8 +408,13 @@ function WeaponService.fire(c: any, origin: Vector3, direction: Vector3, aiming:
 	return true
 end
 
+-- vecteur fini (ni NaN ni infini) : un NaN passe tous les tests « > 8 studs » et ferait partir un rayon n'importe où
+local function finite(v: Vector3): boolean
+	local m = v.Magnitude
+	return m == m and m < 1e7
+end
 fireEvent.OnServerEvent:Connect(function(player: Player, origin: any, direction: any, aiming: any)
-	if typeof(origin) ~= "Vector3" or typeof(direction) ~= "Vector3" then return end
+	if typeof(origin) ~= "Vector3" or typeof(direction) ~= "Vector3" or not finite(origin) or not finite(direction) then return end
 	if not WeaponService.fire(player, origin, direction, aiming == true) then notify(player) end -- tir refusé : on resynchronise le client
 end)
 switchEvent.OnServerEvent:Connect(function(player: Player, slot: any)

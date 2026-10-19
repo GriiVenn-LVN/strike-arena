@@ -22,13 +22,24 @@ local function look(c: any, on: boolean)
 		local hl = Instance.new("Highlight"); hl.Name = "CrankGlow"; hl.FillColor = PINK; hl.FillTransparency = 0.75
 		hl.OutlineColor = PINK; hl.OutlineTransparency = 0.3; hl.DepthMode = Enum.HighlightDepthMode.Occluded; hl.Parent = ch
 	elseif not on and h then h:Destroy() end
-	local was = ch:GetAttribute("SpeedMult") == SPEED
+	-- vitesse : multipliée par-dessus celle d'avant (modificateur Turbo compris), rendue telle quelle à la fin
+	local base = ch:GetAttribute("CrankBase")     -- présent = déjà survolté ; 0 = pas de multiplicateur avant
+	local was = base ~= nil
+	if O.isPlayer(c) and not on then (c :: Player):SetAttribute("ModeLine", nil) end
+	if was == on then return end
 	local hum = ch:FindFirstChildOfClass("Humanoid")
-	if hum and not O.isPlayer(c) and was ~= on then   -- le joueur, lui, applique SpeedMult dans son mouvement
+	if hum and not O.isPlayer(c) then   -- le joueur, lui, applique SpeedMult dans son mouvement
 		hum.WalkSpeed = if on then hum.WalkSpeed * SPEED else hum.WalkSpeed / SPEED
 	end
-	ch:SetAttribute("SpeedMult", if on then SPEED else nil)
-	if O.isPlayer(c) and not on then (c :: Player):SetAttribute("ModeLine", nil) end
+	if on then
+		local cur = ch:GetAttribute("SpeedMult")
+		local mult = if typeof(cur) == "number" then cur else 1
+		ch:SetAttribute("CrankBase", if typeof(cur) == "number" then cur else 0)
+		ch:SetAttribute("SpeedMult", mult * SPEED)
+	else
+		ch:SetAttribute("SpeedMult", if typeof(base) == "number" and base > 0 then base else nil)
+		ch:SetAttribute("CrankBase", nil)
+	end
 end
 local function clear(m: any, c: any)
 	local k = MS().keyOf(c)

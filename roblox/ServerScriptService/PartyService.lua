@@ -72,10 +72,12 @@ end)
 leaveFn.OnServerInvoke = function(player: Player) leave(player); return true end
 
 -- Le chef lance : serveur réservé + téléportation de tout le groupe
-startFn.OnServerInvoke = function(player: Player, placeId: any)
+-- toujours ce jeu-ci : un numéro de place venu du client enverrait tout le groupe vers n'importe quel jeu
+local RateLimit = require(script.Parent.RateLimit)
+startFn.OnServerInvoke = function(player: Player, _placeId: any)
 	local id = partyOf[player]; local party = id and parties[id]
-	if not party or party.leader ~= player then return false end
-	local pid = if typeof(placeId) == "number" then placeId else game.PlaceId
+	if not party or party.leader ~= player or not RateLimit.ok(player, "PartyStart", 5) then return false end
+	local pid = game.PlaceId
 	local ok, code = pcall(function() return TeleportService:ReserveServer(pid) end)
 	if not ok then return false end
 	local opts = Instance.new("TeleportOptions"); opts.ReservedServerAccessCode = code

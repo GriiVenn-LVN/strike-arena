@@ -33,6 +33,7 @@ local NetService = require(script.Parent.NetService)
 local PartyService = require(script.Parent.PartyService)
 local MapVote = require(script.Parent.MapVote)
 local ArrivalService = require(script.Parent.ArrivalService)
+local RateLimit = require(script.Parent.RateLimit)
 
 local TDM = ModeConfig.TDM
 local U = Config.STUDS_PER_METER
@@ -353,6 +354,8 @@ spawnBot = function(m: Match, team: string, name: string?): Model
 	statOf(m, model)
 	applyMut(m, model)
 	if m.mod.onSpawn then m.mod.onSpawn(m, model, model) end
+	-- arrivé pendant « PRÉPAREZ-VOUS » (un joueur qui rejoint) : immobile comme les autres jusqu'au départ
+	if m.state == "warmup" then BotService.freezeMatch(m.id, true) end
 	local hum = model:FindFirstChildOfClass("Humanoid") :: Humanoid
 	local botName = model.Name
 	hum.Died:Connect(function()
@@ -388,7 +391,8 @@ liveBots = function(m: Match, team: string?): { Model }
 	return l
 end
 function MatchService.balanceBots(m: Match)
-	if m.state ~= "live" and m.state ~= "warmup" then return end
+	-- partie fermée : un départ juste avant la fermeture (task.delay de leave) ne doit pas recréer des bots sans carte
+	if m.closed or (m.state ~= "live" and m.state ~= "warmup") then return end
 	if m.mod.noBots then return end
 	local groups: { { string? } } = if m.teams then { { m.teams[1] }, { m.teams[2] } } else { { nil } }
 	for _, g in ipairs(groups) do
@@ -671,6 +675,7 @@ function MatchService.join(p: Player, m: Match, prefer: string?): boolean
 	p:SetAttribute("MatchMap", m.folderName)
 	p:SetAttribute("MatchMode", m.mode)
 	p.Team = nil
+	p:SetAttribute("DuelTeam", nil)          -- une équipe de duel restée posée fausserait tir ami et équipes
 	MatchService.setTeam(m, p, pickTeam(m, p, prefer))
 	statOf(m, p)
 	if m.state == "live" or m.state == "warmup" then
@@ -946,6 +951,11 @@ function MatchService.list(): { any }
 	return l
 end
 
+-- en duel (ou en file d'attente d'une plateforme) : on ne l'emmène pas dans une partie
+local function inDuel(q: Player): boolean
+	return q:GetAttribute("DuelQueued") ~= nil or q:GetAttribute("Zone") == "duel"
+end
+
 -- Lancer une partie avec ses réglages : le joueur et les membres de son groupe y entrent
 function MatchService.hostFor(p: Player, settings: any): (boolean, string?)
 	if not PartyService.isLeader(p) then return false, "Seul le chef du groupe lance la partie" end
@@ -953,8 +963,9 @@ function MatchService.hostFor(p: Player, settings: any): (boolean, string?)
 	if not m then return false, "Serveur plein : rejoins une partie en cours" end
 	local group = PartyService.membersOf(p)
 	for _, q in ipairs(group) do
-		if q.Parent then
-			matchOfPlayer[q] = nil
+		if q.Parent and (q == p or not inDuel(q)) then
+			-- quitter vraiment l'ancienne partie (sinon il y resterait compté et elle ne se libérerait jamais)
+			if matchOfPlayer[q] then MatchService.leave(q, true) end
 			MatchService.join(q, m, if q == p then m.settings.side else nil)
 		end
 	end
@@ -988,7 +999,7 @@ function MatchService.playOnline(p: Player, settings: any): (boolean, string?)
 		if m then
 			local ok = MatchService.join(p, m, s.side)
 			for _, q in ipairs(group) do
-				if q ~= p and q.Parent then MatchService.join(q, m) end
+				if q ~= p and q.Parent and not inDuel(q) then MatchService.join(q, m) end
 			end
 			if ok then return true, nil end
 		end
@@ -1011,15 +1022,21 @@ function MatchService.quick(p: Player, mode: string?): (boolean, string?)
 	return MatchService.hostFor(p, { mode = pick, map = maps[math.random(#maps)], diff = 3 })
 end
 
+-- cadence : chaque lancement construit une carte entière ; un client qui spamme occuperait toutes les places du serveur
+local BUSY = "Doucement : une partie à la fois"
 createFn.OnServerInvoke = function(p: Player, settings: any)
-	if p:GetAttribute("DuelQueued") or p:GetAttribute("Zone") == "duel" then return false, "Termine ton duel d'abord" end
+	if inDuel(p) then return false, "Termine ton duel d'abord" end
+	if not RateLimit.ok(p, "MatchCreate", 2) then return false, BUSY end
 	return MatchService.playOnline(p, settings)
 end
 quickFn.OnServerInvoke = function(p: Player, mode: any)
-	if p:GetAttribute("DuelQueued") or p:GetAttribute("Zone") == "duel" then return false, "Termine ton duel d'abord" end
+	if inDuel(p) then return false, "Termine ton duel d'abord" end
+	if not RateLimit.ok(p, "MatchCreate", 2) then return false, BUSY end
 	return MatchService.quick(p, if typeof(mode) == "string" and Modes.LIST[mode] then mode else nil)
 end
 joinFn.OnServerInvoke = function(p: Player, id: any)
+	if inDuel(p) then return false, "Termine ton duel d'abord" end
+	if not RateLimit.ok(p, "MatchJoin", 1) then return false, BUSY end
 	local m = if typeof(id) == "number" then matches[id] else nil
 	if not m or m.settings.private then return false, "Cette partie n'existe plus" end
 	if MatchService.join(p, m) then return true, nil end

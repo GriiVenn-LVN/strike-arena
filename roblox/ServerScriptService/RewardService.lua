@@ -304,7 +304,8 @@ function RewardService.finishMatch(player: Player, summary: any)
 	local xp = 40 + summary.kills * 10 + summary.hs * 5 + (summary.won and 120 or 0) + obj * 25
 	local base = xp
 	if summary.mode == Modes.featured() then xp *= 2; line("Mode de la semaine ×2", base) end   -- mode de la semaine : XP ×2 (affiché sur l'accueil du menu)
-	local coins = math.floor(xp * 0.15)   -- ~35 pièces par partie : progression lente, comme sur le web
+	-- pièces tirées de l'XP de base (web : coinsGain = xp × 0,15 avant le ×2 du mode de la semaine, qui ne double que l'XP)
+	local coins = math.floor(base * 0.15)   -- ~35 pièces par partie : progression lente, comme sur le web
 	-- XP ×2 du week-end et du passe XP ×2 : chacun ajoute l'XP de base de la partie (pas de pièces en plus)
 	local weekend = RewardService.weekend()
 	if weekend then xp += base; line("Week-end XP ×2", base) end
