@@ -23,11 +23,21 @@ local THEME = {
 	haunt = Color3.fromRGB(120, 90, 160), halloween = Color3.fromRGB(240, 120, 40),
 }
 
-local gui = Instance.new("ScreenGui"); gui.Name = "MapVote"; gui.ResetOnSpawn = false; gui.DisplayOrder = 11
+-- DisplayOrder 14 : au-dessus du bilan de la partie (RewardScreen, 13) qui le cachait en partie, sous le menu (19)
+local gui = Instance.new("ScreenGui"); gui.Name = "MapVote"; gui.ResetOnSpawn = false; gui.DisplayOrder = 14
 gui.IgnoreGuiInset = true; gui.Enabled = false; gui.Parent = player:WaitForChild("PlayerGui")
 local root = Instance.new("Frame")
 root.AnchorPoint = Vector2.new(0.5, 1); root.Position = UDim2.new(0.5, 0, 1, -128); root.Size = UDim2.fromOffset(660, 96)
 root.BackgroundTransparency = 1; root.Parent = gui
+-- petits écrans : même réduction que l'écran de fin de HudController (bouton « Quitter » et compte à rebours dessous)
+local rootScale = Instance.new("UIScale"); rootScale.Parent = root
+local function fit(): number
+	local cam = workspace.CurrentCamera
+	local vp = if cam then cam.ViewportSize else Vector2.new(1600, 900)
+	local k = math.clamp(math.min(vp.X / 1400, vp.Y / 800), 0.5, 1)
+	rootScale.Scale = k
+	return k
+end
 local head = Instance.new("TextLabel")
 head.BackgroundTransparency = 1; head.Size = UDim2.new(1, 0, 0, 18); head.FontFace = FONT; head.TextSize = 13; head.TextColor3 = DIM
 head.Text = "VOTE POUR LA PROCHAINE CARTE  ·  1  2  3"; head.Parent = root
@@ -103,8 +113,9 @@ push.OnClientEvent:Connect(function(d: any)
 		build(d.options)
 		head.Text = "VOTE POUR LA PROCHAINE CARTE  ·  1  2  3"; head.TextColor3 = DIM
 		gui.Enabled = true; doneT += 1
-		root.Position = UDim2.new(0.5, 0, 1, -96)
-		TweenService:Create(root, TweenInfo.new(0.35, Enum.EasingStyle.Quad), { Position = UDim2.new(0.5, 0, 1, -128) }):Play()
+		local k = fit()
+		root.Position = UDim2.new(0.5, 0, 1, -96 * k)
+		TweenService:Create(root, TweenInfo.new(0.35, Enum.EasingStyle.Quad), { Position = UDim2.new(0.5, 0, 1, -128 * k) }):Play()
 	end
 	if d.mine then mine = d.mine end
 	paint(d.votes or {})

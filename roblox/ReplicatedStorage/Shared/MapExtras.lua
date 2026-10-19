@@ -208,10 +208,12 @@ function MapExtras.build(b: Build, info: any)
 		local d = rng:NextNumber(0.9, 2.2) * U
 		local ox, oz = rng:NextNumber(-0.5, 0.5) * U, rng:NextNumber(-0.5, 0.5) * U
 		local col = darker(floorCol, 0.32)
-		local p = part(folder, "Flaque", Vector3.new(0.03, d, d), CFrame.new(at(c, ox, oz, 0.07)) * CFrame.Angles(0, 0, math.pi / 2), col, Enum.Material.Glass)
+		-- dessus des surfaces au sol (studs) : sol dessiné 0,01, calque d'ombres 0,09 (écarté par MapBuilder), saleté 0,13,
+		-- flaque 0,18, petite flaque 0,23 ; à moins de 0,04 stud l'une de l'autre, elles scintillaient (z-fighting) au loin
+		local p = part(folder, "Flaque", Vector3.new(0.03, d, d), CFrame.new(at(c, ox, oz, 0.165)) * CFrame.Angles(0, 0, math.pi / 2), col, Enum.Material.Glass)
 		local pc = p :: Part; pc.Shape = Enum.PartType.Cylinder; p.Transparency = 0.3; p.Reflectance = 0.25
 		local d2 = d * rng:NextNumber(0.45, 0.7)
-		local q = part(folder, "Flaque", Vector3.new(0.03, d2, d2), CFrame.new(at(c, ox + (d - d2) * 0.45, oz + rng:NextNumber(-0.3, 0.3) * d, 0.082)) * CFrame.Angles(0, 0, math.pi / 2), col, Enum.Material.Glass)
+		local q = part(folder, "Flaque", Vector3.new(0.03, d2, d2), CFrame.new(at(c, ox + (d - d2) * 0.45, oz + rng:NextNumber(-0.3, 0.3) * d, 0.215)) * CFrame.Angles(0, 0, math.pi / 2), col, Enum.Material.Glass)
 		local qc = q :: Part; qc.Shape = Enum.PartType.Cylinder; q.Transparency = 0.3; q.Reflectance = 0.25
 	end
 
@@ -233,7 +235,7 @@ function MapExtras.build(b: Build, info: any)
 				local depth = rng:NextNumber(0.3, 0.7) * U
 				local sx = if c.dx ~= 0 then depth else len
 				local sz = if c.dz ~= 0 then depth else len
-				local pos = at(c, c.dx * (CELL / 2 - depth / 2) + (if c.dx == 0 then along else 0), c.dz * (CELL / 2 - depth / 2) + (if c.dz == 0 then along else 0), 0.06)
+				local pos = at(c, c.dx * (CELL / 2 - depth / 2) + (if c.dx == 0 then along else 0), c.dz * (CELL / 2 - depth / 2) + (if c.dz == 0 then along else 0), 0.115)
 				local mat = if themeName == "sand" or themeName == "jungle" then Enum.Material.Ground elseif themeName == "metro" or themeName == "night" or themeName == "industrial" or themeName == "range" then Enum.Material.Asphalt else Enum.Material.Mud
 				local p = part(folder, "Salete", Vector3.new(sx, 0.03, sz), CFrame.new(pos), darker(floorCol, rng:NextNumber(0.45, 0.65)), mat)
 				p.Transparency = rng:NextNumber(0.35, 0.55)
@@ -424,6 +426,14 @@ function MapExtras.build(b: Build, info: any)
 		e.RotSpeed = NumberRange.new(-6, 6); e.Rotation = NumberRange.new(0, 360); e.LightInfluence = 1
 		e.Enabled = not low(); e.Parent = p
 		table.insert(sv.emitters, e)
+	end
+
+	-- vraies lampes du web posées par le serveur (MapBuilder) : leurs ombres suivent aussi le réglage de qualité
+	local lf = b.folder:FindFirstChild("Lights")
+	if lf then
+		for _, l in ipairs(lf:GetDescendants()) do
+			if l:IsA("Light") and l.Shadows then table.insert(sv.shadows, l); l.Shadows = not low() end
+		end
 	end
 
 	-- qualité : les réglages (ombres) coupent particules et ombres des lampes

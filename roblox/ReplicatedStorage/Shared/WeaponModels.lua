@@ -164,13 +164,18 @@ local function make(key: string, scale: number): Model
 	else
 		local ok = false
 		local folder = ReplicatedStorage.Shared:FindFirstChild("WeaponMeshes")
-		local src = folder and folder:FindFirstChild(key)
+		-- armes spéciales des zombies (look = arme de base) : même maillage et même clé MeshAssets que l'arme de base.
+		-- Avec leur propre clé (« w:winter#1/… »), jamais envoyée par MeshUploader (en mode Edit elles n'existent pas),
+		-- chaque pièce retombait sur un EditableMesh côté joueur et saturait sa mémoire de maillages.
+		local wa = w :: any
+		local meshKey = if wa and type(wa.look) == "string" and folder and folder:FindFirstChild(wa.look) then wa.look :: string else key
+		local src = folder and folder:FindFirstChild(meshKey)
 		if src and (WeaponModels.meshApi or MeshStore.count() > 0) then
 			local err
 			ok, err = pcall(function()
 				local groups = require(src :: ModuleScript) :: any
 				for gi, g in ipairs(groups) do
-					local mp, center = meshPiece(g, key .. "#" .. gi, scale)
+					local mp, center = meshPiece(g, meshKey .. "#" .. gi, scale)
 					if mp then
 						local look = LOOK[g.role]
 						mp.Name = g.part .. "_" .. g.role
@@ -195,6 +200,13 @@ local function make(key: string, scale: number): Model
 			end
 		end
 		if not ok and inf then blockGun(model, grip, key, scale) end
+		-- armes spéciales : teinte propre (web : col) sur la carcasse, pour ne pas ressembler à l'arme de base
+		local wc = (w :: any) and (w :: any).color
+		if wc and typeof(wc) == "Color3" and (w :: any).cat == "wonder" then
+			for _, c in ipairs(model:GetChildren()) do
+				if c:IsA("BasePart") and c ~= grip and c:GetAttribute("Role") == "body" then c.Color = wc end
+			end
+		end
 	end
 	local muzzle = Instance.new("Attachment"); muzzle.Name = "Muzzle"; muzzle.Position = Vector3.new(0, sightY * 0.6, muzzleZ); muzzle.Parent = grip
 	local left = Instance.new("Attachment"); left.Name = "LeftHand"

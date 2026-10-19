@@ -143,15 +143,161 @@ local faceMain = MapScene.faceMain
 
 local function mulC(a: Color3, b: Color3): Color3 return Color3.new(a.R * b.R, a.G * b.G, a.B * b.B) end
 
+-- graine de la petite variation de teinte (MapScene.vary) de chaque bloc. Les blocs alignés dont une face est dans le
+-- même plan qu'une face d'un autre bloc et la recouvre en partie (dalles de 2,12 m posées tous les 2 m, murs du web qui
+-- se chevauchent), du même matériau et de la même couleur, prennent la même graine : sinon la bande commune clignote
+-- entre les deux teintes (z-fighting), en quadrillage sur les sols des 10 cartes (environ 2 000 recouvrements par carte,
+-- mesurés sur MapScenes).
+local function shadeSeeds(list: { MapScene.Prim }): { number }
+	local parent = table.create(#list, 0)
+	for i = 1, #list do parent[i] = i end
+	local function find(i: number): number
+		while parent[i] ~= i do parent[i] = parent[parent[i]]; i = parent[i] end
+		return i
+	end
+	-- faces de chaque bloc aligné : plan (axe, sens, position au millimètre) -> { bloc, rectangle sur les deux autres axes }
+	local planes: { [string]: { { any } } } = {}
+	for i, p in ipairs(list) do
+		if p.kind == 0 then
+			local half = { 0, 0, 0 }
+			local aligned = true
+			local look = faceMain(p) .. "|" .. (if p.color then p.color:ToHex() else "")
+			for j, v in ipairs({ p.rot.XVector, p.rot.YVector, p.rot.ZVector }) do
+				local c = { math.abs(v.X), math.abs(v.Y), math.abs(v.Z) }
+				local ax = if c[1] > 0.999 then 1 elseif c[2] > 0.999 then 2 elseif c[3] > 0.999 then 3 else 0
+				if ax == 0 then aligned = false; break end
+				half[ax] = (if j == 1 then p.size.X elseif j == 2 then p.size.Y else p.size.Z) / 2
+			end
+			if aligned then
+				local c = { p.pos.X, p.pos.Y, p.pos.Z }
+				for ax = 1, 3 do
+					local o1, o2 = if ax == 1 then 2 else 1, if ax == 3 then 2 else 3
+					local rect = { i, c[o1] - half[o1], c[o1] + half[o1], c[o2] - half[o2], c[o2] + half[o2] }
+					for _, sg in ipairs({ -1, 1 }) do
+						local key = ax .. (if sg > 0 then "+" else "-") .. math.floor((c[ax] + sg * half[ax]) * 1000 + 0.5) .. "|" .. look
+						local l = planes[key]
+						if not l then l = {}; planes[key] = l end
+						table.insert(l, rect)
+					end
+				end
+			end
+		end
+	end
+	for _, l in pairs(planes) do
+		for a = 1, #l - 1 do
+			local ra = l[a]
+			for b = a + 1, #l do
+				local rb = l[b]
+				if math.min(ra[3], rb[3]) - math.max(ra[2], rb[2]) > 0.01 and math.min(ra[5], rb[5]) - math.max(ra[4], rb[4]) > 0.01 then
+					local x, y = find(ra[1]), find(rb[1])
+					if x ~= y then parent[math.max(x, y)] = math.min(x, y) end
+				end
+			end
+		end
+	end
+	local seeds = table.create(#list, 0)
+	for i = 1, #list do seeds[i] = find(i) end
+	return seeds
+end
+
+-- ---------- faces presque confondues (z-fighting) ----------
+-- Le web empile des surfaces à quelques millimètres les unes des autres (calque d'ombres 1,2 cm au-dessus du sol dessiné,
+-- nez de marche 5 mm au-dessus de la marche, affiches et vitraux contre les murs) : sous Roblox elles scintillent l'une
+-- dans l'autre dès qu'on s'éloigne. Quand deux faces alignées de même sens se recouvrent à moins de GAP studs (GAP_BIG
+-- pour deux grandes surfaces vues de loin), la face extérieure (celle du plus petit bloc si elles sont confondues) est
+-- avancée jusqu'à cet écart en allongeant son bloc : 5 cm au plus (mesuré sur les 10 cartes : 60 à 170 faces par carte),
+-- invisible. Deux faces confondues de même matériau, même couleur et même transparence (dalles qui se chevauchent) ne
+-- bougent pas : elles ne peuvent pas scintiller.
+local GAP, GAP_BIG = 0.05, 0.08
+type Face = { part: BasePart, look: string, j: number, axv: Vector3, sg: number, off: number, qoff: number, adj: number, r: { number }, area: number }
+local function separateFaces(items: { { part: BasePart, prim: MapScene.Prim } })
+	local buckets: { [number]: { Face } } = {}
+	for _, it in ipairs(items) do
+		local p, q = it.prim, it.part
+		if p.kind == 0 then
+			local half, jOf, sOf = { 0, 0, 0 }, { 0, 0, 0 }, { 1, 1, 1 }
+			local ok = true
+			local sz = q.Size
+			for j, v in ipairs({ q.CFrame.XVector, q.CFrame.YVector, q.CFrame.ZVector }) do
+				local ax = if math.abs(v.X) > 0.999 then 1 elseif math.abs(v.Y) > 0.999 then 2 elseif math.abs(v.Z) > 0.999 then 3 else 0
+				if ax == 0 then ok = false; break end
+				half[ax] = (if j == 1 then sz.X elseif j == 2 then sz.Y else sz.Z) / 2
+				jOf[ax] = j
+				sOf[ax] = if (if ax == 1 then v.X elseif ax == 2 then v.Y else v.Z) > 0 then 1 else -1
+			end
+			if ok then
+				local pos = q.Position
+				local c = { pos.X, pos.Y, pos.Z }
+				local hidden = q.Transparency >= 0.999
+				local look = q.Material.Name .. q.Color:ToHex() .. q.Transparency
+				for ax = 1, 3 do
+					local o1, o2 = if ax == 1 then 2 else 1, if ax == 3 then 2 else 3
+					local r = { c[o1] - half[o1], c[o1] + half[o1], c[o2] - half[o2], c[o2] + half[o2] }
+					for _, sg in ipairs({ -1, 1 }) do
+						-- bloc invisible (texture découpée posée par le client) : seules ses faces texturées comptent
+						local k = (jOf[ax] - 1) * 2 + (if sg * sOf[ax] > 0 then 1 else 2)
+						if not hidden or p.mats[k] > 0 then
+							local key = ax * 2 + (if sg > 0 then 1 else 0)
+							local l = buckets[key]
+							if not l then l = {}; buckets[key] = l end
+							local off = c[ax] + sg * half[ax]
+							table.insert(l, { part = q, look = look, j = jOf[ax], axv = if ax == 1 then Vector3.xAxis elseif ax == 2 then Vector3.yAxis else Vector3.zAxis,
+								sg = sg, off = off * sg, qoff = math.floor(off * sg * 10000 + 0.5), adj = off * sg, r = r, area = (r[2] - r[1]) * (r[4] - r[3]) })
+						end
+					end
+				end
+			end
+		end
+	end
+	local grow: { [BasePart]: { size: Vector3, shift: Vector3 } } = {}
+	for _, l in pairs(buckets) do
+		-- tri par plan (au 1/10 000 de stud, ordre strict) puis du plus grand au plus petit bloc
+		table.sort(l, function(a, b)
+			if a.qoff ~= b.qoff then return a.qoff < b.qoff end
+			return a.area > b.area
+		end)
+		for i = 2, #l do
+			local f = l[i]
+			local fp = f.part
+			for gi = i - 1, 1, -1 do
+				local g = l[gi]
+				if f.off - g.off > GAP_BIG then break end
+				if g.part ~= fp and not (f.qoff == g.qoff and f.look == g.look) then
+					local ox = math.min(f.r[2], g.r[2]) - math.max(f.r[1], g.r[1])
+					local oy = math.min(f.r[4], g.r[4]) - math.max(f.r[3], g.r[3])
+					if ox > 0.05 and oy > 0.05 then
+						local need = if math.min(ox, oy) > 100 then GAP_BIG else GAP
+						if f.adj < g.adj + need then f.adj = g.adj + need end
+					end
+				end
+			end
+			local d = f.adj - f.off
+			if d > 1e-5 then
+				local gr = grow[fp]
+				if not gr then gr = { size = Vector3.zero, shift = Vector3.zero }; grow[fp] = gr end
+				gr.size += if f.j == 1 then Vector3.new(d, 0, 0) elseif f.j == 2 then Vector3.new(0, d, 0) else Vector3.new(0, 0, d)
+				gr.shift += f.axv * (f.sg * d / 2)
+			end
+		end
+	end
+	for q, gr in pairs(grow) do
+		q.Size += gr.size
+		q.CFrame = q.CFrame + gr.shift
+	end
+end
+
 local function buildVisuals(folder: Folder, id: string, origin: Vector3): number
 	local info = MapScene.info(id)
 	if not info then return 0 end
 	local vis = Instance.new("Folder"); vis.Name = "Visuals"
 	local mats = info.mats
 	local count = 0
+	local items: { { part: BasePart, prim: MapScene.Prim } } = {}
 	local md = MapData[id]
 	local theme, base = md and md.theme, md and md.base
-	for i, p in ipairs(MapScene.prims(id)) do
+	local list = MapScene.prims(id)
+	local seeds = shadeSeeds(list)
+	for i, p in ipairs(list) do
 		local mi = if p.kind == 0 then faceMain(p) else p.mats[1]
 		local m: MapScene.Mat? = if mi > 0 then mats[mi] else nil
 		if m then
@@ -177,7 +323,7 @@ local function buildVisuals(folder: Folder, id: string, origin: Vector3): number
 				local g = if s2 > 2.5 * U then MapScene.guessMaterial(col) else nil
 				if g then q.Material = g; hd = g end
 			end
-			if hd and not ground then col = MapScene.vary(col, i) end
+			if hd and not ground then col = MapScene.vary(col, seeds[i]) end
 			q.Color = col
 			if m.refl then q.Reflectance = m.refl end
 			local tr = m.a or 0
@@ -203,24 +349,36 @@ local function buildVisuals(folder: Folder, id: string, origin: Vector3): number
 				q.CFrame = cf
 			else
 				q.Size = Vector3.new(math.clamp(size.X, 0.02, MAXP), math.clamp(size.Y, 0.02, MAXP), math.clamp(size.Z, 0.02, MAXP))
+				-- grand sol extérieur (plan de 600 m, 2 cm sous le sol de jeu sur le web ; mer en métal du port et du labo) :
+				-- descendu de 8 cm, sinon il perce le sol de jeu au loin
+				if big and not m.tex and m.det == nil then cf = cf - Vector3.new(0, 0.3, 0) end
 				q.CFrame = cf
+				table.insert(items, { part = q :: BasePart, prim = p })
 			end
 			q:SetAttribute("P", i)                             -- numéro de la primitive : le client y pose les textures du web
 			q.Parent = vis
 			count += 1
 		end
 	end
+	separateFaces(items)
 	vis.Parent = folder
 	-- vraies lampes du web
 	if #info.lights > 0 then
 		local lf = Instance.new("Folder"); lf.Name = "Lights"
-		for _, L in ipairs(info.lights) do
+		-- ombres pour les 4 lampes les plus fortes seulement : chaque lumière à ombres coûte cher en éclairage Future
+		-- (jusqu'à 10 lampes dans le métro, plus les projecteurs et lampes de MapExtras côté client)
+		local order = {}
+		for k in ipairs(info.lights) do table.insert(order, k) end
+		table.sort(order, function(x: number, y: number) return info.lights[x].i > info.lights[y].i end)
+		local shadowed: { [number]: boolean } = {}
+		for r = 1, math.min(4, #order) do shadowed[order[r]] = true end
+		for li, L in ipairs(info.lights) do
 			local a = Instance.new("Part"); a.Name = "Lamp"; a.Anchored = true; a.CanCollide = false; a.CanQuery = false; a.CanTouch = false
 			a.Transparency = 1; a.Size = Vector3.new(0.2, 0.2, 0.2); a.CastShadow = false
 			a.Position = origin + Vector3.new(L.p[1], L.p[2], L.p[3]) * U
 			local pl = Instance.new("PointLight")
 			pl.Color = MapScene.color(L.c); pl.Range = math.clamp((if L.d > 0 then L.d else 20) * U * 0.6, 8, 60)
-			pl.Brightness = math.clamp(L.i / 9, 0.4, 3); pl.Shadows = true    -- ombres des lampes (éclairage Future)
+			pl.Brightness = math.clamp(L.i / 9, 0.4, 3); pl.Shadows = shadowed[li] == true    -- ombres des lampes (éclairage Future)
 			pl.Parent = a; a.Parent = lf
 		end
 		lf.Parent = folder

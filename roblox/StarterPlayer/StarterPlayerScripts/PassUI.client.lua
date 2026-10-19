@@ -25,7 +25,8 @@ local function call(name: string, ...: any): any
 	return if ok then res else nil
 end
 
-local gui = make("ScreenGui", { Name = "PassUI", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 31, Enabled = false,
+local gui = make("ScreenGui", { Name = "PassUI", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 32,   -- au-dessus du calendrier (31)
+	Enabled = false,
 	ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, player:WaitForChild("PlayerGui"))
 local veil = make("TextButton", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = K.rgb(0x05080e), BackgroundTransparency = 0.35, Text = "", AutoButtonColor = false, Modal = true }, gui)
 local win = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(1120, 600), BackgroundTransparency = 0,
@@ -57,9 +58,11 @@ local function toast(msg: string, col: Color3?)
 	toastL.Text = msg; toastL.TextColor3 = col or C.gold
 	task.delay(3.5, function() if my == toastN then toastL.Text = "" end end)
 end
--- libellés des deux rangées
-text(win, { Position = UDim2.fromOffset(28, 168), Size = UDim2.fromOffset(100, 16), Font = K.BLACK, TextSize = 11, TextColor3 = C.sub, Text = spaced("GRATUIT", 2) })
-text(win, { Position = UDim2.fromOffset(28, 368), Size = UDim2.fromOffset(100, 16), Font = K.BLACK, TextSize = 11, TextColor3 = C.gold, Text = "⭐ " .. spaced("PREMIUM", 2) })
+-- libellés des deux rangées (78 px : la rangée de paliers commence à 110 px, « ⭐ P  R  E  M… » mordait sur la 1re case)
+text(win, { Position = UDim2.fromOffset(28, 168), Size = UDim2.fromOffset(78, 16), Font = K.BLACK, TextSize = 11, TextColor3 = C.sub, Text = spaced("GRATUIT", 1),
+	TextWrapped = false, TextTruncate = Enum.TextTruncate.AtEnd })
+text(win, { Position = UDim2.fromOffset(28, 368), Size = UDim2.fromOffset(78, 16), Font = K.BLACK, TextSize = 11, TextColor3 = C.gold, Text = "⭐ " .. spaced("PREMIUM", 1),
+	TextWrapped = false, TextTruncate = Enum.TextTruncate.AtEnd })
 local track = K.scroll(win, { Position = UDim2.fromOffset(110, 160), Size = UDim2.new(1, -130, 0, 400), ScrollingDirection = Enum.ScrollingDirection.X,
 	AutomaticCanvasSize = Enum.AutomaticSize.X, ScrollBarThickness = 6 })
 K.hlist(track, 10, Enum.VerticalAlignment.Top)

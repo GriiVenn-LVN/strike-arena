@@ -354,17 +354,19 @@ function MapAmbience.apply(f: Instance)
 	pcall(setClouds, st, th)                           -- métro : cov = 0, pas de nuages
 
 	-- atmosphère : brume de la couleur du brouillard du web, plus dense sur les cartes courtes (asile : 78 m) que sur les
-	-- grandes (village : 210 m) ; halo autour du soleil le jour, horizon fondu dans le ciel
+	-- grandes (village : 210 m) ; halo autour du soleil le jour, horizon fondu dans le ciel. Plafond 0,36 : au-delà (0,44
+	-- dans l'asile, avec un voile de 1,6), la brume quasi noire de nuit cachait le bout des couloirs et les zombies à 25 m,
+	-- alors que le brouillard linéaire du web laisse encore voir à mi-carte.
 	pcall(function()
 		local a = Instance.new("Atmosphere")
 		a.Name = "MapAtmosphere"
 		local far = th.fogF or 200
-		a.Density = math.clamp(0.04 + 0.26 * 120 / far, 0.18, 0.5)
+		a.Density = math.clamp(0.04 + 0.26 * 120 / far, 0.18, 0.36)
 		a.Offset = if themeName == "metro" then 0 else 0.12
 		a.Color = c3(th.fog)
 		a.Decay = scale(c3(th.hemiG), 0.85)
 		a.Glare = if night or themeName == "metro" then 0 else 0.35
-		a.Haze = if base == "haunt" then 1.6 elseif night then 1.1 else 0.9
+		a.Haze = if base == "haunt" then 1.2 elseif night then 1 else 0.9
 		a.Parent = Lighting
 		st.atmo = a
 	end)

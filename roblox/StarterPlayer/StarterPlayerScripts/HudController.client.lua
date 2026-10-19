@@ -878,6 +878,20 @@ local endLeave = make("TextButton", { AnchorPoint = Vector2.new(0.5, 1), Positio
 	AutoButtonColor = true, Modal = true, ZIndex = 32 }, endFrame)
 corner(endLeave, 4)
 make("UIStroke", { Color = C.red, Thickness = 1.5, Transparency = 0.2, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, endLeave)
+-- petits écrans (téléphone à l'horizontale : 844 × 390) : tout l'écran de fin rétrécit et les bandeaux du bas (bouton,
+-- compte à rebours, vote de la carte de MapVoteController) se resserrent ; sinon cartes, bouton et vote se chevauchaient
+local endScales: { UIScale } = {}
+for _, o in ipairs({ endScore, endCards, endNext, endLeave } :: { GuiObject }) do table.insert(endScales, make("UIScale", { Scale = 1 }, o)) end
+local function endLayout(): number
+	local cam = workspace.CurrentCamera
+	local vp = if cam then cam.ViewportSize else Vector2.new(1600, 900)
+	local k = math.clamp(math.min(vp.X / 1400, vp.Y / 800), 0.5, 1)
+	for _, sc in ipairs(endScales) do sc.Scale = k end
+	endLeave.Position = UDim2.new(0.5, 0, 1, -76 * k)
+	endNext.Position = UDim2.new(0.5, 0, 1, -40 * k)
+	return k
+end
+
 endLeave.Activated:Connect(function()
 	endLeave.Text = spaced("RETOUR AU SALON…", 1)
 	local ok = pcall(function() leaveFn:InvokeServer() end)
@@ -909,8 +923,9 @@ endRemote.OnClientEvent:Connect(function(r: any)
 	tween(endFrame, 0.5, { BackgroundTransparency = 0.25 })
 	endTitle.Text = spaced(if r.draw then "ÉGALITÉ" elseif r.won then "VICTOIRE" else "DÉFAITE", 2)
 	endTitle.TextColor3 = if r.draw then C.text elseif r.won then C.gold else C.red
-	endTitleScale.Scale = 2.2; endTitle.TextTransparency = 1
-	tween(endTitleScale, 0.5, { Scale = 1 }, Enum.EasingStyle.Back); tween(endTitle, 0.3, { TextTransparency = 0 })
+	local k = endLayout()
+	endTitleScale.Scale = 2.2 * k; endTitle.TextTransparency = 1
+	tween(endTitleScale, 0.5, { Scale = k }, Enum.EasingStyle.Back); tween(endTitle, 0.3, { TextTransparency = 0 })
 	local t1, t2 = lastState and lastState.teams[1] or "", lastState and lastState.teams[2] or ""
 	if r.team then
 		endScore.Text = string.format("%s  %d  —  %d  %s", t1, r.score[t1] or 0, r.score[t2] or 0, t2)
