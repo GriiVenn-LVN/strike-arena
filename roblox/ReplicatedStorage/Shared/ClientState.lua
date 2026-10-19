@@ -17,6 +17,8 @@ return {
 	reload = reload, onReload = reload.Event,-- (clé, à vide) début de recharge
 	-- déplacements (écrit par MovementController)
 	sprint = false, tactical = false, slide = false, crouch = false, mantle = false,
+	mantleT = 0, mantleDur = 0, mantleHigh = false,  -- escalade : os.clock() du début, durée, rebord haut (grimper) ou bas (enjamber)
+	tacE = 1,                                -- jauge du sprint tactique 0..1
 	fireBlockedUntil = 0,                    -- sortie de sprint : on ne tire pas tout de suite (comme sur le web)
 	drinkUntil = 0, drinkHideUntil = 0,      -- boisson d'atout (PerkDrinkController) : ni tir ni visée / arme rangée jusqu'à ces os.clock()
 	speed = 0, grounded = true, vy = 0,

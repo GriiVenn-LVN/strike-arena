@@ -3,6 +3,8 @@
 -- Animation procédurale des soldats, port direct du jeu web :
 --   src/45_models.js animateSoldier (marche/course depuis la vitesse, accroupi, saut, visée, recharge, mort, places assises)
 --   src/45_models.js danceAnim (8 danses), src/8T_anim.js (sprint, sprint tactique, glissade, escalade, chute, réception, poids)
+-- En plus, façon Call of Duty : recharge en étapes vue de l'extérieur (main gauche au chargeur, à la poche, retour,
+-- claque) et escalade en deux temps (mains qui agrippent le rebord au-dessus de la tête, puis poussent quand le corps monte).
 -- Tout est calculé en mètres dans le repère du soldat (pieds en 0, regard vers -Z, droite vers +X : mêmes axes que three.js).
 -- step(R, st, dt, t) renvoie la pose : repères des groupes (bassin, buste, cou, tête, jambes), arme et cibles des mains.
 local Anim = {}
@@ -10,6 +12,7 @@ local Anim = {}
 local sin, cos, abs, max, min, exp, pi = math.sin, math.cos, math.abs, math.max, math.min, math.exp, math.pi
 local function clamp(x: number, a: number, b: number): number return if x < a then a elseif x > b then b else x end
 local function smooth01(x: number): number x = clamp(x, 0, 1); return x * x * (3 - 2 * x) end
+local function lerp(a: number, b: number, t: number): number return a + (b - a) * t end
 local function angDiff(a: number, b: number): number local d = (b - a) % (2 * pi); if d > pi then d -= 2 * pi end; return d end
 local V = Vector3.new
 local function E(x: number, y: number, z: number): CFrame return CFrame.Angles(x, y, z) end   -- Euler XYZ de three.js
@@ -159,7 +162,7 @@ local function layer(R: State, st: Input, dt: number, gp: Vector3, gq: CFrame, a
 	local b = st.bits
 	local w = R.aw
 	if not w then
-		w = { spr = 0, tac = 0, sld = 0, mnt = 0, air = 0, lnd = 0, lv = 0, acc = 0, pfw = 0, og = true, vy = 0, fall = 0 }
+		w = { spr = 0, tac = 0, sld = 0, mnt = 0, mntT = 0, air = 0, lnd = 0, lv = 0, acc = 0, pfw = 0, og = true, vy = 0, fall = 0 }
 		R.aw = w
 	end
 	local function has(f: number): boolean return bit32.band(b, f) ~= 0 end
@@ -170,6 +173,7 @@ local function layer(R: State, st: Input, dt: number, gp: Vector3, gq: CFrame, a
 	w.tac += ((if has(Anim.TAC) then 1 else 0) - w.tac) * f
 	w.sld += ((if has(Anim.SLIDE) then 1 else 0) - w.sld) * fs
 	w.mnt += ((if mant then 1 else 0) - w.mnt) * fs
+	w.mntT = if mant then w.mntT + dt else 0           -- temps depuis le début de l'escalade (le geste n'est pas envoyé)
 	w.air += ((if air then 1 else 0) - w.air) * (1 - exp(-dt * 12))
 	w.vy += (st.vy - w.vy) * min(1, dt * 10)
 	-- réception : ressort amorti, d'autant plus fort que la chute est rapide
@@ -217,9 +221,18 @@ local function layer(R: State, st: Input, dt: number, gp: Vector3, gq: CFrame, a
 		lp(legs.R, 1.42, -0.12, 0.55, -0.05); lp(legs.L, 0.45, -2.15, 0.25, 0.2)
 		hy += (0.36 - hy) * L; hr.y += (0.38 - hr.y) * L; hr.z += (-0.08 - hr.z) * L
 	end
-	if Mn > 0.01 then for _, k in ipairs({ "L", "R" }) do legs[k].th.x += (1.25 - legs[k].th.x) * Mn; legs[k].sh.x += (-1.7 - legs[k].sh.x) * Mn end end
+	-- escalade : genoux remontés pendant qu'on se hisse, puis la jambe droite se pose sur le rebord et pousse
+	local mPush = smooth01((w.mntT - 0.1) / 0.3)
+	if Mn > 0.01 then
+		local step = smooth01((w.mntT - 0.25) / 0.2)
+		for _, k in ipairs({ "L", "R" }) do
+			local th = if k == "R" then lerp(1.25, 1.55, step) else lerp(1.25, 0.7, step)
+			local sh = if k == "R" then lerp(-1.7, -1.9, step) else lerp(-1.7, -0.9, step)
+			legs[k].th.x += (th - legs[k].th.x) * Mn; legs[k].sh.x += (sh - legs[k].sh.x) * Mn
+		end
+	end
 	R.hipsP = V(R.hipsP.X, hy, R.hipsP.Z)
-	R.spineR.x += -0.3 * Sg - 0.2 * T + 0.62 * L - 0.12 * A * clamp(-w.vy / 5, 0, 1) - 0.18 * land - w.acc * 0.12 * (1 - L) - 0.25 * Mn
+	R.spineR.x += -0.3 * Sg - 0.2 * T + 0.62 * L - 0.12 * A * clamp(-w.vy / 5, 0, 1) - 0.18 * land - w.acc * 0.12 * (1 - L) - (0.25 + 0.25 * mPush) * Mn
 	R.spineR.y -= 0.4 * L; R.spineR.z += sin(ph) * 0.05 * Sg
 	R.neckR.x += 0.22 * Sg + 0.12 * T - 0.4 * L + 0.2 * Mn
 	-- arme et bras
@@ -240,8 +253,35 @@ local function layer(R: State, st: Input, dt: number, gp: Vector3, gq: CFrame, a
 		if d.Magnitude > 0.55 then p = S0.L + d.Unit * 0.55 end
 		armTo(arms, R, "L", p, nil)
 	end
-	if Mn > 0.3 then armTo(arms, R, "L", V(-0.22, 0.72, -0.36), nil); armTo(arms, R, "R", V(0.22, 0.72, -0.36), nil) end
+	if Mn > 0.3 then
+		-- mains qui agrippent le rebord au-dessus de la tête, puis poussent dessus : le corps monte, elles descendent
+		local reach = smooth01(w.mntT / 0.12)
+		local gy = lerp(0.62, 0.92, reach) - mPush * 0.62
+		local hz = -0.38 + mPush * 0.06
+		armTo(arms, R, "L", V(-0.22, gy, hz), nil); armTo(arms, R, "R", V(0.22, gy + 0.02, hz - 0.02), nil)
+	end
 	return gp, gq
+end
+
+-- ---------- recharge vue de l'extérieur ----------
+-- rl 0..1 : la main gauche va au chargeur, le tire, le range à la ceinture, revient avec le neuf, l'enfonce
+-- (petite claque), puis reprend le garde-main ; l'arme bascule pendant ce temps (pose de l'arme dans step)
+local POUCH = V(-0.16, -0.06, -0.14)                -- poche à chargeurs, devant la hanche gauche (repère du buste)
+local function reloadHands(R: State, st: Input, arms: { [string]: any }, gp: Vector3, gq: CFrame, rl: number)
+	local left = st.left
+	if not left then return end                       -- arme tenue à une main : rien à faire de la main gauche
+	local hold = gp + gq:VectorToWorldSpace(left)
+	-- puits du chargeur : entre les deux mains, sous l'arme (pistolet : dans la poignée)
+	local mag = gp + gq:VectorToWorldSpace((st.right + left) * 0.5 + V(0, -0.075, 0))
+	local low = mag - V(0, 0.08, 0)
+	local tgt: Vector3
+	if rl < 0.12 then tgt = hold:Lerp(mag, smooth01(rl / 0.12))
+	elseif rl < 0.28 then tgt = mag:Lerp(low, smooth01((rl - 0.12) / 0.16))
+	elseif rl < 0.46 then tgt = low:Lerp(POUCH, smooth01((rl - 0.28) / 0.18))
+	elseif rl < 0.64 then tgt = POUCH:Lerp(low, smooth01((rl - 0.46) / 0.18))
+	elseif rl < 0.74 then tgt = low:Lerp(mag + V(0, 0.015, 0), smooth01((rl - 0.64) / 0.1))
+	else tgt = mag:Lerp(hold, smooth01((rl - 0.76) / 0.14)) end
+	armTo(arms, R, "L", tgt, nil)
 end
 
 -- ---------- pose complète ----------
@@ -331,6 +371,8 @@ function Anim.step(R: State, st: Input, dt: number, t: number): Pose
 		gp = V(gx, gy, gz); gq = E(rx, ry, rz)
 		armsFromGun(arms, R, st, gp, gq, leftDown)
 		if st.seated == 0 then gp, gq = layer(R, st, dt, gp, gq, arms) else R.aw = nil end
+		-- la recharge garde la main gauche, sauf pendant une escalade (les deux mains sur le rebord)
+		if rl >= 0 and not (R.aw and R.aw.mnt > 0.3) then reloadHands(R, st, arms, gp, gq, rl) end
 	end
 	local hips = CFrame.new(R.hipsP) * E(hr.x, hr.y, hr.z)
 	local spine = hips * CFrame.new(R.spineP) * E(sr.x, sr.y, sr.z)
