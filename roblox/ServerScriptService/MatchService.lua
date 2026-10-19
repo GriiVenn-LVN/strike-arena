@@ -936,7 +936,8 @@ function MatchService.list(): { any }
 		if not m.closed and not m.settings.private then
 			table.insert(l, { id = m.id, mode = m.mode, modeName = m.def.n, map = m.settings.map, mapName = Modes.MAP[m.settings.map] and Modes.MAP[m.settings.map].n or m.settings.map,
 				players = humanCount(m), max = MatchService.capacity(m), state = m.state, diff = m.settings.diff,
-				timeLeft = if m.timed then math.max(0, math.floor(m.endsAt - os.clock())) else -1, host = m.host and m.host.DisplayName or "" })
+				timeLeft = if m.timed then math.max(0, math.floor(m.endsAt - os.clock())) else -1, host = m.host and m.host.DisplayName or "",
+				ranked = m.settings.ranked == true, hasMut = next(m.settings.mut or {}) ~= nil })
 		end
 	end
 	table.sort(l, function(a, b) return a.players > b.players end)
