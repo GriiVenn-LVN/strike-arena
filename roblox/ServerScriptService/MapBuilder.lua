@@ -5,7 +5,8 @@
 --     collision et les lignes de vue du web (groundH / ceilAt / rayWall). Ce sont les seules pièces touchées par
 --     les balles, les bots et les déplacements.
 --   • Décor : tous les blocs, boules et cylindres du décor 3D du web (MapScenes, tools/export_scene.js), en Parts
---     non collisionnables et ignorées des rayons (CanQuery = false). Le client (MapDetailController) ajoute les
+--     non collisionnables et ignorées des rayons (CanQuery = false), avec le matériau PBR haute définition de Roblox
+--     qui remplace les textures floues du web (MapScene.hdMaterial). Le client (MapDetailController) ajoute les
 --     maillages détaillés, les textures du web, les halos et l'ambiance (ciel, brouillard, lumière) de la carte.
 -- Plusieurs cartes peuvent coexister (une par match) : build(id, origine, nom) décale tout de l'origine.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -138,10 +139,7 @@ local function buildCollision(folder: Folder, g: any, origin: Vector3)
 end
 
 -- ---------- décor : primitives du web ----------
-local function faceMain(p: MapScene.Prim): number
-	for _, k in ipairs({ 1, 2, 5, 6, 3, 4 }) do if p.mats[k] > 0 then return p.mats[k] end end
-	return -1
-end
+local faceMain = MapScene.faceMain
 
 local function mulC(a: Color3, b: Color3): Color3 return Color3.new(a.R * b.R, a.G * b.G, a.B * b.B) end
 
@@ -164,16 +162,26 @@ local function buildVisuals(folder: Folder, id: string, origin: Vector3): number
 			q.TopSurface = Enum.SurfaceType.Smooth; q.BottomSurface = Enum.SurfaceType.Smooth
 			local col = MapScene.color(m.avg)
 			if p.color then col = mulC(col, p.color) end
-			q.Color = col
-			q.Material = MapScene.material(m.rm)
+			-- matériau PBR haute définition à la place d'une texture floue du web (MapScene.hdMaterial) : le client ne pose
+			-- alors pas la texture ; teinte légèrement variée d'un bloc à l'autre
+			local hd = MapScene.hdMaterial(m)
+			q.Material = hd or MapScene.material(m.rm)
 			-- sol de jeu (texture de détail du web) et grand sol extérieur : matériau du sol de la carte (grain, relief)
 			local big = (if p.size.X > 300 then 1 else 0) + (if p.size.Y > 300 then 1 else 0) + (if p.size.Z > 300 then 1 else 0) >= 2
-			if m.rm == "SmoothPlastic" and p.kind == 0 and (m.det or (big and not m.tex)) then
+			local ground = m.rm == "SmoothPlastic" and p.kind == 0 and (m.det ~= nil or (big and not m.tex))
+			if ground then
 				q.Material = MapScene.groundMaterial(theme, base, m.det == nil)
+			elseif not hd and not m.tex and not m.a and m.rm == "SmoothPlastic" then
+				-- bloc uni : béton ou bois d'après sa couleur, si assez grand pour que le grain se voie
+				local s2 = math.max(size.X, size.Y, size.Z) + math.min(size.X, size.Y, size.Z)
+				local g = if s2 > 2.5 * U then MapScene.guessMaterial(col) else nil
+				if g then q.Material = g; hd = g end
 			end
+			if hd and not ground then col = MapScene.vary(col, i) end
+			q.Color = col
 			if m.refl then q.Reflectance = m.refl end
 			local tr = m.a or 0
-			if m.cut and p.kind == 0 then tr = 1 end          -- texture découpée : seule la texture (client) se voit
+			if m.cut and p.kind == 0 and not hd then tr = 1 end   -- texture découpée : seule la texture (client) se voit
 			q.Transparency = tr
 			q.CastShadow = bit32.band(p.flags, 2) ~= 0 and tr < 0.5
 			local cf = CFrame.new(origin + p.pos * U) * p.rot
@@ -212,7 +220,7 @@ local function buildVisuals(folder: Folder, id: string, origin: Vector3): number
 			a.Position = origin + Vector3.new(L.p[1], L.p[2], L.p[3]) * U
 			local pl = Instance.new("PointLight")
 			pl.Color = MapScene.color(L.c); pl.Range = math.clamp((if L.d > 0 then L.d else 20) * U * 0.6, 8, 60)
-			pl.Brightness = math.clamp(L.i / 9, 0.4, 3); pl.Shadows = false
+			pl.Brightness = math.clamp(L.i / 9, 0.4, 3); pl.Shadows = true    -- ombres des lampes (éclairage Future)
 			pl.Parent = a; a.Parent = lf
 		end
 		lf.Parent = folder

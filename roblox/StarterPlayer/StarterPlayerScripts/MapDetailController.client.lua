@@ -1,7 +1,8 @@
 --!strict
 -- StarterPlayerScripts/MapDetailController
 -- Habille côté client la carte où se trouve le joueur (dossier de Workspace avec l'attribut MapId), comme sur le web,
--- avec ReplicatedStorage/Shared/MapDress (textures, maillages, halos) ; les autres cartes en cours ne sont pas habillées
+-- avec ReplicatedStorage/Shared/MapDress (textures, matériaux, maillages, halos) et MapExtras (terrain, flaques, saleté,
+-- gravats, câbles, lampes, feu, brume) ; les autres cartes en cours ne sont pas habillées
 -- (mémoire et fluidité). Ambiance de la carte où se trouve le joueur (ReplicatedStorage/Shared/MapAmbience) : ciel
 -- dégradé, nuages, brouillard, lumière, post-traitement, particules (thèmes du web) ; au lobby, l'éclairage d'origine est remis.
 local Players = game:GetService("Players")
@@ -11,6 +12,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local MapScene = require(ReplicatedStorage.Shared.MapScene)
 local MapDress = require(ReplicatedStorage.Shared.MapDress)
 local MapAmbience = require(ReplicatedStorage.Shared.MapAmbience)
+local MapExtras = require(ReplicatedStorage.Shared.MapExtras)
 
 local player = Players.LocalPlayer
 local U = Config.STUDS_PER_METER
@@ -24,6 +26,7 @@ local function cleanup(f: Instance)
 	if not b then return end
 	b.alive = false
 	builds[f] = nil
+	pcall(MapExtras.clear, b)                            -- terrain et eau remis comme avant
 	if b.details then b.details:Destroy() end
 	for _, em in ipairs(b.meshes) do pcall(function() em:Destroy() end) end
 	for _, im in ipairs(b.images) do pcall(function() im:Destroy() end) end
@@ -46,7 +49,8 @@ local function process(b: Build)
 	if not b.alive then return end
 	local details = Instance.new("Folder"); details.Name = "Details"; details.Parent = b.folder
 	b.details = details
-	local steps: { { any } } = { { "textures", MapDress.dressPrims }, { "halos", MapDress.buildGlows }, { "maillages", MapDress.buildMeshes } }
+	local steps: { { any } } = { { "textures", MapDress.dressPrims }, { "halos", MapDress.buildGlows }, { "détails", MapExtras.build },
+		{ "maillages", MapDress.buildMeshes } }
 	for _, step in ipairs(steps) do
 		local ok, err = pcall(step[2] :: any, b, info)
 		if not ok then warn("[MapDetail] " .. step[1] .. " : " .. tostring(err)) end
