@@ -33,7 +33,7 @@ end
 local function spaced(s: string): string
 	local out = {}
 	for _, cp in utf8.codes(s) do table.insert(out, utf8.char(cp)) end
-	return table.concat(out, " ")
+	return table.concat(out, "\u{200A}")   -- espace fine
 end
 
 -- ---------- médaille en partie ----------

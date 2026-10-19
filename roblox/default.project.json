@@ -4,7 +4,7 @@
     "$className": "DataModel",
     "Workspace": {
       "$className": "Workspace",
-      "$properties": { "StreamingEnabled": false }
+      "$properties": { "StreamingEnabled": false, "AvatarJointUpgrade_Serialized": { "Enum": 2 } }
     },
     "Players": {
       "$className": "Players",

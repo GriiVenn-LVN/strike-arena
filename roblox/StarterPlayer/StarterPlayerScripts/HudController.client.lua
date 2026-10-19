@@ -55,6 +55,8 @@ local C = {
 }
 local function teamColor(t: string?): Color3 return (t and (C :: any)[t]) or C.text end
 local FONT = Enum.Font.GothamBlack
+-- titres du web (#banner : Bahnschrift 900, ombre douce) : police étroite et grasse
+local TITLE = Font.new("rbxasset://fonts/families/RobotoCondensed.json", Enum.FontWeight.Bold)
 local ITALIC = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic)
 
 -- ---------- petits outils ----------
@@ -74,6 +76,35 @@ local function label(parent: Instance, props: { [string]: any }): TextLabel
 	for k, v in pairs(props) do (base :: any)[k] = v end
 	return make("TextLabel", base, parent)
 end
+-- grand titre : ombre floue sous le texte au lieu d'un gros contour noir
+local function titleLabel(parent: Instance, props: { [string]: any }): TextLabel
+	local l = label(parent, props)
+	l.FontFace = TITLE
+	l.TextStrokeTransparency = 1
+	make("UIStroke", { Thickness = 1, Transparency = 0.8, Color = Color3.new(0, 0, 0) }, l)
+	-- frère placé dessous (en mode Sibling un enfant passerait par-dessus le texte)
+	local sh = l:Clone()
+	for _, c in ipairs(sh:GetChildren()) do c:Destroy() end
+	sh.Name = (l.Name or "Title") .. "Shadow"; sh.TextColor3 = Color3.new(0, 0, 0); sh.ZIndex = l.ZIndex - 1
+	local shScale = make("UIScale", { Scale = 1 }, sh)
+	sh.Parent = parent
+	local function sync()
+		sh.Text = (string.gsub(l.Text, 'color="#%x+"', 'color="#000000"'))
+		sh.TextTransparency = 0.45 + 0.55 * l.TextTransparency
+		sh.Position = l.Position + UDim2.fromOffset(0, 3); sh.Size = l.Size; sh.Visible = l.Visible
+	end
+	for _, prop in ipairs({ "Text", "TextTransparency", "Position", "Size", "Visible" }) do
+		l:GetPropertyChangedSignal(prop):Connect(sync)
+	end
+	l.ChildAdded:Connect(function(c)
+		if c:IsA("UIScale") then
+			shScale.Scale = c.Scale
+			c:GetPropertyChangedSignal("Scale"):Connect(function() shScale.Scale = c.Scale end)
+		end
+	end)
+	sync()
+	return l
+end
 local function tween(o: Instance, t: number, props: { [string]: any }, style: Enum.EasingStyle?, dir: Enum.EasingDirection?)
 	local tw = TweenService:Create(o, TweenInfo.new(t, style or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out), props)
 	tw:Play()
@@ -85,8 +116,10 @@ local ACC = { ["é"] = "É", ["è"] = "È", ["ê"] = "Ê", ["à"] = "À", ["â"]
 local function upper(s: string): string
 	return (string.gsub(string.upper(s), "[\195][\128-\191]", function(c: string) return ACC[c] or c end))
 end
+-- espaces fines (U+200A / U+2009) : un vrai espace entre chaque lettre donnait « M A N C H E »
+local GAPS = { "\u{200A}", "\u{2009}", "\u{2009}\u{200A}" }
 local function spaced(s: string, n: number?): string
-	local gap = string.rep(" ", n or 1)   -- espace fine
+	local gap = GAPS[math.clamp(n or 1, 1, 3)]
 	local out = {}
 	for _, cp in utf8.codes(s) do table.insert(out, utf8.char(cp)) end
 	return table.concat(out, gap)
@@ -662,11 +695,17 @@ end)
 local killMsg = label(gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0.58), Size = UDim2.fromOffset(700, 26), TextSize = 18, Font = FONT,
 	RichText = true, TextTransparency = 1, TextStrokeTransparency = 1, Text = "" })
 local killScale = make("UIScale", { Scale = 1 }, killMsg)
-local streakLabel = label(gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0.2), Size = UDim2.fromOffset(900, 64), TextSize = 56, Font = FONT,
+-- une seule bannière à la fois comme le #banner du web : la nouvelle chasse l'ancienne
+local slotHide: { [string]: () -> () } = {}
+local function takeSlot(who: string)
+	for k, f in pairs(slotHide) do if k ~= who then f() end end
+end
+local streakLabel = titleLabel(gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0.2), Size = UDim2.fromOffset(900, 64), TextSize = 58,
 	TextColor3 = C.text, TextTransparency = 1, Text = "", RichText = true })
-make("UIStroke", { Thickness = 3, Transparency = 0.35, Color = rgb(0x3a0a10) }, streakLabel)
 local streakScale = make("UIScale", { Scale = 1 }, streakLabel)
 local bannerToken = 0
+local streakToken = 0
+slotHide.streak = function() streakToken += 1; streakLabel.TextTransparency = 1 end
 bannerRemote.OnClientEvent:Connect(function(b: any)
 	bannerToken += 1
 	local my = bannerToken
@@ -680,11 +719,14 @@ bannerRemote.OnClientEvent:Connect(function(b: any)
 		tween(killMsg, 0.3, { TextTransparency = 1, TextStrokeTransparency = 1 })
 	end)
 	if b.streakName then
+		takeSlot("streak")
+		streakToken += 1
+		local st = streakToken
 		streakLabel.Text = spaced(upper(b.streakName), 2) .. '\n<font size="19" color="#ffd75e">' .. spaced(b.streak .. " ÉLIMINATIONS D'AFFILÉE", 1) .. "</font>"
 		streakLabel.TextTransparency = 0; streakScale.Scale = 1.3
 		tween(streakScale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
 		playSound(ModeConfig.SOUNDS.streak)
-		task.delay(2.2, function() tween(streakLabel, 0.5, { TextTransparency = 1 }) end)
+		task.delay(2.2, function() if st == streakToken then tween(streakLabel, 0.5, { TextTransparency = 1 }) end end)
 	end
 end)
 
@@ -805,8 +847,7 @@ end
 -- Écran de fin de partie
 -- ==========================================================================================
 local endFrame = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(5, 8, 14), BackgroundTransparency = 1, Visible = false, ZIndex = 30 }, gui)
-local endTitle = label(endFrame, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.24), Size = UDim2.fromOffset(900, 90), TextSize = 84, Font = FONT, ZIndex = 31 })
-make("UIStroke", { Thickness = 3, Transparency = 0.3 }, endTitle)
+local endTitle = titleLabel(endFrame, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.24), Size = UDim2.fromOffset(900, 90), TextSize = 88, ZIndex = 31 })
 local endTitleScale = make("UIScale", { Scale = 1 }, endTitle)
 local endScore = label(endFrame, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.34), Size = UDim2.fromOffset(600, 40), TextSize = 30, ZIndex = 31 })
 local endCards = make("Frame", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0.42), Size = UDim2.fromOffset(760, 150), BackgroundTransparency = 1, ZIndex = 31 }, endFrame)
@@ -890,16 +931,17 @@ local modeLine = label(gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim
 local modeSub = label(gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 124), Size = UDim2.fromOffset(700, 16), TextSize = 12,
 	Font = Enum.Font.GothamBold, TextColor3 = rgb(0xdfe6f2), Text = "", TextStrokeTransparency = 0.5 })
 -- grande bannière du mode (uiBanner du web : « NOUVELLE ARME », « TU ES LE MASTODONTE »…)
-local annTitle = label(gui, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.3), Size = UDim2.fromOffset(900, 50), TextSize = 40, Font = FONT,
+local annTitle = titleLabel(gui, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.2, 30), Size = UDim2.fromOffset(900, 60), TextSize = 54,
 	Text = "", TextTransparency = 1, ZIndex = 8 })
-make("UIStroke", { Thickness = 3, Transparency = 0.35, Color = Color3.new(0, 0, 0) }, annTitle)
-local annSub = label(gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0.3, 28), Size = UDim2.fromOffset(900, 22), TextSize = 17, Font = Enum.Font.GothamBold,
+local annSub = label(gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0.2, 62), Size = UDim2.fromOffset(900, 22), TextSize = 17, Font = Enum.Font.GothamBold,
 	Text = "", TextTransparency = 1, TextStrokeTransparency = 1, ZIndex = 8 })
 local annScale = make("UIScale", { Scale = 1 }, annTitle)
 local annToken = 0
+slotHide.ann = function() annToken += 1; annTitle.TextTransparency = 1; annSub.TextTransparency = 1; annSub.TextStrokeTransparency = 1 end
 local annRemote = ReplicatedStorage:WaitForChild("MatchAnnounce", 20) :: RemoteEvent?
 if annRemote then
 	annRemote.OnClientEvent:Connect(function(title: string, sub: string?, color: Color3?)
+		takeSlot("ann")
 		annToken += 1
 		local my = annToken
 		annTitle.Text = spaced(title, 2); annTitle.TextColor3 = color or C.gold; annTitle.TextTransparency = 0

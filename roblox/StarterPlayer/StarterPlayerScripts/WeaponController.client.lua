@@ -30,7 +30,7 @@ local BASE_FOV = 70
 local W = {
 	weapon = nil :: string?, mag = 0, reserve = 0, reloading = false, slot = 1, loadout = {} :: { string },
 	nextShot = 0, firing = false, fresh = false, aiming = false, matchLive = true,
-	recoilPitch = 0, recoilYaw = 0, fov = BASE_FOV, reloadStart = 0, menu = false,
+	recoilPitch = 0, recoilYaw = 0, appliedPitch = 0, appliedYaw = 0, spray = 0, lastShot = -9, fov = BASE_FOV, reloadStart = 0, menu = false,
 }
 
 -- Mode menu (touche M) : libère la souris en vue à la première personne pour cliquer sur la boutique,
@@ -126,6 +126,23 @@ if stateRemote then
 end
 
 -- ---------- tir ----------
+-- motif de recul du web (recoilPat de 60_game.js) : montée, oscillation et dérive propres à chaque arme
+local RECP: { [string]: any } = {}
+local RECBASE = { pistol = { 1.6, .03, .35, .5 }, smg = { 1.4, .05, .45, .55 }, rifle = { 1.9, .075, .55, .45 }, lmg = { 1.7, .06, .4, .6 },
+	sniper = { 2.4, 0, .15, .2 }, shotgun = { 2.2, 0, .2, .3 } }
+local function recoilPat(k: string): any
+	if RECP[k] then return RECP[k] end
+	local h = 0
+	for i = 1, #k do h = (h * 31 + string.byte(k, i)) % 4294967296 end
+	local function r(i: number): number return bit32.band(bit32.rshift(h, i * 3), 7) / 7 end
+	local w = Config.WEAPONS[k]
+	local b = (w and RECBASE[w.cat]) or { 1.9, .07, .5, .5 }
+	local p = { up = b[1] * (.85 + r(1) * .3), climb = b[2], a = b[3] * (.7 + r(2) * .6), f = .45 + r(3) * .5, ph = r(4) * 6,
+		kick = 5 + math.round(r(5) * 5), drift = (r(6) - .5) * 2, jit = b[4] }
+	RECP[k] = p
+	return p
+end
+
 local function alive(): boolean
 	local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
 	return hum ~= nil and hum.Health > 0
@@ -165,10 +182,12 @@ local function tryFire()
 	S.shot:Fire(key)                                   -- recul de l'arme, éclair et douille dans le viewmodel
 	local m = A.modsOf(A.activeOf(player, key))
 	playSound(fireSound(key), nil, m.snd)
-	-- recul : plus fort à la hanche, accessoires de l'armurier (vertical rec, horizontal recH)
-	local mult = if W.aiming then 0.65 else 1
-	W.recoilPitch += w.recoil * 0.9 * mult * m.rec
-	W.recoilYaw += (math.random() - 0.5) * w.recoil * 0.5 * mult * m.recH
+	-- recul du web : décalage de visée qui monte avec la rafale puis revient au centre
+	W.spray = math.min(W.spray + 1, 30); W.lastShot = t
+	local rp, n = recoilPat(key), W.spray
+	local pat = (math.sin(n * rp.f + rp.ph) * rp.a + (if n > rp.kick then rp.drift * (n - rp.kick) * .12 else 0)) * w.recoil
+	W.recoilPitch += w.recoil * m.rec * (rp.up + math.min(n, 12) * rp.climb) * (if W.aiming then 0.75 else 1)
+	W.recoilYaw -= (pat + (math.random() - .5) * w.recoil * rp.jit) * m.rec * m.recH
 	publish()
 end
 
@@ -261,13 +280,20 @@ RunService:BindToRenderStep("WeaponCamera", Enum.RenderPriority.Camera.Value + 1
 	local am = 1 + (aimS - 1) * math.clamp(ads, 0, 1)
 	UserInputService.MouseDeltaSensitivity = baseSens * S.opt.sens * S.opt.wsens * (if scoped then 1 / zoom else 1 - .25 * ads) * am
 	-- le recul est un décalage visuel ajouté après la caméra Roblox, qui revient tout seul
-	W.recoilPitch *= math.exp(-dt * 9); W.recoilYaw *= math.exp(-dt * 9)
-	camera.CFrame = camera.CFrame * CFrame.Angles(math.rad(W.recoilPitch), math.rad(W.recoilYaw), 0)
+	-- La caméra Roblox repart de la direction de la frame précédente : on n'ajoute donc que la différence,
+	-- sinon chaque frame recopiait tout le recul et la visée partait au plafond.
+	local now = os.clock()
+	local dr = if now - W.lastShot < .2 then 3.5 else 9
+	W.recoilPitch -= W.recoilPitch * math.min(1, dt * dr); W.recoilYaw -= W.recoilYaw * math.min(1, dt * dr)
+	if now - W.lastShot > .25 then W.spray = math.max(0, W.spray - dt * 18) end
+	local dP, dY = W.recoilPitch - W.appliedPitch, W.recoilYaw - W.appliedYaw
+	W.appliedPitch, W.appliedYaw = W.recoilPitch, W.recoilYaw
+	camera.CFrame = camera.CFrame * CFrame.Angles(math.rad(dP), math.rad(dY), 0)
 	UserInputService.MouseIconEnabled = W.menu or player:GetAttribute("UiOpen") == true   -- panneaux Codes / Groupe du lobby
 end)
 
 player.CharacterAdded:Connect(function()
-	W.firing = false; W.aiming = false; W.recoilPitch = 0; W.recoilYaw = 0
+	W.firing = false; W.aiming = false; W.recoilPitch = 0; W.recoilYaw = 0; W.appliedPitch = 0; W.appliedYaw = 0; W.spray = 0
 	player.CameraMode = Enum.CameraMode.LockFirstPerson
 	publish()
 end)

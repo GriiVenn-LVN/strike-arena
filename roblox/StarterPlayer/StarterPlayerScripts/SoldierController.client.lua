@@ -71,6 +71,14 @@ local function dress(d: D)
 	local ok, items = pcall(Models.parts, d.look)
 	if not ok then warn("[SoldierController]", items); return end
 	if not items or not d.char.Parent or active[d.char] ~= d then return end
+	-- sans articulations Motor6D (par ex. « Avatar Joint Upgrade » de Roblox), rien ne peut être soudé :
+	-- on garde alors l'avatar R15 visible au lieu d'un soldat invisible
+	local found = 0
+	for _, it in ipairs(items) do if d.parts[it.seg] then found += 1 end end
+	if found < #items / 2 then
+		warn("[SoldierController] articulations introuvables sur " .. d.char.Name .. " (" .. found .. "/" .. #items .. ") : avatar R15 gardé")
+		return
+	end
 	local folder = Instance.new("Folder"); folder.Name = "SoldatWeb"
 	for _, it in ipairs(items) do
 		local part = d.parts[it.seg]
