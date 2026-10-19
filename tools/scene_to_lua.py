@@ -146,9 +146,10 @@ for tid in sorted(used_tex):
         tex_size += write(os.path.join(OUTS, '_Tex', '%s_%d.lua' % (tid, k)), HEAD + 'return "%s"\n' % p)
 
 # ---------- matériau Roblox d'après la texture du web ----------
+# (en jeu, MapScene.hdMaterial remplace les textures qui ne sont qu'un motif par le matériau PBR : garder les deux d'accord)
 KIND_MAT = {
-    'plaster': 'Plaster', 'house': 'Plaster', 'crate': 'WoodPlanks', 'stone': 'Sandstone', 'barrel': 'Metal', 'plat': 'Pavement',
-    'roof': 'Slate', 'pillar': 'Sandstone', 'conc': 'Concrete', 'cont': 'Metal', 'mcrate': 'Metal', 'mtop': 'DiamondPlate',
+    'plaster': 'Plaster', 'house': 'Plaster', 'crate': 'WoodPlanks', 'stone': 'Brick', 'barrel': 'Metal', 'plat': 'Pavement',
+    'roof': 'ClayRoofTiles', 'pillar': 'Sandstone', 'conc': 'Concrete', 'cont': 'Metal', 'mcrate': 'Metal', 'mtop': 'DiamondPlate',
     'platI': 'DiamondPlate', 'pillarI': 'Concrete', 'wceil': 'WoodPlanks', 'corrug': 'CorrodedMetal', 'rock': 'Rock',
     'cabin': 'WoodPlanks', 'snowb': 'Snow', 'wdeck': 'WoodPlanks', 'deck': 'WoodPlanks', 'pole': 'Wood', 'bark': 'Wood',
     'brick': 'Brick', 'tomb': 'Slate', 'hay': 'Fabric', 'train': 'Metal', 'shelf': 'WoodPlanks', 'tuftsand': 'Grass',

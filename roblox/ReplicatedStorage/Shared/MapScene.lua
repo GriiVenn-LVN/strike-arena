@@ -150,4 +150,62 @@ function MapScene.material(name: string): Enum.Material
 	return if ok and m then m else Enum.Material.SmoothPlastic
 end
 
+-- ---------- matériaux Roblox haute définition (PBR) à la place des textures floues du web ----------
+-- Les textures canvas du web sont exportées en 43 à 128 px : posées en Texture sur des blocs de plusieurs mètres, elles
+-- sont floues. Quand une texture n'est qu'un motif de surface (enduit, briques, planches, béton, tôle rouillée, tuiles…),
+-- le bloc prend plutôt le matériau PBR de Roblox équivalent (relief, rugosité et reflets nets à toute distance), teinté de
+-- la couleur moyenne de la texture (avg). Les textures qui portent un dessin restent posées : conteneurs marqués, caisses
+-- « FRAGILE », façades avec fenêtres, rame du métro, bottes de foin, panneaux, feuillages découpés, sol avec les sites.
+-- Caisses, planchers et cabanes « découpés » sur le web sont en fait opaques (94 à 100 % des pixels) : bois plein.
+local HD: { [string]: string } = {
+	plaster = "Plaster", crate = "WoodPlanks", stone = "Brick", plat = "Pavement", roof = "ClayRoofTiles", pillar = "Sandstone",
+	conc = "Concrete", platI = "DiamondPlate", pillarI = "Concrete", wceil = "WoodPlanks", corrug = "CorrodedMetal", rock = "Rock",
+	cabin = "WoodPlanks", snowb = "Snow", wdeck = "WoodPlanks", deck = "WoodPlanks", pole = "Wood", bark = "Wood", brick = "Brick",
+	tomb = "Slate", shelf = "WoodPlanks", barrel = "Metal",
+}
+local hdCache: { [string]: Enum.Material | false } = {}
+-- matériau PBR qui remplace la texture du web de ce matériau ; nil : pas de texture, ou une texture à dessin gardée
+function MapScene.hdMaterial(m: Mat): Enum.Material?
+	local tid = m.tex
+	if not tid then return nil end
+	local c = hdCache[tid]
+	if c == nil then
+		local k = MapScene.texKind(tid)
+		local name = if k then HD[k] else nil
+		local mat: Enum.Material | false = if name then MapScene.material(name) else false
+		hdCache[tid] = mat
+		c = mat
+	end
+	if c == false or c == nil then return nil end
+	return c :: any
+end
+
+-- calque d'ombres cuites du web (texture noire découpée de 128 px posée sur tout le sol) : très flou, et l'éclairage
+-- Future de Roblox fait déjà les vraies ombres ; on l'éclaircit
+function MapScene.isBakedShadow(m: Mat): boolean
+	return m.cut == true and m.tex ~= nil and m.avg[1] + m.avg[2] + m.avg[3] < 6 and MapScene.texKind(m.tex :: string) == "misc"
+end
+
+-- bloc uni du web en plastique lisse : matériau d'après sa couleur ; nil : inchangé. Mesuré sur les 10 cartes : surtout
+-- les chaperons et socles des murs (gris -> béton, beige des cartes de sable -> grès) et les poutres (brun foncé -> bois)
+function MapScene.guessMaterial(c: Color3): Enum.Material?
+	local h, s, v = c:ToHSV()
+	if s < 0.16 and v > 0.18 and v < 0.85 then return Enum.Material.Concrete end
+	if h > 0.03 and h < 0.12 and s > 0.45 and v > 0.12 and v < 0.45 then return Enum.Material.Wood end
+	if h > 0.07 and h < 0.14 and s > 0.2 and s < 0.5 and v > 0.4 then return Enum.Material.Sandstone end
+	return nil
+end
+
+-- matériau principal d'un bloc (première face non vide, dans l'ordre des côtés puis dessus et dessous)
+function MapScene.faceMain(p: Prim): number
+	for _, k in ipairs({ 1, 2, 5, 6, 3, 4 }) do if p.mats[k] > 0 then return p.mats[k] end end
+	return -1
+end
+
+-- légère variation de teinte d'un bloc (n : numéro stable) : deux murs voisins ne sont jamais exactement pareils
+function MapScene.vary(c: Color3, n: number): Color3
+	local k = 1 + ((n * 7919) % 101 / 101 - 0.5) * 0.07
+	return Color3.new(math.clamp(c.R * k, 0, 1), math.clamp(c.G * k, 0, 1), math.clamp(c.B * k, 0, 1))
+end
+
 return MapScene
