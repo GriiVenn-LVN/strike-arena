@@ -151,6 +151,8 @@ local function buildVisuals(folder: Folder, id: string, origin: Vector3): number
 	local vis = Instance.new("Folder"); vis.Name = "Visuals"
 	local mats = info.mats
 	local count = 0
+	local md = MapData[id]
+	local theme, base = md and md.theme, md and md.base
 	for i, p in ipairs(MapScene.prims(id)) do
 		local mi = if p.kind == 0 then faceMain(p) else p.mats[1]
 		local m: MapScene.Mat? = if mi > 0 then mats[mi] else nil
@@ -164,6 +166,11 @@ local function buildVisuals(folder: Folder, id: string, origin: Vector3): number
 			if p.color then col = mulC(col, p.color) end
 			q.Color = col
 			q.Material = MapScene.material(m.rm)
+			-- sol de jeu (texture de détail du web) et grand sol extérieur : matériau du sol de la carte (grain, relief)
+			local big = (if p.size.X > 300 then 1 else 0) + (if p.size.Y > 300 then 1 else 0) + (if p.size.Z > 300 then 1 else 0) >= 2
+			if m.rm == "SmoothPlastic" and p.kind == 0 and (m.det or (big and not m.tex)) then
+				q.Material = MapScene.groundMaterial(theme, base, m.det == nil)
+			end
 			if m.refl then q.Reflectance = m.refl end
 			local tr = m.a or 0
 			if m.cut and p.kind == 0 then tr = 1 end          -- texture découpée : seule la texture (client) se voit

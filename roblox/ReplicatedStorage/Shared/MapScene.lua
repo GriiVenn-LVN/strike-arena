@@ -125,6 +125,25 @@ function MapScene.texture(tid: string): Tex?
 	return t
 end
 
+-- genre de texture du web (« leafbroad », « plaster »…) sans décoder les pixels
+function MapScene.texKind(tid: string): string?
+	local folder = root and root:FindFirstChild("_Tex")
+	local m = folder and folder:FindFirstChild(tid)
+	if not m then return nil end
+	local d = require(m :: ModuleScript) :: any
+	return if type(d) == "table" and type(d.kind) == "string" then d.kind else nil
+end
+
+-- matériau Roblox du sol d'une carte, choisi comme groundKind() du web (40c_ground.js) : son relief se voit sous la
+-- texture du web, comme le relief du sol du web ; outer : grand sol extérieur sans texture
+function MapScene.groundMaterial(theme: string?, base: string?, outer: boolean): Enum.Material
+	if theme == "jungle" then return if outer then Enum.Material.Grass else Enum.Material.Ground end
+	if base == "sand" then return Enum.Material.Sand end
+	if base == "snow" then return Enum.Material.Snow end
+	if base == "haunt" then return Enum.Material.Ground end
+	return Enum.Material.Concrete
+end
+
 -- matériau Roblox (nom d'Enum.Material) avec repli
 function MapScene.material(name: string): Enum.Material
 	local ok, m = pcall(function() return (Enum.Material :: any)[name] end)

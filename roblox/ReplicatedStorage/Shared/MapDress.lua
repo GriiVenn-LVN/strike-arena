@@ -127,6 +127,10 @@ local function glow(): Content?      -- même dégradé que glowTex() du web
 	return glowImg
 end
 
+-- déjà envoyées (MeshStore) : réutilisées par MapAmbience (particules, halo de la lune, feuilles qui tombent)
+MapDress.glow = glow
+MapDress.texture = texImage
+
 local function mulC(a: Color3, b: Color3): Color3 return Color3.new(a.R * b.R, a.G * b.G, a.B * b.B) end
 local function cdiff(a: Color3, b: Color3): number return math.abs(a.R - b.R) + math.abs(a.G - b.G) + math.abs(a.B - b.B) end
 

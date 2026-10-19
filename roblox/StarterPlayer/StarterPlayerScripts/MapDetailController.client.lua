@@ -2,15 +2,15 @@
 -- StarterPlayerScripts/MapDetailController
 -- Habille côté client la carte où se trouve le joueur (dossier de Workspace avec l'attribut MapId), comme sur le web,
 -- avec ReplicatedStorage/Shared/MapDress (textures, maillages, halos) ; les autres cartes en cours ne sont pas habillées
--- (mémoire et fluidité). Ambiance de la carte où se trouve le joueur : ciel dégradé, brouillard, lumière
--- (thèmes de src/41_gfx_themes.js) ; au lobby, l'éclairage d'origine est remis.
+-- (mémoire et fluidité). Ambiance de la carte où se trouve le joueur (ReplicatedStorage/Shared/MapAmbience) : ciel
+-- dégradé, nuages, brouillard, lumière, post-traitement, particules (thèmes du web) ; au lobby, l'éclairage d'origine est remis.
 local Players = game:GetService("Players")
-local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local MapScene = require(ReplicatedStorage.Shared.MapScene)
 local MapDress = require(ReplicatedStorage.Shared.MapDress)
+local MapAmbience = require(ReplicatedStorage.Shared.MapAmbience)
 
 local player = Players.LocalPlayer
 local U = Config.STUDS_PER_METER
@@ -80,65 +80,8 @@ end
 workspace.ChildRemoved:Connect(function(c: Instance) cleanup(c) end)
 
 
--- ---------- ambiance : ciel, brouillard, lumière de la carte où l'on est ----------
-local PROPS = { "Ambient", "OutdoorAmbient", "Brightness", "ClockTime", "FogColor", "FogStart", "FogEnd", "ColorShift_Top", "ColorShift_Bottom",
-	"ExposureCompensation", "EnvironmentDiffuseScale", "EnvironmentSpecularScale" }
-local lobby: { [string]: any } = {}
-for _, k in ipairs(PROPS) do pcall(function() lobby[k] = (Lighting :: any)[k] end) end
-local lobbyKids: { Instance } = {}       -- ciel et atmosphère d'origine, retirés le temps d'un match
-
-local function c3(t: { number }?): Color3 return if t then Color3.new(t[1], t[2], t[3]) else Color3.new(1, 1, 1) end
-local function scale(c: Color3, k: number): Color3 return Color3.new(math.min(1, c.R * k), math.min(1, c.G * k), math.min(1, c.B * k)) end
-
+-- ---------- ambiance : ciel, nuages, brouillard, lumière, post-traitement et particules de la carte où l'on est ----------
 local current: string? = nil
-local mapSky: Sky? = nil
-
-local function restoreLobby()
-	for k, v in pairs(lobby) do pcall(function() (Lighting :: any)[k] = v end) end
-	if mapSky then mapSky:Destroy(); mapSky = nil end
-	for _, k in ipairs(lobbyKids) do pcall(function() k.Parent = Lighting end) end
-	lobbyKids = {}
-end
-
-local function applyTheme(id: string)
-	local info = MapScene.info(id)
-	local th = info and info.theme
-	if not th then restoreLobby(); return end
-	local L = Lighting :: any
-	pcall(function()
-		local hemiS, hemiG, sunC = c3(th.hemiS), c3(th.hemiG), c3(th.sunC)
-		L.OutdoorAmbient = scale(hemiS:Lerp(hemiG, 0.4), math.clamp(th.hemiI * 1.3, 0.2, 1.2))
-		L.Ambient = scale(hemiG, math.clamp(th.hemiI * 0.8, 0.1, 0.8))
-		L.Brightness = math.clamp(th.sunI, 0.15, 3)
-		L.ColorShift_Top = sunC
-		L.ColorShift_Bottom = hemiG
-		L.ExposureCompensation = math.clamp(math.log(th.exp or 1, 2), -1, 1)
-		L.EnvironmentSpecularScale = math.clamp(th.env or 0.5, 0, 1)
-		L.EnvironmentDiffuseScale = math.clamp(th.env or 0.5, 0.2, 1)
-		local sp = th.sunPos or { 55, 80, 34 }
-		local el = math.deg(math.atan2(sp[2], math.sqrt(sp[1] * sp[1] + sp[3] * sp[3])))
-		L.ClockTime = 6 + el / 15                    -- hauteur du soleil (ou de la lune) du thème
-		L.FogColor = c3(th.fog); L.FogStart = (th.fogN or 50) * U; L.FogEnd = (th.fogF or 200) * U
-	end)
-	-- l'atmosphère et le ciel du lobby remplacent le brouillard : on les retire le temps du match
-	for _, k in ipairs(Lighting:GetChildren()) do
-		if (k:IsA("Atmosphere") or k:IsA("Sky")) and k ~= mapSky then table.insert(lobbyKids, k); k.Parent = nil end
-	end
-	if mapSky then mapSky:Destroy(); mapSky = nil end
-	local imgs = th.sky and MapDress.skyImages(id, th.sky)
-	local sky = Instance.new("Sky"); sky.Name = "MapSky"
-	sky.CelestialBodiesShown = (th.sunI or 0) >= 1.5     -- soleil visible de jour, rien de nuit (le ciel du web n'a pas de lune)
-	sky.StarCount = if (th.stars or 0) > 0 then 3000 else 0
-	if imgs then
-		pcall(function()
-			local side = imgs.side
-			sky.SkyboxBackContent = side; sky.SkyboxFrontContent = side; sky.SkyboxLeftContent = side; sky.SkyboxRightContent = side
-			sky.SkyboxUpContent = imgs.up; sky.SkyboxDownContent = imgs.dn
-		end)
-	end
-	sky.Parent = Lighting
-	mapSky = sky
-end
 
 -- carte du joueur : attribut MatchMap du personnage (nom du dossier), sinon la carte sous la caméra, sinon le lobby
 local function myMap(): Instance?
@@ -185,7 +128,7 @@ task.spawn(function()
 		local key = if f then (f.Name .. "@" .. tostring(f:GetAttribute("MapId"))) else nil
 		if key ~= current then
 			current = key
-			if f then applyTheme(f:GetAttribute("MapId") :: string) else restoreLobby() end
+			if f then MapAmbience.apply(f) else MapAmbience.restore() end
 		end
 		task.wait(0.5)
 	end
