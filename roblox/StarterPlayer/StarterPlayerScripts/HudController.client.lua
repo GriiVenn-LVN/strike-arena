@@ -917,7 +917,7 @@ endRemote.OnClientEvent:Connect(function(r: any)
 	if r.mvp then
 		card("Meilleur joueur", { (if r.mvp.bot then "[BOT] " else "") .. r.mvp.name, r.mvp.k .. " éliminations", r.mvp.score .. " points" }, C.gold, 0.7)
 	end
-	if r.rewards then
+	if r.rewards and not r.recap then   -- avec le bilan détaillé (RewardScreen, à droite), pas de 3e carte
 		local lines = { "+" .. r.rewards.xp .. " XP", "+" .. r.rewards.coins .. " pièces" }
 		local ups = r.rewards.levelUps
 		if typeof(ups) == "table" and #ups > 0 then table.insert(lines, "Niveau supérieur !") end

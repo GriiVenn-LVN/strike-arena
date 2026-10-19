@@ -28,7 +28,7 @@ local C = {
 	Attaquants = rgb(0xff7a4a), ["Défenseurs"] = rgb(0x4aa3ff),
 }
 local T, CT = "Attaquants", "Défenseurs"
-local ROUND_MODES = { bomb = true, rapid = true, duel = true }
+local ROUND_MODES = { bomb = true, rapid = true, duel = true, gunfight = true }
 local function teamColor(t: string?): Color3 return (t and (C :: any)[t]) or C.text end
 local function other(t: string?): string return if t == T then CT else T end
 
@@ -347,7 +347,7 @@ local function drawRounds(d: any, dtSince: number)
 	local hasBomb = char ~= nil and char:GetAttribute("HasBomb") == true
 	objLine.Text = ""; objSub.Text = ""; objCall.Text = ""
 	if phase == "freeze" then
-		objLine.Text = if mode == "duel" then "Touche B : choisis ton arme" else "Touche B : boutique" .. (if d.pistol then " — pistolets uniquement" else "")
+		objLine.Text = if mode == "gunfight" then "Mêmes armes pour tous : " .. tostring(d.kit or "…") elseif mode == "duel" then "Touche B : choisis ton arme" else "Touche B : boutique" .. (if d.pistol then " — pistolets uniquement" else "")
 		objLine.TextColor3 = C.gold
 	elseif phase == "live" and d.bombMode then
 		if b.state == "planted" then

@@ -20,7 +20,9 @@ Modes.LIST = {
 	bomb = { n = "Compétitif", ic = "💣", c = rgb(0xff4655), team = true, bomb = true, desc = "Pose ou désamorce la bombe. Économie, boutique, manches.", limitLabel = "Manches pour gagner", limits = { 3, 5, 7, 13 }, tag = "Bombe · économie · manches" },
 	rapid = { n = "Désamorçage rapide", ic = "⚡", c = rgb(0xffd23a), team = true, bomb = true, desc = "Manches de 45 s, armes fournies, bombe dès le début. Pur gunfight.", limitLabel = "Manches pour gagner", limits = { 5, 7, 9 }, tag = "Manches courtes, armes fournies" },
 	duel = { n = "Duel", ic = "🤺", c = rgb(0xff7ad9), team = true, desc = "Manches courtes sans bombe ni réapparition. Choisis ton arme, élimine l'adversaire. Premier à 5.", limitLabel = "Manches pour gagner", limits = { 3, 5, 7 }, tag = "Manches courtes, 1 v 1 à 5 v 5, sans bombe" },
+	gunfight = { n = "Gunfight", ic = "🔫", c = rgb(0x5ad1ff), team = true, desc = "2 contre 2 (de 1 v 1 à 4 v 4), manches de 40 s sans réapparition. Tout le monde a les MÊMES armes, tirées au sort toutes les 2 manches. Pas de boutique : seul le talent compte.", limitLabel = "Manches pour gagner", limits = { 4, 6, 8 }, tag = "Mêmes armes pour tous, 2 v 2" },
 	tdm = { n = "Match à mort par équipe", ic = "⚔", c = rgb(0x4aa3ff), team = true, respawn = 3, desc = "Deux équipes, réapparition rapide. Premier à atteindre le score.", limitLabel = "Éliminations pour gagner", limits = { 20, 30, 40, 60 }, tag = "Équipes, réapparition", time = 480 },
+	survolte = { n = "Survolté", ic = "⏱", c = rgb(0xff5ad1), team = true, respawn = 3, desc = "Match à mort par équipe sous tension : après une élimination tu es SURVOLTÉ (tu cours 20 % plus vite) mais tu as 30 s pour éliminer à nouveau, sinon tu exploses !", limitLabel = "Éliminations pour gagner", limits = { 25, 40, 60 }, tag = "Élimine toutes les 30 s ou explose", time = 480 },
 	ffa = { n = "Match à mort", ic = "☠", c = rgb(0xffb938), team = false, respawn = 2, desc = "Chacun pour soi. Le meilleur score gagne.", limitLabel = "Éliminations pour gagner", limits = { 15, 25, 35 }, tag = "Chacun pour soi", time = 480 },
 	gg = { n = "Course aux armes", ic = "🔫", c = rgb(0x7dff9f), team = false, respawn = 1.5, desc = "Chaque élimination change ton arme. Termine avec le couteau.", limitLabel = "Niveaux", limits = {}, tag = "Une arme par élimination", time = 480 },
 	koth = { n = "Capture de zone", ic = "🚩", c = rgb(0x35e0c0), team = true, respawn = 3, desc = "Tiens la zone qui change de place pour marquer des points.", limitLabel = "Points pour gagner", limits = { 100, 200, 300 }, tag = "Tiens la zone", time = 600 },
@@ -38,8 +40,8 @@ for id, m in pairs(Modes.LIST) do m.id = id end
 
 -- ordre des tuiles de l'écran « Jouer » (MODE_GROUPS du web, avec les modes ajoutés par les extensions)
 Modes.GROUPS = ({
-	{ "Compétitif", { "bomb", "rapid", "duel" } },
-	{ "Action", { "tdm", "ffa", "gg", "koth", "dom", "kc", "ctf", "shp" } },
+	{ "Compétitif", { "bomb", "rapid", "duel", "gunfight" } },
+	{ "Action", { "tdm", "ffa", "gg", "koth", "dom", "kc", "ctf", "shp", "survolte" } },
 	{ "Spécial", { "zombies", "inf", "jug", "br", "train" } },
 } :: any) :: { { any } }
 
@@ -51,7 +53,7 @@ function Modes.featured(): string
 end
 
 -- Partie rapide : modes tirés au hasard (QUICK_MODES du web)
-Modes.QUICK = { "tdm", "ffa", "gg", "koth", "duel", "rapid", "dom", "kc", "ctf", "shp" }
+Modes.QUICK = { "tdm", "ffa", "gg", "koth", "duel", "rapid", "dom", "kc", "ctf", "shp", "gunfight", "survolte" }
 
 -- Cartes, dans l'ordre du web (MAPS) ; zombie = réservée au mode Zombies
 Modes.MAPS = {
@@ -123,6 +125,7 @@ Modes.BUY_ITEMS = {
 function Modes.sizes(mode: string): { number }
 	local m = Modes.LIST[mode]
 	if mode == "duel" then return { 1, 2, 3, 4, 5 } end
+	if mode == "gunfight" then return { 1, 2, 3, 4 } end
 	if m and m.team then
 		local mx = if mode == "bomb" or mode == "rapid" then 5 else 8
 		local l = {}; for i = 1, mx do l[i] = i end
@@ -148,6 +151,7 @@ function Modes.sanitize(s: any): Settings
 	local sizes = Modes.sizes(mode)
 	local size = if typeof(t.size) == "number" and table.find(sizes, t.size) then t.size
 		elseif mode == "duel" then 1                       -- web : 1 v 1 par défaut (cfg.duelSize)
+		elseif mode == "gunfight" then 2                   -- Gunfight : 2 v 2 comme Call of Duty
 		else (if Modes.LIST[mode].team then math.min(5, sizes[#sizes]) else 8)
 	local lims = Modes.LIST[mode].limits
 	local limit = if typeof(t.limit) == "number" and table.find(lims, t.limit) then t.limit else Modes.defaultLimit(mode)

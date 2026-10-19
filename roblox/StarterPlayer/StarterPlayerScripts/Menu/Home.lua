@@ -119,13 +119,13 @@ return function(ctx: any, body: Frame, _sub: string?)
 	local bp = profile and profile.bp
 	local tier = if bp then math.min(X.SEASON.tiers, math.floor((bp.xp or 0) / X.SEASON.xpPerTier)) else 0
 	local pc = if bp then math.floor(((bp.xp or 0) % X.SEASON.xpPerTier) / X.SEASON.xpPerTier * 100) else 0
-	local sc = K.card(mini, { Size = UDim2.new(0.5, -7, 1, 0), AutomaticSize = Enum.AutomaticSize.None }, function() ctx.go("profile", "Progression") end)
+	local sc = K.card(mini, { Size = UDim2.new(0.5, -7, 1, 0), AutomaticSize = Enum.AutomaticSize.None }, function() ctx.openPass() end)
 	K.vlist(sc, 8)
 	K.h4(sc, "★ " .. string.upper(X.SEASON.name), nil, 1)
 	text(sc, { LayoutOrder = 2, Font = K.BLACK, TextSize = 24, Size = UDim2.new(1, 0, 0, 28), TextWrapped = false,
 		Text = "Palier " .. tier .. ' <font size="13" color="#8da0bd">/ ' .. X.SEASON.tiers .. "</font>" })
 	K.bar(sc, pc / 100, { LayoutOrder = 3 })
-	text(sc, { LayoutOrder = 4, TextSize = 11, TextColor3 = C.dim, Text = pc .. " % vers le palier suivant", Size = UDim2.new(1, 0, 0, 14) })
+	text(sc, { LayoutOrder = 4, TextSize = 11, TextColor3 = C.dim, Text = pc .. " % vers le palier suivant · voir le passe ›", Size = UDim2.new(1, 0, 0, 14) })
 	local ds = d and d.daily
 	local day = if ds then ds.day else 1
 	local gc = K.card(mini, { Size = UDim2.new(0.5, -7, 1, 0), Position = UDim2.new(0.5, 7, 0, 0), AutomaticSize = Enum.AutomaticSize.None }, function() ctx.claimDaily() end)

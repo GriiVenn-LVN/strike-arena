@@ -36,7 +36,7 @@ L.TIERS = {
 }
 
 L.TITLES = { loy_flame = "Flamme éternelle", loy_100 = "Centurion", loy_vet = "Vétéran", loy_pillar = "Pilier de l'arène",
-	loy_legend = "Légende fidèle", vip = "⭐ Premium" }
+	loy_legend = "Légende fidèle", vip = "⭐ Premium", starter = "🎖 Pionnier" }   -- starter : pack de départ (ShopCatalog.STARTER)
 
 L.FIRST_WIN = { xp = 100, coins = 25 }     -- première victoire du jour
 L.BOOST_MULT = 0.5                          -- +50 % d'XP par partie de boost
