@@ -77,6 +77,73 @@ ModeConfig.SOUNDS = {
 	knife = { sheet = "knife", id = "rbxasset://sounds/swordlunge.wav", volume = 0.5, pitch = 1.0 },
 	slide = { sheet = "slide" },
 	land = { sheet = "land" },
+	jump = { sheet = "jump" },
+}
+
+-- Réglages du mixage (lus par Sfx et AmbienceController). Les volumes réglables par le joueur passent par Sfx.setVolume.
+-- MIX : niveau de base et égaliseur (dB : graves, médiums, aigus) de chaque groupe, comme l'égaliseur du jeu web
+-- (graves un peu renforcés, aigus perçants adoucis).
+ModeConfig.SOUNDS.MIX = {
+	weapons = { vol = 1, low = 2, mid = -2.5, high = -5 },
+	steps = { vol = 1, low = 1, mid = 0, high = -4 },
+	ui = { vol = 1, low = 0, mid = -1, high = -3 },
+	ambient = { vol = 1, low = 0, mid = 0, high = -6 },
+	music = { vol = 0.7, low = 0, mid = 0, high = 0 },
+}
+
+-- Réverbération selon le lieu : decay = durée (s), wet / dry = niveau de la salle / du son direct (dB),
+-- echo = écho lointain ajouté à la queue des tirs (dehors seulement : un mur ou une colline renvoie le coup).
+ModeConfig.SOUNDS.ACOUSTICS = {
+	lobby = { decay = 0.8, wet = -16, dry = 0, density = 0.6, diffusion = 0.5 },
+	open = { decay = 0.7, wet = -18, dry = 0, density = 0.5, diffusion = 0.4, echo = { delay = 0.34, feedback = 0.3, wet = -10 } },
+	town = { decay = 1.0, wet = -14, dry = 0, density = 0.7, diffusion = 0.6, echo = { delay = 0.22, feedback = 0.35, wet = -9 } },
+	snow = { decay = 0.6, wet = -20, dry = 0, density = 0.4, diffusion = 0.3, echo = { delay = 0.45, feedback = 0.25, wet = -13 } },
+	forest = { decay = 1.1, wet = -15, dry = 0, density = 0.9, diffusion = 1, echo = { delay = 0.28, feedback = 0.3, wet = -12 } },
+	covered = { decay = 1.2, wet = -9, dry = 0, density = 0.8, diffusion = 0.7, indoor = true },
+	hall = { decay = 1.9, wet = -8, dry = 0, density = 0.8, diffusion = 0.8, indoor = true },
+	tunnel = { decay = 2.6, wet = -6, dry = -1, density = 0.9, diffusion = 0.7, indoor = true },
+	lab = { decay = 1.3, wet = -9, dry = 0, density = 1, diffusion = 0.9, indoor = true },
+	stone = { decay = 2.0, wet = -7, dry = 0, density = 0.7, diffusion = 0.6, indoor = true },
+}
+
+-- Fonds sonores en boucle (sons fournis avec Roblox) : rate = vitesse de lecture (plus bas = plus grave),
+-- vol = volume, high / mid = égaliseur (dB), gust = force des rafales (variation lente du volume, 0 = constant).
+ModeConfig.SOUNDS.AMBIENCE = {
+	wind = { { id = "rbxasset://sounds/action_falling.mp3", rate = 0.45, vol = 0.16, high = -14, mid = -3, gust = 0.4 } },
+	windSoft = { { id = "rbxasset://sounds/action_falling.mp3", rate = 0.38, vol = 0.1, high = -18, mid = -4, gust = 0.3 } },
+	windStrong = { { id = "rbxasset://sounds/action_falling.mp3", rate = 0.52, vol = 0.24, high = -10, mid = -2, gust = 0.55 } },
+	hum = { { id = "rbxasset://sounds/action_falling.mp3", rate = 0.22, vol = 0.11, high = -30, mid = -6, gust = 0.06 } },
+	harbor = {
+		{ id = "rbxasset://sounds/action_falling.mp3", rate = 0.42, vol = 0.12, high = -16, mid = -3, gust = 0.4 },
+		{ id = "rbxasset://sounds/action_swim.mp3", rate = 0.55, vol = 0.07, high = -12, mid = -2, gust = 0.5 },
+	},
+	haunt = { { id = "rbxasset://sounds/action_falling.mp3", rate = 0.3, vol = 0.13, high = -20, mid = -4, gust = 0.65 } },
+}
+
+-- Cartes : out = acoustique à l'air libre, inn = sous un toit (plafond détecté au-dessus de la caméra),
+-- floor / raised = sol de la carte / dessus des caisses, plateformes et rampes, ambience = fond sonore (AMBIENCE).
+ModeConfig.SOUNDS.MAPS = {
+	village = { out = "town", inn = "covered", floor = "sand", raised = "stone", ambience = "wind" },
+	warehouse = { out = "town", inn = "hall", floor = "stone", raised = "metal", ambience = "hum" },
+	station = { out = "snow", inn = "covered", floor = "snow", raised = "snow", ambience = "windStrong" },
+	harbor = { out = "town", inn = "covered", floor = "stone", raised = "metal", ambience = "harbor" },
+	metro = { out = "tunnel", inn = "tunnel", floor = "stone", raised = "metal", ambience = "hum" },
+	jungle = { out = "forest", inn = "stone", floor = "grass", raised = "stone", ambience = "windSoft" },
+	range = { out = "town", inn = "hall", floor = "stone", raised = "metal", ambience = "hum" },
+	labo = { out = "lab", inn = "lab", floor = "stone", raised = "metal", ambience = "hum" },
+	asile = { out = "open", inn = "stone", floor = "sand", raised = "wood", ambience = "haunt" },
+	manoir = { out = "open", inn = "stone", floor = "sand", raised = "wood", ambience = "haunt" },
+}
+
+-- Pas : couches jouées pour un pas sur chaque sol (sheet = son de la planche, rate = vitesse, vol = volume,
+-- delay = décalage en s). Le volume se donne comme pour sfx('step') du web (0,28 en marchant, 0,36 en sprint).
+ModeConfig.SOUNDS.STEPS = {
+	sand = { { sheet = "jump", rate = 0.93, vol = 1.7 } },
+	grass = { { sheet = "jump", rate = 0.85, vol = 1.5 } },
+	snow = { { sheet = "jump", rate = 0.72, vol = 1.45 }, { sheet = "slide", rate = 2.2, vol = 0.12 } },
+	stone = { { sheet = "jump", rate = 1.75, vol = 1.5 } },
+	wood = { { sheet = "jump", rate = 1.25, vol = 1.5 }, { sheet = "land", rate = 1.9, vol = 0.25 } },
+	metal = { { sheet = "jump", rate = 2.1, vol = 1.6 }, { sheet = "shellin", rate = 0.6, vol = 0.55, delay = 0.01 } },
 }
 
 return ModeConfig
