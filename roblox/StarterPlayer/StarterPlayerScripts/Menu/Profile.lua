@@ -41,10 +41,10 @@ local function progression(ctx: any, sc: ScrollingFrame)
 	if two then K.hlist(top, 14, Enum.VerticalAlignment.Top) else K.vlist(top, 12) end
 	local dp = panel(top, 1, { Size = UDim2.new(if two then 0.5 else 1, if two then -7 else 0, 0, 0) })
 	K.label(dp, "DÉFIS DU JOUR", 0, C.dim)
-	for i, m in ipairs(profile.missions and profile.missions.list or {}) do K.mission(ctx, dp, m, i, false) end
+	for i, m in ipairs(ctx.ch and ctx.ch.daily or profile.missions and profile.missions.list or {}) do K.mission(ctx, dp, m, i, false) end
 	local wp = panel(top, 2, { Size = UDim2.new(if two then 0.5 else 1, if two then -7 else 0, 0, 0) })
 	K.label(wp, "DÉFIS DE LA SEMAINE", 0, C.dim)
-	for i, m in ipairs(profile.wmis and profile.wmis.list or {}) do K.mission(ctx, wp, m, i, true) end
+	for i, m in ipairs(ctx.ch and ctx.ch.weekly or profile.wmis and profile.wmis.list or {}) do K.mission(ctx, wp, m, i, true) end
 	-- classement
 	local rank = profile.rank or { rp = 0, best = 0 }
 	local rc = panel(sc, 2)
@@ -61,19 +61,25 @@ local function progression(ctx: any, sc: ScrollingFrame)
 			Position = UDim2.fromScale(1, 0), Size = UDim2.new(0.4, 0, 1, 0), TextSize = 11, TextColor3 = C.sub })
 	end
 	-- événement
-	if d.eventActive then
+	local es: any = ctx.ev
+	if (es and es.active) or (not es and d.eventActive) then
 		local ev = make("Frame", { LayoutOrder = 3, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 0.1, BackgroundColor3 = K.rgb(0x1d1408) }, sc)
 		K.stroke(ev, C.orange, 1, 0.5); K.corner(ev, 8); K.pad(ev, 16, 14); K.vlist(ev, 8)
-		local pk = if profile.ev and profile.ev.id == X.EVENT.id then profile.ev.pumpkins or 0 else 0
-		local claimed = if profile.ev and profile.ev.id == X.EVENT.id then profile.ev.claimed or {} else {}
-		text(ev, { LayoutOrder = 1, Text = "🎃  " .. spaced("ÉVÉNEMENT : " .. string.upper(X.EVENT.name), 2), Font = K.BLACK, TextSize = 15, Size = UDim2.new(1, 0, 0, 20) })
-		local y, mo, da = string.match(X.EVENT.to, "(%d+)-(%d+)-(%d+)")
-		K.para(ev, "Ramasse les citrouilles cachées sur les cartes jusqu'au " .. (if y then tostring(da) .. "/" .. tostring(mo) .. "/" .. tostring(y) else X.EVENT.to) .. ". Citrouilles : <b>" .. pk .. "</b>", 12, C.text, 2)
+		local own = profile.ev and profile.ev.id == X.EVENT.id
+		local pk: number = if es then (es.pumpkins or 0) elseif own then profile.ev.pumpkins or 0 else 0
+		local claimed = if own then profile.ev.claimed or {} else {}
+		local evName: string = if es and es.name then es.name else X.EVENT.name
+		local evTo: string = if es and es.to then es.to else X.EVENT.to
+		text(ev, { LayoutOrder = 1, Text = "🎃  " .. spaced("ÉVÉNEMENT : " .. string.upper(evName), 2), Font = K.BLACK, TextSize = 15, Size = UDim2.new(1, 0, 0, 20) })
+		local y, mo, da = string.match(evTo, "(%d+)-(%d+)-(%d+)")
+		K.para(ev, "Ramasse les citrouilles cachées sur les cartes jusqu'au " .. (if y then tostring(da) .. "/" .. tostring(mo) .. "/" .. tostring(y) else evTo) .. ". Citrouilles : <b>" .. pk .. "</b>", 12, C.text, 2)
 		local gr = make("Frame", { LayoutOrder = 3, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y }, ev)
 		K.hlist(gr, 8, Enum.VerticalAlignment.Center, true)
-		for i, g in ipairs(X.EVENT.goals) do
-			local got = table.find(claimed, g.n) ~= nil
-			local chip = text(gr, { LayoutOrder = i, Text = g.n .. " → " .. rewardText(g) .. (if got then "  ✔" else ""), AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 32),
+		local goals: { any } = if es and es.goals then es.goals else X.EVENT.goals
+		for i, g in ipairs(goals) do
+			local got = if es and es.goals then g.done == true else table.find(claimed, g.n) ~= nil
+			local label = if es and es.goals and g.text then g.text else rewardText(g)
+			local chip = text(gr, { LayoutOrder = i, Text = g.n .. " → " .. label .. (if got then "  ✔" else ""), AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 32),
 				TextSize = 12, Font = K.BLACK, BackgroundTransparency = 0.2, BackgroundColor3 = if got then K.rgb(0x1f3a26) else C.navy, TextColor3 = if got then C.green else C.text, TextWrapped = false })
 			K.pad(chip, 12, 0); K.stroke(chip, C.white, 1, 0.9)
 		end

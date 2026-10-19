@@ -13,6 +13,11 @@ local K = require(script.Parent.Kit)
 local C = K.C
 local make, text, spaced = K.make, K.text, K.spaced
 
+-- nom et symbole des sprays (SprayService.LOOK)
+local SPRAY_LOOK: { [string]: { string } } = {
+	smile = { "Sourire", "☺" }, heart = { "Cœur", "♥" }, skull = { "Crâne", "☠" }, bolt = { "Éclair", "⚡" },
+	flame = { "Flamme", "🔥" }, crown = { "Couronne", "♛" }, target = { "Cible", "◎" }, ghost = { "Fantôme", "👻" },
+}
 local CAT = { { "melee", "COUTEAU" }, { "pistol", "PISTOLETS" }, { "smg", "SMG" }, { "shotgun", "POMPES" }, { "rifle", "FUSILS" }, { "sniper", "PRÉCISION" }, { "lmg", "MITRAILLEUSES" } }
 
 -- panneaux de l'autre module (Armurier, viseurs), s'il est présent
@@ -283,10 +288,11 @@ local function locker(ctx: any, body: Frame)
 	local lw = if W >= 1000 then math.floor(W * 0.42) else W
 	local left = K.scroll(body, { Name = "Locker", Size = UDim2.new(0, lw, 1, 0) })
 	K.vlist(left, 10); K.pad(left, 0, 0, 8, 10)
-	K.label(left, if kind == "dances" then "DANSES & EMOTES — touche T en jeu" elseif kind == "outfits" then "TENUES DE SOLDAT" else "EFFETS D'ÉLIMINATION", 1, C.dim)
+	K.label(left, if kind == "dances" then "DANSES & EMOTES — touche T en jeu" elseif kind == "outfits" then "TENUES DE SOLDAT"
+		elseif kind == "sprays" then "SPRAYS — touche J en jeu" else "EFFETS D'ÉLIMINATION", 1, C.dim)
 	local tabs = make("Frame", { Size = UDim2.new(1, 0, 0, 34), LayoutOrder = 2 }, left)
 	K.hlist(tabs, 6)
-	for i, t in ipairs({ { "dances", "Danses" }, { "outfits", "Tenues" }, { "killfx", "Effets d'élimination" } }) do
+	for i, t in ipairs({ { "dances", "Danses" }, { "outfits", "Tenues" }, { "killfx", "Effets d'élimination" }, { "sprays", "Sprays" } }) do
 		K.chip(tabs, t[2], kind == t[1], function() ctx.lockerKind = t[1]; ctx.render() end, { LayoutOrder = i, Size = UDim2.fromOffset(0, 32) })
 	end
 	local g = make("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 3 }, left)
@@ -307,6 +313,21 @@ local function locker(ctx: any, body: Frame)
 			itemCard(g, i, dd.name, dd.rarity, have, on, function()
 				if not have then ctx.toast("Danse à gagner dans les caisses, le cadeau du jour ou l'événement", C.gold); return end
 				if ctx.call("EquipDance", id) then ctx.toast("✔ " .. dd.name .. " équipée (touche T)", C.green) end
+				ctx.refresh()
+			end)
+		end
+	elseif kind == "sprays" then
+		-- sprays (SprayService) : débloqués par niveau comme sur le web (1, 1, 2, 2, 3, 3, 4, 4)
+		local level = ctx.data and ctx.data.level or 1
+		local cur = profile and profile.cosmetics and profile.cosmetics.spray or "smile"
+		for i, id in ipairs(X.SPRAYS) do
+			local look = SPRAY_LOOK[id] or { id, "?" }
+			local need = 1 + (i - 1) // 2
+			local have = level >= need
+			if cur == id then status = "✔ Spray équipé : " .. look[1] end
+			itemCard(g, i, look[2] .. "  " .. look[1] .. (if have then "" else "  · niveau " .. need), math.min(4, need), have, cur == id, function()
+				if not have then ctx.toast("Débloqué au niveau " .. need, C.gold); return end
+				if ctx.call("SetSpray", id) then ctx.toast("✔ " .. look[1] .. " (touche J en jeu)", C.green) end
 				ctx.refresh()
 			end)
 		end
@@ -352,39 +373,6 @@ local function locker(ctx: any, body: Frame)
 end
 
 -- ======================= Caisses =======================
-local function reveal(ctx: any, res: any)
-	local root = ctx.player:FindFirstChild("PlayerGui") and (ctx.player.PlayerGui :: any):FindFirstChild("MainMenu")
-	local host = root and root:FindFirstChild("Root")
-	if not host then return end
-	local veil = make("TextButton", { Text = "", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 0.25, BackgroundColor3 = K.rgb(0x05080e), ZIndex = 90, AutoButtonColor = false }, host)
-	local col = K.rarityColor(res.rarity or 1)
-	local box = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.45), Size = UDim2.fromOffset(150, 110), BackgroundTransparency = 0,
-		BackgroundColor3 = K.rgb(0x1e2a42), ZIndex = 91 }, veil)
-	K.corner(box, 10); K.stroke(box, col, 3, 0)
-	text(box, { Text = "?", Size = UDim2.fromScale(1, 1), TextSize = 56, Font = K.BLACK, TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 92 })
-	-- la caisse tremble, puis s'ouvre
-	for _ = 1, 6 do
-		K.tween(box, 0.07, { Rotation = 8 }); task.wait(0.07)
-		K.tween(box, 0.07, { Rotation = -8 }); task.wait(0.07)
-	end
-	box.Rotation = 0
-	K.tween(box, 0.25, { Size = UDim2.fromOffset(420, 200) }, Enum.EasingStyle.Back)
-	K.clear(box)
-	local it = res.item or {}
-	local name = "Pièces"
-	if it.kind == "skin" then name = (Config.SKINS[it.skin] and Config.SKINS[it.skin].name or "Skin") .. " · " .. (Config.WEAPONS[it.weapon] and Config.WEAPONS[it.weapon].name or "")
-	elseif it.kind == "dance" then name = "Danse " .. (Config.DANCES[it.dance] and Config.DANCES[it.dance].name or "")
-	elseif it.kind == "outfit" then name = "Tenue " .. (Config.OUTFITS[it.outfit] and Config.OUTFITS[it.outfit].name or "") end
-	text(box, { Text = spaced(string.upper(Config.RARITY[res.rarity or 1].name), 2), Position = UDim2.fromOffset(0, 26), Size = UDim2.new(1, 0, 0, 20), TextSize = 14, Font = K.BLACK,
-		TextColor3 = col, TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 92 })
-	text(box, { Text = name, Position = UDim2.fromOffset(10, 56), Size = UDim2.new(1, -20, 0, 60), TextSize = 24, Font = K.BLACK, TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 92 })
-	text(box, { Text = if res.duplicate then "Doublon : +" .. res.coins .. " 🪙" elseif (res.coins or 0) > 0 then "+" .. res.coins .. " 🪙" else "Ajouté à ta collection",
-		Position = UDim2.fromOffset(0, 120), Size = UDim2.new(1, 0, 0, 20), TextSize = 14, TextColor3 = C.gold, TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 92 })
-	text(box, { Text = "Clique pour continuer", Position = UDim2.fromOffset(0, 168), Size = UDim2.new(1, 0, 0, 16), TextSize = 11, TextColor3 = C.dim, TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 92 })
-	veil.Activated:Connect(function() veil:Destroy() end)
-	task.delay(6, function() if veil.Parent then veil:Destroy() end end)
-end
-
 local function crates(ctx: any, body: Frame)
 	local profile = ctx.data and ctx.data.profile
 	local W = ctx.W - 56
@@ -423,7 +411,10 @@ local function crates(ctx: any, body: Frame)
 			if ctx.busyCrate then return end
 			ctx.busyCrate = true
 			local res = ctx.call("OpenBox", id)
-			if res and res.ok then reveal(ctx, res) else ctx.toast(if res and res.err == "not_enough_coins" then "Pas assez de pièces" else "Ouverture impossible", C.accent) end
+			if res and res.ok then
+				local okA, errA = pcall(function() require(ReplicatedStorage.Shared.CrateOpening).play(nil, res, id) end)   -- ouverture 3D du web
+				if not okA then warn("[MainMenu] CrateOpening", errA) end
+			else ctx.toast(if res and res.err == "not_enough_coins" then "Pas assez de pièces" else "Ouverture impossible", C.accent) end
 			ctx.busyCrate = false
 			ctx.refresh()
 		end, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 290), Size = UDim2.fromOffset(if stock > 0 then 150 else math.min(cw - 30, 400), 50), TextSize = 16 })

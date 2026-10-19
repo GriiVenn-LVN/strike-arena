@@ -64,6 +64,8 @@ M.KEYS = {
 	{ "Inspecter l'arme", "V", "Croix haut" },
 	{ "Choisir ses armes", "B", "Croix gauche" },
 	{ "Danse / emote", "T", "—" },
+	{ "Spray", "J", "—" },
+	{ "Mode photo", "F4", "—" },
 	{ "Tableau des scores", "Tab (maintenir)", "Select" },
 	{ "Libérer la souris", "M", "Start" },
 	{ "Menu principal", "P", "Croix bas" },

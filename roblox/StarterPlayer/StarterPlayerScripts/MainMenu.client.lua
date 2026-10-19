@@ -164,6 +164,8 @@ function ctx.refresh(andRender: boolean?)
 		end
 	end
 	ctx.loy = call("Loy_Get") or ctx.loy
+	ctx.ch = call("GetChallenges") or ctx.ch          -- défis du jour / de la semaine, avec leurs textes (pool complet du web)
+	ctx.ev = call("EventStatus") or ctx.ev            -- événement d'Halloween (citrouilles, paliers)
 	if headerRefs.update then headerRefs.update() end
 	if andRender ~= false and open then render() end
 end
@@ -172,8 +174,9 @@ function ctx.pending(): number
 	local n = 0
 	local d = ctx.data
 	if d and d.profile then
-		for _, m in ipairs(d.profile.missions and d.profile.missions.list or {}) do if m.done and not m.claimed then n += 1 end end
-		for _, m in ipairs(d.profile.wmis and d.profile.wmis.list or {}) do if m.done and not m.claimed then n += 1 end end
+		local ch = ctx.ch
+		for _, m in ipairs(ch and ch.daily or d.profile.missions and d.profile.missions.list or {}) do if m.done and not m.claimed then n += 1 end end
+		for _, m in ipairs(ch and ch.weekly or d.profile.wmis and d.profile.wmis.list or {}) do if m.done and not m.claimed then n += 1 end end
 		if d.daily and d.daily.canClaim then n += 1 end
 	end
 	if ctx.loy and ctx.loy.pending then n += #ctx.loy.pending end
@@ -387,13 +390,18 @@ local function buildSubRow()
 	end
 	-- en partie : on peut reprendre ou quitter
 	if ctx.inMatch() then
-		local strip = make("Frame", { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.fromOffset(620, 36),
+		local strip = make("Frame", { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.fromOffset(760, 36),
 			BackgroundTransparency = 0.1, BackgroundColor3 = K.rgb(0x2a0f14) }, subRow)
 		K.corner(strip, 8); K.stroke(strip, C.accent, 1, 0.5); K.pad(strip, 12, 0, 4, 0)
 		local mm = player:GetAttribute("MatchMode")
 		local mdef = if typeof(mm) == "string" then Modes.LIST[mm] else nil
-		text(strip, { Size = UDim2.new(1, -290, 1, 0), TextSize = 12, Font = K.BLACK, TextWrapped = false, TextTruncate = Enum.TextTruncate.AtEnd,
+		text(strip, { Size = UDim2.new(1, -420, 1, 0), TextSize = 12, Font = K.BLACK, TextWrapped = false, TextTruncate = Enum.TextTruncate.AtEnd,
 			Text = '<font color="#ff4655">●</font>  ' .. spaced("PARTIE EN COURS", 1) .. (if mdef then '  <font color="#b8c5da">· ' .. mdef.n .. "</font>" else "") })
+		K.btn(strip, "📷  MODE PHOTO", "alt", function()
+			ctx.close()
+			local ok, err = pcall(function() require(ReplicatedStorage.Shared.PhotoMode).enter() end)
+			if not ok then warn("[MainMenu] PhotoMode", err) end
+		end, { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -280, 0.5, 0), Size = UDim2.fromOffset(124, 28), TextSize = 11 })
 		K.btn(strip, "REPRENDRE", "alt", function() ctx.close() end, { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -150, 0.5, 0), Size = UDim2.fromOffset(124, 28), TextSize = 12 })
 		K.btn(strip, "QUITTER LA PARTIE", "primary", function()
 			ctx.leaveMatch(); ctx.go("home")

@@ -51,7 +51,8 @@ return function(ctx: any, body: Frame, _sub: string?)
 	end
 
 	-- ============ colonne 1 : JOUER ============
-	local hw = d and d.eventActive == true
+	local es: any = ctx.ev
+	local hw = if es then es.active == true else (d and d.eventActive == true)
 	local hero = make("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 0, BackgroundColor3 = C.white,
 		LayoutOrder = 1, ClipsDescendants = true }, cols[1])
 	-- fond du web : radial-gradient rouge (orange à Halloween) en haut à gauche, bleu (violet) en bas à droite, sur un bleu nuit
@@ -72,14 +73,15 @@ return function(ctx: any, body: Frame, _sub: string?)
 		b.Activated:Connect(onClick)
 	end
 	if hw then
-		local pk = if profile and profile.ev and profile.ev.id == X.EVENT.id then profile.ev.pumpkins or 0 else 0
-		local y, mo, da = string.match(X.EVENT.to, "(%d+)-(%d+)-(%d+)")
+		local pk: number = if es then (es.pumpkins or 0) elseif profile and profile.ev and profile.ev.id == X.EVENT.id then profile.ev.pumpkins or 0 else 0
+		local evName: string = if es and es.name then es.name else X.EVENT.name
+		local y, mo, da = string.match(if es and es.to then es.to else X.EVENT.to, "(%d+)-(%d+)-(%d+)")
 		local days = 0
 		if y then
 			local endT = DateTime.fromUniversalTime(tonumber(y) :: number, tonumber(mo) :: number, tonumber(da) :: number, 23, 59, 59).UnixTimestamp
 			days = math.max(0, math.ceil((endT - os.time()) / 86400))
 		end
-		tag("🎃  " .. spaced(string.upper(X.EVENT.name), 1) .. " · " .. pk .. " citrouille" .. (if pk > 1 then "s" else "") .. " · encore " .. days .. " j", C.pumpkin,
+		tag("🎃  " .. spaced(string.upper(evName), 1) .. " · " .. pk .. " citrouille" .. (if pk > 1 then "s" else "") .. " · encore " .. days .. " j", C.pumpkin,
 			function() ctx.go("profile", "Progression") end)
 	end
 	local feat = Modes.featured()
@@ -139,12 +141,12 @@ return function(ctx: any, body: Frame, _sub: string?)
 	local dc = K.card(cols[2], { LayoutOrder = 3 })
 	K.vlist(dc, 8)
 	K.h4(dc, "🎯 DÉFIS DU JOUR", "nouveaux dans " .. untilMidnight(), 0)
-	for i, m in ipairs(profile and profile.missions and profile.missions.list or {}) do mission(ctx, dc, m, i, false) end
+	for i, m in ipairs(ctx.ch and ctx.ch.daily or profile and profile.missions and profile.missions.list or {}) do mission(ctx, dc, m, i, false) end
 	if not profile then K.para(dc, "Chargement du profil…", 12, C.dim, 1) end
 	local wc = K.card(cols[2], { LayoutOrder = 4 })
 	K.vlist(wc, 8)
 	K.h4(wc, "🏆 DÉFIS DE LA SEMAINE", "nouveaux dans " .. weekLeft(), 0)
-	for i, m in ipairs(profile and profile.wmis and profile.wmis.list or {}) do mission(ctx, wc, m, i, true) end
+	for i, m in ipairs(ctx.ch and ctx.ch.weekly or profile and profile.wmis and profile.wmis.list or {}) do mission(ctx, wc, m, i, true) end
 
 	-- ============ colonne 3 : cadeaux, Premium, nouveautés ============
 	local lm = make("Frame", { LayoutOrder = 5, Size = UDim2.new(1, 0, 0, 122) }, cols[3])

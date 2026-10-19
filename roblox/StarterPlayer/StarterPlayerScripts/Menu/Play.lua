@@ -9,6 +9,7 @@ local AssetService = game:GetService("AssetService")
 local SocialService = game:GetService("SocialService")
 local Modes = require(ReplicatedStorage.Shared.Modes)
 local MapData = require(ReplicatedStorage.Shared.MapData)
+local X = require(ReplicatedStorage.Shared.ConfigExtra)
 local K = require(script.Parent.Kit)
 local C = K.C
 local make, text, spaced = K.make, K.text, K.spaced
@@ -124,6 +125,8 @@ return function(ctx: any, body: Frame, _sub: string?)
 		for k, v in pairs(changes) do p[k] = v end
 		local s = Modes.sanitize(p)
 		for k, v in pairs(s) do p[k] = v end
+		-- comme sur le web : pas de partie classée avec des modificateurs ni hors des modes classés
+		if next(p.mut) ~= nil or not X.RANKED_MODES[p.mode] then p.ranked = false end
 		ctx.save("play"); ctx.render()
 	end
 
@@ -406,13 +409,24 @@ return function(ctx: any, body: Frame, _sub: string?)
 		end)
 	end
 	if #active > 0 then K.para(cfg, table.concat(active, "\n"), 11, C.dim, 22) end
+	-- classé (web : cfg.ranked) : seulement dans les modes classés, désactivé avec des modificateurs
+	if X.RANKED_MODES[p.mode] then
+		local blocked = next(p.mut) ~= nil
+		local rr = chips(23)
+		local rb = K.chip(rr, (if p.ranked and not blocked then "🏆  " else "") .. spaced("CLASSÉ", 1), p.ranked == true and not blocked,
+			if blocked then nil else function() set({ ranked = not p.ranked }) end, { LayoutOrder = 1, Name = "Ranked", Font = K.BLACK, TextSize = 12 }, C.gold)
+		if blocked then rb.AutoButtonColor = false; rb.TextTransparency = 0.5; rb.Selectable = false end
+		text(rr, { LayoutOrder = 2, Text = if blocked then "Indisponible avec des modificateurs." else "La victoire et la défaite comptent pour ton rang (PR).",
+			AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 36), TextSize = 11, TextColor3 = C.dim, TextWrapped = false })
+	end
 	-- résumé
 	local sum = make("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 30, BackgroundTransparency = 0.15, BackgroundColor3 = C.panel }, cfg)
 	K.corner(sum, 4); K.pad(sum, 16, 12)
 	make("Frame", { Size = UDim2.new(0, 3, 1, 24), Position = UDim2.fromOffset(-16, -12), BackgroundTransparency = 0, BackgroundColor3 = C.gold }, sum)
 	local size = if p.mode == "zombies" then p.size .. " joueur" .. (if p.size > 1 then "s" else "") elseif def.team then p.size .. " v " .. p.size else p.size .. " joueurs"
 	local lim = if p.limit then " · " .. string.lower(def.limitLabel) .. " : " .. p.limit else ""
-	K.para(sum, "<b>" .. modeName(p.mode) .. "</b> · " .. (Modes.MAP[p.map] and Modes.MAP[p.map].n or "") .. " · " .. Modes.DIFFS[p.diff].n .. " · " .. size .. lim, 13, C.text)
+	K.para(sum, "<b>" .. modeName(p.mode) .. "</b> · " .. (Modes.MAP[p.map] and Modes.MAP[p.map].n or "") .. " · " .. Modes.DIFFS[p.diff].n .. " · " .. size .. lim
+		.. (if p.ranked and next(p.mut) == nil and X.RANKED_MODES[p.mode] then " · <b>Classé</b>" else ""), 13, C.text)
 	-- JOUER
 	local label = if friends and inParty then "JOUER AVEC LE GROUPE" else "JOUER"
 	local pb = K.btn(cfg, spaced(label, if friends and inParty then 2 else 4), "primary", function() ctx.startPlay() end,

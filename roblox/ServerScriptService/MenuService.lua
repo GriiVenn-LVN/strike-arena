@@ -36,7 +36,7 @@ remote("MenuSave", function(p: Player, kind: any, data: any)
 	profile.menu = if typeof(profile.menu) == "table" then profile.menu else {}
 	if kind == "play" then
 		local s = Modes.sanitize(data)
-		profile.menu.play = { mode = s.mode, map = s.map, diff = s.diff, size = s.size, limit = s.limit, side = s.side, eco = s.eco, mut = s.mut,
+		profile.menu.play = { mode = s.mode, map = s.map, diff = s.diff, size = s.size, limit = s.limit, side = s.side, eco = s.eco, mut = s.mut, ranked = s.ranked,
 			friends = data.friends == true }
 		return true
 	elseif kind == "opts" then

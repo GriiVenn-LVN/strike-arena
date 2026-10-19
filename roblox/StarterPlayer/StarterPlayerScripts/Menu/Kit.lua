@@ -281,11 +281,11 @@ function K.mission(ctx: any, parent: Instance, m: any, i: number, weekly: boolea
 	K.stroke(f, if m.done and not m.claimed then C.gold else C.white, 1, if m.done and not m.claimed then 0.45 else 0.94)
 	K.vlist(f, 6)
 	local top = K.make("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 1 }, f)
-	K.text(top, { Text = MenuConfig.missionText(m.id, m.target, weekly), TextSize = 13, Font = K.MED, TextColor3 = if m.claimed then C.dim else C.text,
+	K.text(top, { Text = m.text or MenuConfig.missionText(m.id, m.target, weekly), TextSize = 13, Font = K.MED, TextColor3 = if m.claimed then C.dim else C.text,
 		Size = UDim2.new(1, -110, 0, 0), AutomaticSize = Enum.AutomaticSize.Y })
 	if m.done and not m.claimed then
 		K.btn(top, K.spaced("RÉCUPÉRER", 1), "gold", function()
-			local res = ctx.call(if weekly then "ClaimWeekly" else "ClaimMission", i)
+			local res = ctx.call(if weekly then "ClaimWeekly" else "ClaimMission", m.index or i)
 			if res then ctx.toast("✔ +" .. m.coins .. " 🪙 · +" .. m.xp .. " XP", C.gold) end
 			ctx.refresh()
 		end, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.fromOffset(104, 24), TextSize = 10 })
