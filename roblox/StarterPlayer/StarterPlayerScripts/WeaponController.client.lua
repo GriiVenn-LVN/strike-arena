@@ -78,6 +78,7 @@ local function tracer(from: Vector3, to: Vector3, mine: boolean)
 	spark.Size = Vector3.new(0.35, 0.35, 0.35); spark.Position = to; spark.Parent = workspace
 	TweenService:Create(spark, TweenInfo.new(0.18), { Size = Vector3.new(0.05, 0.05, 0.05), Transparency = 1 }):Play()
 	Debris:AddItem(spark, 0.2)
+	Sfx.impact(from, to)                               -- bruit d'impact selon le matériau touché
 end
 
 local function muzzleFlash(char: Model?)
@@ -115,6 +116,7 @@ tracerRemote.OnClientEvent:Connect(function(origin: Vector3, endPos: Vector3, sh
 			local held = shooter:FindFirstChild("HeldWeapon")
 			local m = A.modsOf(A.list(key, A.decode(held and held:GetAttribute("Att")), nil, true))
 			playSound(fireSound(key), origin, m.snd)          -- silencieux : tir à 35 % du volume
+			Sfx.bulletPass(origin, endPos, Config.WEAPONS[key].cat)   -- claquement si la balle frôle la caméra
 		end
 		muzzleFlash(shooter :: Model)
 	end
