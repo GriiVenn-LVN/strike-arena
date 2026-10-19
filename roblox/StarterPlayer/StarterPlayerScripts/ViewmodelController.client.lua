@@ -5,6 +5,9 @@
 -- de côté, atterrissage, recul sur ressort, sortie d'arme, sprint / sprint tactique / glissade / escalade,
 -- recharge en phases (bascule, chargeur dehors qui tombe, chargeur neuf, claque, armement à vide),
 -- inspection (touche V), coup de couteau, éclair de bouche, douilles, lunette des fusils de précision.
+-- Aussi : sortie d'arme amortie avec figure des skins Épiques et plus (55c_inspect.js), main droite qui arme la culasse
+-- à vide, chargeur vide qui tombe dans la vue, crosse masquée en visée, et la caméra du web (90_main.js placeCamera) :
+-- balancement de tête, roulis en pas de côté et en glissade, plongeon à l'atterrissage, champ élargi en sprint.
 -- Les distances sont en mètres comme sur le web (1 m = 1 stud ici : tout est relatif à la caméra).
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -172,6 +175,11 @@ end
 local flash = part("Flash", Vector3.new(0.12, 0.12, 0.12), Color3.fromRGB(255, 214, 140), Enum.Material.Neon)
 flash.Shape = Enum.PartType.Ball
 local flashLight = Instance.new("PointLight"); flashLight.Color = Color3.fromRGB(255, 200, 120); flashLight.Range = 12; flashLight.Brightness = 0; flashLight.Parent = flash
+-- reflet qui balaie l'arme (inspection, sortie des skins Légendaires) : INS_LIGHT du web, une simple lumière
+local glint = part("Glint", Vector3.new(0.02, 0.02, 0.02), Color3.new(), nil)
+glint.Transparency = 1
+local glintLight = Instance.new("PointLight"); glintLight.Color = Color3.fromRGB(255, 241, 214); glintLight.Range = 0.9; glintLight.Brightness = 0
+glintLight.Shadows = false; glintLight.Parent = glint
 
 -- lunette (fusils de précision en visée)
 local scopeGui = Instance.new("ScreenGui"); scopeGui.Name = "Scope"; scopeGui.IgnoreGuiInset = true; scopeGui.ResetOnSpawn = false
@@ -208,7 +216,29 @@ local VM = {
 	relKey = 0, relSnd = 0, relDrop = false, relEmpty = false, inspSnd = 0,
 	sig = "", att = {} :: { string }, mods = A.neutral(), noFlash = false,
 	lastLook = Vector3.new(0, 0, -1), prevGround = true, airVy = 0,
+	relShells = 3, boltC = Vector3.zero, boltX = 0, stock = {} :: { BasePart },
+	drawQ = 0, drawFl = false, drawK = "long", drawRack = false, glintK = 0, glintX = 0,
+	-- caméra (placeCamera du web) : ressort d'atterrissage, phase du balancement, tangage déjà ajouté, champ posé
+	camL = 0, camLv = 0, camAir = 0, camGround = true, camPit = 0, bobT = 0, fovSet = -1, fovBase = 70,
 }
+-- chargeurs vides qui tombent : copies ancrées, déplacées dans le repère de la caméra (vmDropsUpdate du web)
+type Drop = { parts: { BasePart }, rel: { CFrame }, pos: Vector3, r0: CFrame, ang: Vector3, v: Vector3, s: Vector3, t: number }
+local drops: { Drop } = {}
+
+-- durée de sortie (drawDur du web) : skins Épiques et plus (rareté 3+) font une petite figure, plus longue
+local function drawDur(key: string): number
+	local w = Config.WEAPONS[key]
+	local q = 0
+	if not S.kc then
+		local sk = player:GetAttribute("Skin_" .. key)
+		local def = if typeof(sk) == "number" then Config.SKINS[sk] else nil
+		if def and (sk :: number) > 1 then q = def.rarity - 1 end
+		if player:GetAttribute("Camo_" .. key) ~= nil then q = math.max(q, 3) end   -- camos animés : exclusifs
+	end
+	VM.drawQ = q; VM.drawFl = q >= 2; VM.drawRack = false
+	VM.drawK = if w and w.melee then "knife" elseif w and w.cat == "pistol" then "pistol" else "long"
+	return if VM.drawFl then (if VM.drawK == "long" then 0.95 else 0.8) else 0.5
+end
 
 -- skin de l'arme en main : le nôtre, ou celui du tueur pendant la kill-cam
 local function applySkin()
@@ -256,32 +286,43 @@ local function setGun(key: string)
 	if VM.pistol or VM.left.Magnitude < 0.01 then VM.left = Vector3.new(-0.01, -0.035, 0.005) end   -- pistolet : main gauche sous la droite
 	local mz = grip:FindFirstChild("Muzzle") :: Attachment?
 	VM.muzzle = if mz then mz.Position else Vector3.new(0, 0.03, -0.4)
-	VM.magParts = {}; VM.hasBolt = false
+	VM.magParts = {}; VM.hasBolt = false; VM.stock = {}
 	local sum, n = Vector3.zero, 0
+	local bsum, bn, bx = Vector3.zero, 0, -math.huge
 	for _, c in ipairs(model:GetChildren()) do
 		if c:IsA("BasePart") then
+			local off = c:GetAttribute("Offset")
+			local pos = if typeof(off) == "CFrame" then off.Position else nil
 			if c:GetAttribute("Piece") == "mag" then
 				table.insert(VM.magParts, c)
-				local off = c:GetAttribute("Offset")
-				if typeof(off) == "CFrame" then sum += off.Position; n += 1 end
-			elseif c:GetAttribute("Piece") == "bolt" then VM.hasBolt = true end
+				if pos then sum += pos; n += 1 end
+			elseif c:GetAttribute("Piece") == "bolt" then
+				VM.hasBolt = true
+				if pos then bsum += pos; bn += 1; bx = math.max(bx, pos.X + c.Size.X / 2) end
+			end
+			-- crosse (pièce entièrement derrière la poignée) : masquée en visée, vue de près elle boucherait l'écran
+			if pos and not w.melee and c:GetAttribute("Piece") ~= "mag" and pos.Z - c.Size.Z / 2 > 0 then table.insert(VM.stock, c) end
 		end
 	end
+	-- levier d'armement : à droite de la culasse (rackC du web), la main droite vient le tirer
+	VM.boltC = if bn > 0 then bsum / bn else Vector3.new(0, 0.03, -0.02)
+	VM.boltX = if bn > 0 then bx - VM.boltC.X + 0.012 else 0.03
 	VM.hasMag = n > 0
 	VM.magC = if n > 0 then sum / n else Vector3.new(0, -0.08, -0.05)
 	VM.magDir = if key == "p90" then Vector3.new(0, 0.55, 0.85).Unit else Vector3.new(0.18, -1, 0).Unit
-	VM.drawMax = if w.melee then 0.3 elseif VM.pistol then 0.35 else 0.5
+	VM.drawMax = drawDur(key)
 	VM.drawT = VM.drawMax
 end
 
 -- ---------- événements ----------
 S.onDraw:Connect(function(key: string)
-	if key ~= VM.key then task.spawn(setGun, key) else VM.drawT = VM.drawMax end
+	if key ~= VM.key then task.spawn(setGun, key) else VM.drawMax = drawDur(key); VM.drawT = VM.drawMax end
 	sfx("draw", 0.6)
 end)
 S.onShot:Connect(function(key: string)
 	local w = Config.WEAPONS[key]
 	if not w then return end
+	if VM.drawFl then VM.drawT = 0 end              -- tirer coupe la figure de sortie (vmFire du web)
 	if w.melee then VM.swingT = 0.38; sfx("knife", 0.5); return end
 	VM.kv += (if w.cat == "sniper" or w.cat == "shotgun" then 22 elseif w.cat == "pistol" then 14 else 12) * (1 - 0.45 * VM.ads)
 	VM.flashT = 0.05
@@ -302,19 +343,45 @@ S.onShot:Connect(function(key: string)
 end)
 S.onReload:Connect(function(_key: string, empty: boolean)
 	VM.relSnd = 0; VM.relDrop = false; VM.relEmpty = empty
-	if not VM.hasMag then sfx("reload", 0.8) end
+	-- pompe : nombre de cartouches glissées une à une, fixé au début de la recharge
+	local w = VM.key and Config.WEAPONS[VM.key]
+	VM.relShells = if w then clamp(w.mag - S.mag, 1, 4) else 3
+	if not VM.hasMag and not (w and w.cat == "shotgun") then sfx("reload", 0.8) end
 end)
 
--- chargeur vide qui tombe (copie des pièces, lâchée avec la gravité)
-local function dropMag()
-	if not VM.model then return end
-	local grip = VM.model.PrimaryPart :: BasePart
+-- chargeur vide qui tombe (vmDropMag du web) : copie des pièces lâchée dans la vue, 0,9 m/s le long du puits,
+-- gravité de 7 m/s² dans le repère de la caméra, rotation au hasard ; disparaît après 1,2 s ou sous l'écran
+local function dropMag(gunCF: CFrame, magAnim: CFrame)
+	local g0 = gunCF * magAnim * CFrame.new(VM.magC)          -- centre du chargeur, repère de la caméra
+	local d: Drop = { parts = {}, rel = {}, pos = g0.Position, r0 = g0.Rotation, ang = Vector3.zero, t = 0,
+		v = gunCF:VectorToWorldSpace(VM.magDir) * 0.9 - Vector3.new(0.15, 0, 0),
+		s = Vector3.new((math.random() - 0.5) * 6, (math.random() - 0.5) * 4, 4 + math.random() * 3) }
 	for _, p in ipairs(VM.magParts) do
-		local c = p:Clone(); c.Anchored = false; c.CanCollide = false; c.Parent = workspace
-		c.AssemblyLinearVelocity = grip.CFrame:VectorToWorldSpace(VM.magDir * 4 + Vector3.new(-0.6, 0, 0))
-		c.AssemblyAngularVelocity = Vector3.new(math.random() * 6 - 3, math.random() * 4 - 2, 4 + math.random() * 3)
-		Debris:AddItem(c, 1.2)
+		local off = p:GetAttribute("Offset")
+		local c = p:Clone(); c.Anchored = true; c.CanCollide = false; c.Parent = rig
+		table.insert(d.parts, c)
+		table.insert(d.rel, CFrame.new(-VM.magC) * (if typeof(off) == "CFrame" then off else CFrame.identity))
 	end
+	table.insert(drops, d)
+end
+local function dropsUpdate(dt: number, camCF: CFrame)
+	for i = #drops, 1, -1 do
+		local d = drops[i]
+		d.t += dt; d.v -= Vector3.new(0, 7 * dt, 0); d.pos += d.v * dt; d.ang += d.s * dt
+		if d.t > 1.2 or d.pos.Y < -1.2 then
+			for _, p in ipairs(d.parts) do p:Destroy() end
+			table.remove(drops, i)
+		else
+			local base = camCF * CFrame.new(d.pos) * d.r0 * CFrame.fromEulerAnglesXYZ(d.ang.X, d.ang.Y, d.ang.Z)
+			for j, p in ipairs(d.parts) do p.CFrame = base * d.rel[j] end
+		end
+	end
+end
+
+-- reflet (inspectGlint du web) : intensité en cloche, la lumière passe de gauche à droite devant l'arme
+local function inspectGlint(a: number)
+	local x = clamp((a - 0.04) / 0.3, 0, 1)
+	VM.glintK = math.sin(x * math.pi); VM.glintX = lerp(-0.25, 0.45, x)
 end
 
 -- ---------- inspection (clés du web : [instant, px, py, pz, rx, ry, rz]) ----------
@@ -390,9 +457,11 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 	VM.ads += ((if S.aiming and not w.melee then 1 else 0) - VM.ads) * math.min(1, dt * (if A.sightOv(key, VM.att) then 7 else 12) * VM.mods.ads)
 	S.adsT = VM.ads
 	local ads = VM.ads
-	local function follow(cur: number, on: boolean): number return cur + ((if on then 1 else 0) - cur) * math.min(1, dt * 12) end
-	VM.spr = follow(VM.spr, S.sprint and not S.tactical); VM.tac = follow(VM.tac, S.tactical)
-	VM.sld = follow(VM.sld, S.slide); VM.mnt = follow(VM.mnt, S.mantle)
+	-- mvWeights du web : le sprint ne compte qu'au-dessus de 80 % de la course, chaque posture a sa vitesse de transition
+	local function follow(cur: number, on: boolean, rate: number): number return cur + ((if on then 1 else 0) - cur) * math.min(1, dt * rate) end
+	local running = S.speed / STUDS_PER_M > 5.2 * 0.8
+	VM.spr = follow(VM.spr, S.sprint and not S.tactical and running, 9); VM.tac = follow(VM.tac, S.tactical and running, 9)
+	VM.sld = follow(VM.sld, S.slide, 12); VM.mnt = follow(VM.mnt, S.mantle, 14)
 
 	-- ressorts : recul, traînée de la souris, atterrissage, pas de côté
 	local sd = math.min(dt, 0.033)
@@ -402,7 +471,8 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 	local spdMs = S.speed / STUDS_PER_M
 	local spd = clamp(spdMs / 5.2, 0, 1.3)
 	VM.bph += dt * spdMs * 1.7
-	local look = camera.CFrame.LookVector
+	-- direction du regard sans le plongeon d'atterrissage ajouté par nous (sinon l'arme traînerait derrière)
+	local look = (camera.CFrame * CFrame.Angles(-VM.camPit, 0, 0)).LookVector
 	local yaw0 = math.atan2(-VM.lastLook.X, -VM.lastLook.Z); local yaw1 = math.atan2(-look.X, -look.Z)
 	local dyaw = (yaw1 - yaw0 + math.pi) % TAU - math.pi
 	local dp = math.asin(clamp(look.Y, -1, 1)) - math.asin(clamp(VM.lastLook.Y, -1, 1))
@@ -416,9 +486,41 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 	VM.airVy = if S.grounded then 0 else vyMs; VM.prevGround = S.grounded
 	VM.lv += (-VM.land * 220 - VM.lv * 19) * sd; VM.land += VM.lv * sd
 	local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local lat = 0
 	if root and not kc then
-		local lat = camera.CFrame.RightVector:Dot(root.AssemblyLinearVelocity) / STUDS_PER_M
+		lat = camera.CFrame.RightVector:Dot(root.AssemblyLinearVelocity) / STUDS_PER_M
 		VM.strafe += (clamp(lat / 5, -1, 1) - VM.strafe) * (1 - math.exp(-dt * 8))
+	end
+
+	-- caméra du web (placeCamera) : la tête balance en marchant, roule un peu en pas de côté et en glissade,
+	-- plonge à l'atterrissage puis revient ; le champ s'élargit en sprint / sprint tactique / glissade.
+	-- La caméra Roblox repart chaque image de sa direction : le roulis et la position sont reposés à chaque fois,
+	-- le tangage n'est ajouté que par différence (comme le recul de WeaponController).
+	if not kc then
+		VM.bobT += dt * spdMs * 1.6
+		if not S.grounded then VM.camAir = vyMs end
+		if S.grounded and not VM.camGround and VM.camAir < -2.5 then VM.camLv -= math.min(1.6, -VM.camAir * 0.16) end
+		VM.camGround = S.grounded; if S.grounded then VM.camAir = 0 end
+		VM.camLv += (-VM.camL * 190 - VM.camLv * 20) * sd; VM.camL += VM.camLv * sd
+		local roll = -clamp(lat / 5.2, -1, 1) * 0.012 * spdMs / 5 + VM.sld * 0.055
+		local bobX, bobY = 0, 0
+		if S.grounded then
+			local a = clamp(spdMs / 5, 0, 1.3)
+			bobY = math.sin(VM.bobT * 2) * 0.016 * a; bobX = math.sin(VM.bobT) * 0.011 * a; roll += math.sin(VM.bobT) * 0.0035 * a
+		end
+		local pit = VM.camL * 0.35
+		local cf = camera.CFrame
+		local flatR = Vector3.new(cf.RightVector.X, 0, cf.RightVector.Z)
+		flatR = if flatR.Magnitude > 1e-3 then flatR.Unit else Vector3.xAxis
+		local off = (flatR * bobX + Vector3.yAxis * (bobY + VM.camL)) * STUDS_PER_M
+		camera.CFrame = CFrame.new(off) * cf * CFrame.Angles(pit - VM.camPit, 0, 0) * CFrame.Angles(0, 0, roll)
+		VM.camPit = pit
+		-- champ : WeaponController le repose à chaque image ; s'il ne l'a pas fait, on repart de notre base
+		local fov = camera.FieldOfView
+		if math.abs(fov - VM.fovSet) < 1e-4 then fov = VM.fovBase end
+		VM.fovBase = fov
+		VM.fovSet = fov * (1 + VM.spr * 0.06 + VM.tac * 0.1 + VM.sld * 0.07)
+		camera.FieldOfView = VM.fovSet
 	end
 
 	-- marche en « 8 » + respiration
@@ -429,7 +531,7 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 	local brY, brX = math.sin(t * 1.7) * 0.0028 * idle, math.sin(t * 0.9) * 0.0018 * idle
 
 	-- position de base : hanche (ramenée pour un champ de 60° comme le web) → visée (exacte)
-	local adsZ = -0.46
+	local adsZ = -0.46 + (if A.optOf(VM.att) then 0.08 else 0)     -- optique : arme un peu plus près de l'œil
 	local px = lerp(0.19 / FOV_K, 0, ads)
 	local py = lerp(-0.162 / FOV_K, -VM.sightY, ads)
 	local pz = lerp(-0.47 / FOV_K, adsZ, ads)
@@ -442,10 +544,31 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 	-- recul
 	local kk = VM.kick
 	pz += kk * 0.055; rx += kk * 0.09; rz += math.sin(t * 47) * math.max(0, kk) * 0.012; py += kk * 0.01
-	-- sortie de l'arme : elle remonte du bas de l'écran
+	-- sortie de l'arme (drawPose du web) : arrive du bas, dépasse un peu, se pose ;
+	-- skins Épiques et plus : pistolet qui fait un tour autour du pontet, couteau qui tournoie, fusil basculé puis armé
+	VM.glintK = 0
+	local drawSpin = 0
 	if VM.drawT > 0 then
-		local d = smooth01(VM.drawT / VM.drawMax)
-		py -= d * 0.25; rx -= d * 0.7; rz += d * 0.3
+		local a = 1 - VM.drawT / VM.drawMax
+		local up = clamp(a / (if VM.drawFl then 0.45 else 0.75), 0, 1)
+		local e = 1 - up
+		local ov = math.sin(up * math.pi) * (1 - up) * 0.6
+		py += -e * e * 0.3 + ov * 0.02; rx += -e * e * 0.95 + ov * 0.12; px += e * e * 0.06; rz += e * 0.25
+		if VM.drawFl then
+			local f = clamp((a - 0.3) / 0.55, 0, 1)
+			local s = smooth01(f)
+			if VM.drawK == "pistol" then
+				drawSpin = s * TAU; py += math.sin(f * math.pi) * 0.05; pz -= math.sin(f * math.pi) * 0.03
+			elseif VM.drawK == "knife" then
+				rz += s * TAU * 2; py += math.sin(f * math.pi) * 0.04
+			else
+				local b = math.sin(f * math.pi)
+				rz += b * 0.9; ry += b * 0.35; py += b * 0.03; px -= b * 0.03
+				if VM.hasBolt and not VM.pistol and a > 0.78 and not VM.drawRack then VM.drawRack = true; VM.boltT = 0.8; sfx("rack", 0.5) end
+			end
+			if VM.drawQ >= 3 then inspectGlint(clamp((a - 0.2) * 0.75, 0, 1)) end
+		end
+		if a < 0.05 then VM.drawRack = false end
 	end
 	-- lancer de grenade / pose de mine (vmThrow du web)
 	local thr = t - S.throwStart
@@ -486,6 +609,7 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 					end
 					snd(1, 0.37, "magout", 0.35); snd(2, 0.43, "magout", 0.7); snd(3, 0.79, "magin", 0.85)
 				elseif kind == "knife" and VM.inspSnd < 1 and a > 0.14 then VM.inspSnd = 1; sfx("knife", 0.3) end
+				inspectGlint(a)
 			end
 		end
 	end
@@ -519,7 +643,7 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 			snd(1, 0.28, "magout"); snd(2, 0.71, "magin")
 			if VM.relEmpty and VM.hasBolt then snd(3, if VM.pistol then 0.84 else 0.85, "rack") end
 		elseif w.cat == "shotgun" then
-			local n = clamp(w.mag - S.mag, 1, 4)
+			local n = VM.relShells
 			local aa = clamp((rl - 0.15) / 0.65, 0, 0.999)
 			local i = math.floor(aa * n)
 			local ph2 = aa * n % 1
@@ -527,10 +651,17 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 				leftOff = math.sin(ph2 * math.pi) * 0.6
 				if VM.relSnd <= i and ph2 > 0.55 then VM.relSnd = i + 1; sfx("shellin", 0.7) end
 			end
+			if VM.relEmpty and VM.hasBolt then snd(99, 0.85, "pump") end   -- à vide : on pompe à la fin
 		end
 	end
 
 	local gunCF = CFrame.new(px, py, pz) * CFrame.fromEulerAnglesXYZ(rx, ry, rz)
+	-- tour du pistolet : autour de la main (doigt dans le pontet), la main et le bras ne tournent pas
+	local gunDraw = gunCF
+	if drawSpin ~= 0 then
+		local piv = Vector3.new(0.005, -0.035, 0.02) + Vector3.new(0, -0.012, -0.02) * VM_SCALE
+		gunDraw = gunCF * CFrame.new(piv) * CFrame.Angles(drawSpin, 0, 0) * CFrame.new(-piv)
+	end
 
 	-- pièces mobiles : chargeur (recharge / inspection), culasse ou glissière
 	local pieces: { [string]: CFrame } = {}
@@ -544,18 +675,32 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 			elseif rl < 0.46 then out = 1 + smooth01((rl - 0.36) / 0.1) * 1.4; magVisible = false
 			elseif rl < 0.58 then out = 2.4 - smooth01((rl - 0.46) / 0.12) * 1.25; tw = 1 - smooth01((rl - 0.5) / 0.08)
 			elseif rl < 0.72 then out = 1.15 * (1 - smooth01((rl - 0.58) / 0.14)) end
-			if rl >= 0.36 and not VM.relDrop then VM.relDrop = true; dropMag() end
 		end
 		local off = VM.magDir * out * 0.2
 		local rot = CFrame.fromEulerAnglesXYZ(tw * 0.5, 0, tw * 0.35)
-		if ins and ins.kind == "mag" then
-			-- inspection : chargeur sorti, amené devant les yeux et tourné pour voir les cartouches
-			off += VM.magDir * ins.out * 0.12 + Vector3.new(-0.06, 0.2, 0.12) * ins.hold
-			rot = CFrame.fromEulerAnglesXYZ(ins.hold * 0.4, ins.tilt, ins.hold * -0.5)
+		-- repère du centre du chargeur (repère de l'arme), rotation autour de ce centre
+		local center = CFrame.new(VM.magC + off) * rot
+		if ins and ins.kind == "mag" and (ins.out > 0 or ins.hold > 0) then
+			-- inspection (inspectMag du web) : glissé hors du puits, puis amené devant les yeux, haut du chargeur
+			-- tourné vers la caméra et cartouches vers le haut, tourné un peu pour les montrer
+			center = CFrame.new(VM.magC + VM.magDir * ins.out * 0.24)
+			if ins.hold > 0 then
+				local tilt = CFrame.Angles(0, ins.tilt, 0)
+				local iA = tilt * Vector3.new(0, 0.45, 1).Unit
+				local iB = tilt * Vector3.new(0.25, 1, -0.35).Unit
+				local c2 = iA:Cross(iB).Unit
+				iB = c2:Cross(iA).Unit
+				local up, fw = Vector3.yAxis, Vector3.new(0, 0, -1)
+				local Rq = CFrame.fromMatrix(Vector3.zero, iA, iB, c2) * CFrame.fromMatrix(Vector3.zero, up, fw, up:Cross(fw)):Inverse()
+				local hold = gunCF:Inverse() * CFrame.new(Vector3.new(-0.04, -0.06, -0.28) / FOV_K) * Rq
+				center = center:Lerp(hold, ins.hold)
+			end
+			magPos = center:PointToWorldSpace(Vector3.new(0, -0.02, 0)) + Vector3.new(0, 0.02, 0)   -- la main le tient par le bas
+		else
+			magPos = VM.magC + off
 		end
-		-- rotation autour du centre du chargeur
-		pieces.mag = CFrame.new(off) * CFrame.new(VM.magC) * rot * CFrame.new(-VM.magC)
-		magPos = VM.magC + off
+		pieces.mag = center * CFrame.new(-VM.magC)
+		if rl >= 0.36 and not VM.relDrop then VM.relDrop = true; dropMag(gunCF, pieces.mag) end
 	end
 	if VM.hasBolt then
 		local pull = 0
@@ -566,8 +711,10 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 			local lockBack = (rl < 0 and S.mag <= 0) or (rl >= 0 and VM.relEmpty and rl < 0.84)
 			pieces.bolt = CFrame.new(0, 0, math.max(kk * 0.03, if lockBack then 0.028 else 0))
 		else
-			local bt = math.max(if VM.boltT > 0 then math.sin((1 - VM.boltT / 0.8) * math.pi) else 0, pull, if w.auto then math.max(0, kk) * 0.4 else 0)
-			pieces.bolt = CFrame.new(0, 0, bt * 0.06)
+			local bt = math.max(if VM.boltT > 0 then math.sin((1 - VM.boltT / 0.8) * math.pi) else 0, pull)
+			-- fusil à verrou : le levier pivote avant de reculer (rotation autour de la culasse)
+			local turn = if w.cat == "sniper" then bt * 0.8 else 0
+			pieces.bolt = CFrame.new(0, 0, bt * 0.06) * CFrame.new(VM.boltC) * CFrame.Angles(0, 0, turn) * CFrame.new(-VM.boltC)
 		end
 	end
 
@@ -576,11 +723,15 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 	scopeGui.Enabled = scoped
 	if scoped then scopeRetUpdate(A.optOf(VM.att)) end
 	setVisible(not scoped)
+	if ads >= 0.55 then for _, p in ipairs(VM.stock) do p.LocalTransparencyModifier = 1 end end
 
 	-- placement dans le monde
 	local camCF = camera.CFrame
-	local world = camCF * gunCF
+	local world = camCF * gunDraw
 	WeaponModels.place(model, world, pieces)
+	dropsUpdate(dt, camCF)
+	glint.CFrame = camCF * CFrame.new(VM.glintX, 0.05, -0.25)
+	glintLight.Brightness = VM.glintK * 2.4
 	if not magVisible then for _, p in ipairs(VM.magParts) do p.LocalTransparencyModifier = 1 end end
 
 	-- mains : droite sur la poignée, gauche sur le garde-main (va chercher le chargeur pendant la recharge)
@@ -589,8 +740,15 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 	if rl >= 0 and VM.hasMag then
 		local k = if rl < 0.15 then rl / 0.15 elseif rl > 0.8 then (1 - rl) / 0.2 else 1
 		leftLocal = leftLocal:Lerp(magPos - Vector3.new(0, 0.02, 0), smooth01(k))
+		-- armement d'une arme longue vide : la main droite lâche la poignée et tire le levier d'armement
+		if VM.relEmpty and VM.hasBolt and not VM.pistol and VM.twoHand and rl >= 0.76 then
+			local kin = smooth01((rl - 0.76) / 0.06)
+			local bolt = pieces.bolt or CFrame.identity
+			local hp = gunCF * bolt * (VM.boltC + Vector3.new(VM.boltX, 0, 0))
+			rightL = rightL:Lerp(hp, kin * (if rl < 0.92 then 1 else smooth01((1 - rl) / 0.08)))
+		end
 	end
-	if ins and ins.lh > 0 then leftLocal = leftLocal:Lerp(magPos, ins.lh) end
+	if ins and ins.lh > 0 then leftLocal = leftLocal:Lerp(magPos - Vector3.new(0, 0.02, 0), ins.lh) end
 	local leftL = gunCF:PointToWorldSpace(leftLocal)
 	local handRot = gunCF.Rotation
 	arms.hR.CFrame = camCF * (CFrame.new(rightL) * handRot)
