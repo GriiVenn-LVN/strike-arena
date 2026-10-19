@@ -42,7 +42,8 @@ local function addFlock(anchor: Instance)
 			ph = rng:NextNumber(0, math.pi * 2), fl = rng:NextNumber(14, 20), sz = sz,
 		}
 		b.body.Shape = Enum.PartType.Ball
-		local eye = Instance.new("PointLight"); eye.Color = Color3.fromRGB(255, 48, 48); eye.Range = 2; eye.Brightness = 0.6; eye.Parent = b.body
+		-- pas de PointLight dans les yeux : 14 à 18 lumières qui bougent par nuée (portée 2 studs, invisibles en vol)
+		-- coûtaient plus que toutes les lampes de la carte en éclairage Future
 		table.insert(bats, b)
 	end
 	flocks[anchor] = { anchor = anchor, bats = bats, folder = folder }
@@ -65,7 +66,7 @@ for _, l in ipairs(CollectionService:GetTagged("HwFlicker")) do addLight(l) end
 
 RunService.RenderStepped:Connect(function()
 	local t = os.clock()
-	local cam = camera.CFrame.Position
+	local cam = (workspace.CurrentCamera or camera).CFrame.Position
 	for anchor, f in pairs(flocks) do
 		if not anchor.Parent then removeFlock(anchor)
 		else

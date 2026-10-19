@@ -138,12 +138,28 @@ S.panels.daily = function()
 	if gui.Enabled then gui.Enabled = false else task.spawn(open) end
 end
 
+-- une autre grande fenêtre est ouverte (passe de combat, boutique) : même DisplayOrder ou presque, le calendrier
+-- s'empilait dessus et leurs deux voiles se superposaient
+local function otherWindowOpen(): boolean
+	local pg = player:FindFirstChildOfClass("PlayerGui")
+	if not pg then return false end
+	local pass = pg:FindFirstChild("PassUI")
+	if pass and pass:IsA("ScreenGui") and pass.Enabled then return true end
+	local shop = pg:FindFirstChild("ShopUI")
+	if shop then
+		for _, c in ipairs(shop:GetChildren()) do
+			if c:IsA("TextButton") and c.Modal and c.Visible then return true end   -- voile de la boutique
+		end
+	end
+	return false
+end
+
 -- ouverture automatique : la première fois que le menu s'ouvre au lobby avec la récompense du jour en attente
 task.spawn(function()
 	local shown = false
 	while not shown do
 		task.wait(1.5)
-		if S.menuOpen and player:GetAttribute("Zone") == "lobby" then
+		if S.menuOpen and player:GetAttribute("Zone") == "lobby" and not otherWindowOpen() then
 			local d = call("GetProfile")
 			if d and d.daily then
 				shown = true

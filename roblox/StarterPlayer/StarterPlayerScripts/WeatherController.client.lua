@@ -9,7 +9,9 @@ local SoundService = game:GetService("SoundService")
 local camera = workspace.CurrentCamera
 
 local rainPart = Instance.new("Part")
-rainPart.Anchored = true; rainPart.CanCollide = false; rainPart.Transparency = 1; rainPart.Size = Vector3.new(60, 1, 60)
+-- ignorée des rayons (tirs, caméra, viseur) et des ombres : sinon on tirait dans un plafond invisible 30 studs au-dessus
+rainPart.Anchored = true; rainPart.CanCollide = false; rainPart.CanQuery = false; rainPart.CanTouch = false; rainPart.CastShadow = false
+rainPart.Transparency = 1; rainPart.Size = Vector3.new(60, 1, 60); rainPart.Name = "Pluie"
 local rain = Instance.new("ParticleEmitter")
 rain.Texture = "rbxasset://textures/particles/sparkles_main.dds"; rain.Rate = 0; rain.Lifetime = NumberRange.new(1.2)
 rain.Speed = NumberRange.new(90); rain.EmissionDirection = Enum.NormalId.Bottom; rain.Size = NumberSequence.new(0.1, 0.1)
@@ -33,7 +35,8 @@ refresh()
 
 local nextLightning = os.clock() + 8
 RunService.RenderStepped:Connect(function()
-	rainPart.CFrame = CFrame.new(camera.CFrame.Position + Vector3.new(0, 30, 0))
+	local cam = workspace.CurrentCamera or camera
+	rainPart.CFrame = CFrame.new(cam.CFrame.Position + Vector3.new(0, 30, 0))
 	if workspace:GetAttribute("Weather") == "storm" and os.clock() > nextLightning then
 		nextLightning = os.clock() + 7 + math.random() * 9
 		local old = Lighting.Brightness

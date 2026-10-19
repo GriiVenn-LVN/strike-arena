@@ -51,9 +51,19 @@ local function rewardText(r: any): string
 end
 
 -- Petit rebond « tape-à-l'œil » sur un objet
+-- (un seul UIScale par objet, réutilisé : avant, chaque ouverture en ajoutait un). Les fenêtres (780 × 520) rétrécissent
+-- pour tenir dans l'écran : sur un téléphone à l'horizontale, le haut et la croix de fermeture sortaient de l'écran.
 local function pop(o: GuiObject)
-	local s = make("UIScale", { Scale = 0.3 }, o)
-	TweenService:Create(s, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+	local s = o:FindFirstChild("Pop") :: UIScale?
+	if not s then s = make("UIScale", { Name = "Pop" }, o) end
+	local k = 1
+	if o.Parent == gui then
+		local area = gui.AbsoluteSize
+		if area.X > 0 and area.Y > 0 then k = math.min(1, (area.X - 16) / o.Size.X.Offset, (area.Y - 16) / o.Size.Y.Offset) end
+	end
+	local sc = s :: UIScale
+	sc.Scale = 0.3 * k
+	TweenService:Create(sc, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = k }):Play()
 end
 local function wiggle(o: GuiObject)
 	task.spawn(function()
