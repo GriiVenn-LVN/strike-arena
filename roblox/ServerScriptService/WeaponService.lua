@@ -184,11 +184,13 @@ local function current(s: WState): Ammo
 	return a
 end
 
-local function notify(c: any)
+-- reloadDur : durée réelle de la recharge qui commence (accessoires et atouts compris), pour caler l'animation et ses sons
+local function notify(c: any, reloadDur: number?)
 	local s = state[c]
 	if not s or not isPlayer(c) then return end
 	local a = current(s)
-	ammoFx:FireClient(c, { weapon = s.weapon, mag = a.mag, reserve = a.reserve, reloading = s.reloading, slot = s.slot, loadout = s.loadout })
+	ammoFx:FireClient(c, { weapon = s.weapon, mag = a.mag, reserve = a.reserve, reloading = s.reloading, slot = s.slot, loadout = s.loadout,
+		reloadDur = reloadDur })
 end
 
 -- Le bouclier vit sur le serveur : on le recopie dans un attribut du personnage pour le HUD.
@@ -255,8 +257,9 @@ function WeaponService.reload(c: any)
 	if w.melee or a.reserve <= 0 or a.mag >= magSize(s.weapon, s.attachments, c) then return end
 	s.reloading = true; s.reloadToken += 1
 	local token, key = s.reloadToken, s.weapon
-	notify(c)
-	task.delay(w.reload * s.mods.rel * modOf(c, key, "reload"), function()
+	local dur = w.reload * s.mods.rel * modOf(c, key, "reload")
+	notify(c, dur)
+	task.delay(dur, function()
 		local s2 = state[c]
 		if s2 ~= s or s.reloadToken ~= token or s.weapon ~= key then return end
 		local need = magSize(key, s.attachments, c) - a.mag

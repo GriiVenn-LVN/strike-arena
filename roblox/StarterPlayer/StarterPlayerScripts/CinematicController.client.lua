@@ -291,6 +291,7 @@ end
 -- Scène
 -- ==========================================================================================
 local playing = false
+local abortRun: (() -> ())? = nil   -- remise en état de la scène en cours (appelée aussi si elle plante)
 
 local function run(info: any)
 	if playing then return end
@@ -635,6 +636,38 @@ local function run(info: any)
 	local function once(k: string, f: () -> ()) if not fired[k] then fired[k] = true; f() end end
 	local finished = false
 	local lastEye = camera.CFrame
+	-- ---------- fin : tout remettre, la main revient au joueur ----------
+	-- (aussi appelé si la scène plante en route : sinon caméra Scriptable, soldat ancré et interface cachée pour de bon)
+	local restored = false
+	local function restore()
+		if restored then return end
+		restored = true; finished = true
+		pcall(function() RunService:UnbindFromRenderStep("ArriveeCinematique") end)
+		ContextActionService:UnbindAction("ArriveePasser")
+		touchConn:Disconnect()
+		snd.stop()
+		for _, g in ipairs(pilots) do g.model:Destroy() end
+		for _, s in ipairs(seats) do if s.g then s.g.model:Destroy() end end
+		veh.model:Destroy()
+		if road then road:Destroy() end
+		for _, h in ipairs(hidden) do if h.p.Parent then h.p.LocalTransparencyModifier = h.t end end
+		for p, t in pairs(ltm) do if p.Parent then p.LocalTransparencyModifier = t end end
+		for _, d in ipairs(offs) do if d.Parent then (d :: any).Enabled = true end end
+		for _, g in ipairs(guis) do if g.Parent then g.Enabled = true end end
+		if (S.kc :: any) and (S.kc :: any).arrival then S.kc = prevKc end
+		if hrp.Parent then hrp.Anchored = false end
+		-- vue à la première personne : on regarde là où la scène finit (la caméra Roblox repart de camera.CFrame)
+		local r = hrp.Parent and hrp.Position or toW(P + V(0, 1, 0))
+		local look = lastEye.LookVector
+		local flat = V(look.X, 0, look.Z)
+		if flat.Magnitude < 1e-3 then flat = V(0, 0, -1) end
+		camera.CameraType = if savedType == Enum.CameraType.Scriptable then Enum.CameraType.Custom else savedType
+		camera.FieldOfView = savedFov
+		camera.CFrame = CFrame.lookAt(r + V(0, 1.5, 0), r + V(0, 1.5, 0) + flat.Unit)
+		if hum.Parent then camera.CameraSubject = hum end
+		gui.Enabled = false
+	end
+	abortRun = restore
 	local function seatedFeet(lx: number, lz: number, f: number): CFrame
 		return CFrame.new(hToW(V(lx, veh.CF, lz))) * Hrot * CFrame.Angles(0, f, 0)
 	end
@@ -851,32 +884,8 @@ local function run(info: any)
 	if not ok then finished = true end
 	local tStart = os.clock()
 	while not finished and os.clock() - tStart < dur + 3 do task.wait(0.05) end
-	finished = true
-	pcall(function() RunService:UnbindFromRenderStep("ArriveeCinematique") end)
-
-	-- ---------- fin : tout remettre, la main revient au joueur ----------
-	ContextActionService:UnbindAction("ArriveePasser")
-	touchConn:Disconnect()
-	snd.stop()
-	for _, g in ipairs(pilots) do g.model:Destroy() end
-	for _, s in ipairs(seats) do if s.g then s.g.model:Destroy() end end
-	veh.model:Destroy()
-	if road then road:Destroy() end
-	for _, h in ipairs(hidden) do if h.p.Parent then h.p.LocalTransparencyModifier = h.t end end
-	for p, t in pairs(ltm) do if p.Parent then p.LocalTransparencyModifier = t end end
-	for _, d in ipairs(offs) do if d.Parent then (d :: any).Enabled = true end end
-	for _, g in ipairs(guis) do if g.Parent then g.Enabled = true end end
-	if (S.kc :: any) and (S.kc :: any).arrival then S.kc = prevKc end
-	if hrp.Parent then hrp.Anchored = false end
-	-- vue à la première personne : on regarde là où la scène finit (la caméra Roblox repart de camera.CFrame)
-	local r = hrp.Parent and hrp.Position or toW(P + V(0, 1, 0))
-	local look = lastEye.LookVector
-	local flat = V(look.X, 0, look.Z)
-	if flat.Magnitude < 1e-3 then flat = V(0, 0, -1) end
-	camera.CameraType = if savedType == Enum.CameraType.Scriptable then Enum.CameraType.Custom else savedType
-	camera.FieldOfView = savedFov
-	camera.CFrame = CFrame.lookAt(r + V(0, 1.5, 0), r + V(0, 1.5, 0) + flat.Unit)
-	if hum.Parent then camera.CameraSubject = hum end
+	restore()
+	abortRun = nil
 	gui.Enabled = true
 	title.Text = ""; sub.Text = ""; skipLbl.Text = ""
 	for _, b in ipairs(bars) do b.Visible = false end
@@ -894,6 +903,9 @@ remote.OnClientEvent:Connect(function(info: any)
 		local ok, err = pcall(run :: any, info)
 		if not ok then
 			warn("[CinematicController] " .. tostring(err))
+			local abort = abortRun
+			abortRun = nil
+			if abort then abort() end
 			playing = false
 			pcall(function() remote:FireServer("done") end)
 		end

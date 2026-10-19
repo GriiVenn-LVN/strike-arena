@@ -457,7 +457,13 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 	local kc = S.kc                         -- kill-cam : l'arme du tueur, dans ses mains (KillcamController)
 	local key = if kc then kc.key else S.weapon
 	local alive = if kc then key ~= nil else hum ~= nil and hum.Health > 0 and key ~= nil and camera.CameraType == Enum.CameraType.Custom
-	if not alive or not key then setVisible(false); scopeGui.Enabled = false; S.muzzle = nil; return end
+	if not alive or not key then
+		setVisible(false); scopeGui.Enabled = false; S.muzzle = nil
+		-- la caméra a été reprise (kill-cam, arrivée, spectateur, photo) : le tangage ajouté par nous n'y est plus,
+		-- il ne faut pas le retirer au retour (la vue partait de travers)
+		if kc or camera.CameraType ~= Enum.CameraType.Custom then VM.camPit = 0 end
+		return
+	end
 	if not kc and os.clock() < S.drinkHideUntil then setVisible(false); scopeGui.Enabled = false; S.muzzle = nil; return end   -- boisson d'atout : arme rangée
 	if key ~= VM.key then
 		if building ~= sigOf(key) then task.spawn(setGun, key) end
@@ -517,6 +523,7 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 	-- plonge à l'atterrissage puis revient ; le champ s'élargit en sprint / sprint tactique / glissade.
 	-- La caméra Roblox repart chaque image de sa direction : le roulis et la position sont reposés à chaque fois,
 	-- le tangage n'est ajouté que par différence (comme le recul de WeaponController).
+	if kc then VM.camPit = 0 end            -- la kill-cam pose la caméra elle-même
 	if not kc then
 		VM.bobT += dt * spdMs * 1.6
 		if not S.grounded then VM.camAir = vyMs end
@@ -655,7 +662,9 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 	-- rechargement en phases
 	local rl = -1
 	local leftOff = 0
-	local reloadDur = w.reload * VM.mods.rel
+	-- durée réelle envoyée par le serveur (accessoires et atouts) : sinon, avec Speed Cola, la recharge finissait
+	-- avant l'animation et le son « chargeur dedans » ne venait jamais
+	local reloadDur = if S.reloadDur > 0 then S.reloadDur else w.reload * VM.mods.rel
 	if S.reloading and reloadDur > 0 then
 		rl = clamp((t - S.reloadStart) / reloadDur, 0, 1)
 		local tilt = smooth01(rl / 0.16) * (1 - smooth01((rl - 0.84) / 0.16))

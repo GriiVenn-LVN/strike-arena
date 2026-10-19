@@ -137,6 +137,7 @@ end
 
 local KEYS = { Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four, Enum.KeyCode.Five, Enum.KeyCode.Six }
 local open = false
+local openN = 0
 local function close()
 	if not open then return end
 	open = false; list.Visible = false
@@ -153,10 +154,12 @@ local function toggle()
 	if open then close(); return end
 	if not inMatch() or uiBlocked() then return end
 	open = true; list.Visible = true
+	openN += 1
+	local my = openN
 	-- priorité haute : les touches 1 à 6 choisissent un message au lieu de changer d'arme
 	ContextActionService:BindActionAtPriority("QuickChatPick", pick, false, Enum.ContextActionPriority.High.Value + 10,
 		Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four, Enum.KeyCode.Five, Enum.KeyCode.Six, Enum.KeyCode.Escape)
-	task.delay(4, function() close() end)
+	task.delay(4, function() if my == openN then close() end end)   -- pas la liste rouverte entre-temps
 end
 
 -- fil des messages reçus, en bas à gauche au-dessus du chat

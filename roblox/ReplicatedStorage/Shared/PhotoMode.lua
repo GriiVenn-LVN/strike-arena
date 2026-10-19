@@ -15,6 +15,9 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local S = require(ReplicatedStorage.Shared.ClientState)
 
 local PhotoMode = {}
 
@@ -227,7 +230,12 @@ end
 
 function PhotoMode.enter()
 	if PH.on then return end
+	-- kill-cam, arrivée, spectateur ou soldat mort : la caméra appartient déjà à une autre scène
+	-- (on en garderait le type Scriptable au retour, caméra bloquée)
+	local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	if S.kc ~= nil or not hum or hum.Health <= 0 then return end
 	local camera = workspace.CurrentCamera
+	if camera.CameraType == Enum.CameraType.Scriptable then return end
 	local g = build()
 	PH.on = true; PH.keys = {}; PH.drag = false; PH.roll = 0; PH.bare = false
 	PH.prevType = camera.CameraType; PH.prevSubject = camera.CameraSubject; PH.prevFov = camera.FieldOfView
@@ -260,6 +268,8 @@ function PhotoMode.enter()
 	end))
 	RunService:BindToRenderStep("PhotoMode", Enum.RenderPriority.Last.Value, step)
 	table.insert(conns, player.CharacterRemoving:Connect(function() task.defer(PhotoMode.exit) end))
+	-- mort : on sort tout de suite, avant que la kill-cam ne prenne la caméra
+	table.insert(conns, hum.Died:Connect(function() task.defer(PhotoMode.exit) end))
 end
 
 function PhotoMode.exit()
