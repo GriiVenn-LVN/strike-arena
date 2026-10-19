@@ -189,7 +189,8 @@ local lastBits, bitsT = -1, 0
 local function myBits(): number
 	local b = 0
 	if S.slide then b += Anim.SLIDE end
-	if S.sprint then b += Anim.SPR; if S.tactical then b += Anim.TAC end end
+	-- comme anBits du web : la pose de sprint ne s'affiche qu'au-dessus de 80 % de la course
+	if S.sprint and S.speed * SPEED_K > 5.2 * 0.8 then b += Anim.SPR; if S.tactical then b += Anim.TAC end end
 	if S.mantle then b += Anim.MANT end
 	if S.crouch then b += Anim.CROUCH end
 	if S.aiming then b += Anim.AIM end
@@ -238,6 +239,9 @@ local function update(d: D, dt: number, t: number)
 	local flat = Vector3.new(v.X, 0, v.Z)
 	local grounded = onGround(d)
 	local bits = if d.own then myBits() else (char:GetAttribute("Anim") :: number? or 0)
+	-- bots qui foncent (au-delà de la course) : pose de sprint, comme sur le web (pas les zombies)
+	if not d.own and not Players:GetPlayerFromCharacter(char) and not char:GetAttribute("Zombie")
+		and bit32.band(bits, Anim.SPR) == 0 and flat.Magnitude * SPEED_K > 5.2 * 1.05 then bits += Anim.SPR end
 	-- regard : caméra pour soi, attribut Pitch (≈10 fois par seconde) lissé pour les autres
 	local pitch = if d.own then math.asin(math.clamp(camera.CFrame.LookVector.Y, -1, 1)) else (char:GetAttribute("Pitch") :: number? or 0)
 	d.pitch += (pitch - d.pitch) * math.min(1, dt * 12)
