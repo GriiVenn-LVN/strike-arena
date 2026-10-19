@@ -21,7 +21,7 @@ local fxEvent = remoteEvent("GrenadeFx")          -- serveur -> tous : { op = "t
 local throwEvent = remoteEvent("ThrowGrenade")    -- client -> serveur : (type, regard)
 local mineEvent = remoteEvent("PlaceMine")        -- client -> serveur : ()
 local toastEvent = remoteEvent("GrenadeToast")    -- serveur -> joueur : texte court (« Mine posée », « Mine détruite »)
-local flashFx = ReplicatedStorage:WaitForChild("FlashFeedback") :: RemoteEvent
+local flashFx = remoteEvent("FlashFeedback")    -- serveur -> joueur aveuglé (créé ici : WeaponService requiert ce module avant ses remotes)
 
 type Stock = { frag: number, flash: number, smoke: number, mine: number }
 local stocks: { [any]: Stock } = {}
