@@ -30,7 +30,7 @@ local BASE_FOV = 70
 local W = {
 	weapon = nil :: string?, mag = 0, reserve = 0, reloading = false, slot = 1, loadout = {} :: { string },
 	nextShot = 0, firing = false, fresh = false, aiming = false, matchLive = true,
-	recoilPitch = 0, recoilYaw = 0, appliedPitch = 0, appliedYaw = 0, spray = 0, lastShot = -9, fov = BASE_FOV, reloadStart = 0, menu = false,
+	recoilPitch = 0, recoilYaw = 0, appliedPitch = 0, appliedYaw = 0, spray = 0, lastShot = -9, lastPitch = nil :: number?, fov = BASE_FOV, reloadStart = 0, menu = false,
 }
 
 -- Mode menu (touche M) : libère la souris en vue à la première personne pour cliquer sur la boutique,
@@ -262,7 +262,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 RunService:BindToRenderStep("WeaponCamera", Enum.RenderPriority.Camera.Value + 1, function(dt: number)
-	if S.kc then return end                -- la kill-cam tient la caméra
+	if S.kc then W.lastPitch = nil; return end   -- la kill-cam tient la caméra
 	local key = W.weapon
 	local w = key and Config.WEAPONS[key]
 	-- zoom du web : champ / lerp(1, zoom du viseur, visée) ; sensibilité 1/zoom à la lunette, −25 % en visée sinon,
@@ -288,12 +288,20 @@ RunService:BindToRenderStep("WeaponCamera", Enum.RenderPriority.Camera.Value + 1
 	if now - W.lastShot > .25 then W.spray = math.max(0, W.spray - dt * 18) end
 	local dP, dY = W.recoilPitch - W.appliedPitch, W.recoilYaw - W.appliedYaw
 	W.appliedPitch, W.appliedYaw = W.recoilPitch, W.recoilYaw
+	-- axe vertical inversé (Options) : on renverse ce que la caméra Roblox vient de tourner en hauteur cette frame
+	local pitchNow = math.asin(math.clamp(camera.CFrame.LookVector.Y, -1, 1))
+	if S.opt.invertY and W.lastPitch and camera.CameraType == Enum.CameraType.Custom then
+		local moved = pitchNow - W.lastPitch
+		local target = math.clamp(W.lastPitch - moved, -1.35, 1.35)
+		dP += math.deg(target - pitchNow)
+	end
 	camera.CFrame = camera.CFrame * CFrame.Angles(math.rad(dP), math.rad(dY), 0)
+	W.lastPitch = math.asin(math.clamp(camera.CFrame.LookVector.Y, -1, 1))
 	UserInputService.MouseIconEnabled = W.menu or player:GetAttribute("UiOpen") == true   -- panneaux Codes / Groupe du lobby
 end)
 
 player.CharacterAdded:Connect(function()
-	W.firing = false; W.aiming = false; W.recoilPitch = 0; W.recoilYaw = 0; W.appliedPitch = 0; W.appliedYaw = 0; W.spray = 0
+	W.firing = false; W.aiming = false; W.recoilPitch = 0; W.recoilYaw = 0; W.appliedPitch = 0; W.appliedYaw = 0; W.spray = 0; W.lastPitch = nil
 	player.CameraMode = Enum.CameraMode.LockFirstPerson
 	publish()
 end)
