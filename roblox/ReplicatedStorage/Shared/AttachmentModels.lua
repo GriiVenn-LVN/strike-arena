@@ -14,6 +14,7 @@ local Info = require(ReplicatedStorage.Shared.WeaponInfo)
 local A = require(ReplicatedStorage.Shared.Attachments)
 local ReticleGui = require(ReplicatedStorage.Shared.ReticleGui)
 local decode = require(ReplicatedStorage.Shared.Base64)
+local MeshStore = require(ReplicatedStorage.Shared.MeshStore)
 
 local AM = {}
 AM.optics3d = true                      -- false : viseurs simples (géométrie de base), comme cfg.optics3d = 0 sur le web
@@ -158,42 +159,61 @@ local function reticle(ctx: Ctx, size: number, pos: Vector3, shape: string, col:
 	sg.Parent = p
 end
 
--- maillage d'un viseur Blender ; f = transformation (mètres, repère de l'arme)
+-- maillage d'un viseur Blender ; f = transformation (mètres, repère de l'arme : échelle uniforme + décalage)
+-- chaque groupe est construit une fois à sa taille d'origine (MeshStore : asset envoyé, sinon EditableMesh) puis copié et agrandi
+local opticCache: { [string]: { mp: MeshPart, center: Vector3 } } = {}
+local function opticBase(key: string, gi: number, g: any): { mp: MeshPart, center: Vector3 }
+	local id = key .. "#" .. gi
+	if opticCache[id] then return opticCache[id] end
+	local raw = decode(g.data)
+	local pos, nrm = table.create(g.nv), table.create(g.nv)
+	local lo, hi = Vector3.one * math.huge, -Vector3.one * math.huge
+	for i = 0, g.nv - 1 do
+		local o = i * 9
+		local v = Vector3.new(buffer.readi16(raw, o), buffer.readi16(raw, o + 2), buffer.readi16(raw, o + 4)) / 100000
+		pos[i + 1] = v; lo = lo:Min(v); hi = hi:Max(v)
+		nrm[i + 1] = Vector3.new(buffer.readi8(raw, o + 6), buffer.readi8(raw, o + 7), buffer.readi8(raw, o + 8)) / 127
+	end
+	local center = (lo + hi) / 2
+	local mp = MeshStore.meshPart("o:" .. id .. "/" .. g.nv .. "/" .. g.nt, function()
+		local em = AssetService:CreateEditableMesh({ FixedSize = false })
+		if not em then error("mémoire des maillages pleine") end
+		local vid, nid = table.create(g.nv), table.create(g.nv)
+		for i = 1, g.nv do vid[i] = em:AddVertex(pos[i] - center); nid[i] = em:AddNormal(if nrm[i].Magnitude > 1e-3 then nrm[i].Unit else Vector3.yAxis) end
+		local base = g.nv * 9
+		for t = 0, g.nt - 1 do
+			local a = buffer.readu16(raw, base + t * 6) + 1
+			local b = buffer.readu16(raw, base + t * 6 + 2) + 1
+			local c = buffer.readu16(raw, base + t * 6 + 4) + 1
+			local face = em:AddTriangle(vid[a], vid[b], vid[c])
+			em:SetFaceNormals(face, { nid[a], nid[b], nid[c] })
+		end
+		return em
+	end)
+	local e = { mp = mp, center = center }
+	opticCache[id] = e
+	return e
+end
+AM.opticBase = opticBase
+
 local function opticMesh(ctx: Ctx, key: string, f: (Vector3) -> Vector3): boolean
 	if not AM.optics3d then return false end
 	local folder = ReplicatedStorage.Shared:FindFirstChild("OpticMeshes")
 	local src = folder and folder:FindFirstChild(key)
 	if not src then return false end
 	local made: { Instance } = {}
+	local f0 = f(Vector3.zero)
+	local k = (f(Vector3.xAxis) - f0).Magnitude * ctx.sc
 	local ok = pcall(function()
 		local data = require(src :: ModuleScript) :: any
-		for _, g in ipairs(data.groups) do
-			local raw = decode(g.data)
-			local pos, nrm = table.create(g.nv), table.create(g.nv)
-			local lo, hi = Vector3.one * math.huge, -Vector3.one * math.huge
-			for i = 0, g.nv - 1 do
-				local o = i * 9
-				local v = f(Vector3.new(buffer.readi16(raw, o), buffer.readi16(raw, o + 2), buffer.readi16(raw, o + 4)) / 100000) * ctx.sc
-				pos[i + 1] = v; lo = lo:Min(v); hi = hi:Max(v)
-				nrm[i + 1] = Vector3.new(buffer.readi8(raw, o + 6), buffer.readi8(raw, o + 7), buffer.readi8(raw, o + 8)) / 127
-			end
-			local center = (lo + hi) / 2
-			local em = AssetService:CreateEditableMesh({ FixedSize = false })
-			local vid, nid = table.create(g.nv), table.create(g.nv)
-			for i = 1, g.nv do vid[i] = em:AddVertex(pos[i] - center); nid[i] = em:AddNormal(if nrm[i].Magnitude > 1e-3 then nrm[i].Unit else Vector3.yAxis) end
-			local base = g.nv * 9
-			for t = 0, g.nt - 1 do
-				local a = buffer.readu16(raw, base + t * 6) + 1
-				local b = buffer.readu16(raw, base + t * 6 + 2) + 1
-				local c = buffer.readu16(raw, base + t * 6 + 4) + 1
-				local face = em:AddTriangle(vid[a], vid[b], vid[c])
-				em:SetFaceNormals(face, { nid[a], nid[b], nid[c] })
-			end
-			local mp = AssetService:CreateMeshPartAsync(Content.fromObject(em), { CollisionFidelity = Enum.CollisionFidelity.Box })
+		for gi, g in ipairs(data.groups) do
+			local base = opticBase(key, gi, g)
+			local mp = base.mp:Clone()
+			mp.Size = base.mp.Size * k
 			local m = OMAT[g.mat] or OMAT.body
 			mp.Name = "Att_optic_" .. g.mat; mp.Color = m[1]; mp.Material = m[2]
 			mp.Anchored = true; mp.CanCollide = false; mp.CanQuery = false; mp.CanTouch = false; mp.Massless = true; mp.CastShadow = false
-			local off = CFrame.new(center)
+			local off = CFrame.new(f(base.center) * ctx.sc)
 			mp:SetAttribute("Piece", "body"); mp:SetAttribute("Role", "att"); mp:SetAttribute("Offset", off)
 			mp.CFrame = ctx.grip.CFrame * off
 			table.insert(made, mp)

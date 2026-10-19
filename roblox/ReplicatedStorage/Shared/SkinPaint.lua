@@ -12,6 +12,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Info = require(ReplicatedStorage.Shared.SkinInfo)
 local decode = require(ReplicatedStorage.Shared.Base64)
+local MeshStore = require(ReplicatedStorage.Shared.MeshStore)
 
 local SkinPaint = {}
 SkinPaint.imageApi = true
@@ -33,7 +34,7 @@ local function hex(s: string?): Color3?
 end
 
 -- ---------- peintures fixes ----------
-type Paint = { img: EditableImage?, avg: Color3 }
+type Paint = { img: Content?, avg: Color3 }
 local paints: { [string]: Paint } = {}
 
 local function paint(tex: string, dark: boolean): Paint?
@@ -56,11 +57,14 @@ local function paint(tex: string, dark: boolean): Paint?
 	end
 	local n = size * size
 	local p: Paint = { img = nil, avg = Color3.fromRGB(sr / n, sg / n, sb / n) }
-	if SkinPaint.imageApi then
+	do
 		local ok, img = pcall(function()
-			local e = AssetService:CreateEditableImage({ Size = Vector2.new(size, size) })
-			e:WritePixelsBuffer(Vector2.zero, Vector2.new(size, size), out)
-			return e
+			return (MeshStore.image("sk:" .. id, function(): EditableImage?
+				if not SkinPaint.imageApi then return nil end
+				local e = AssetService:CreateEditableImage({ Size = Vector2.new(size, size) })
+				e:WritePixelsBuffer(Vector2.zero, Vector2.new(size, size), out)
+				return e
+			end))
 		end)
 		if ok then p.img = img else
 			SkinPaint.imageApi = false
@@ -70,6 +74,7 @@ local function paint(tex: string, dark: boolean): Paint?
 	paints[id] = p
 	return p
 end
+SkinPaint.paint = paint
 
 -- ---------- camos animés (port de ANIM_DRAW, src/44b_animcamo.js) ----------
 local AS = 64                       -- 64 × 64 pixels recalculés ~20 fois par seconde, comme acPix() du web
@@ -269,7 +274,7 @@ function SkinPaint.apply(model: Instance, skinIndex: number?, camo: string?)
 			bp.Reflectance = fin
 		elseif main then
 			local pt = if secondary then dark :: Paint else main
-			if mesh and pt.img then mesh.TextureContent = Content.fromObject(pt.img :: EditableImage) end
+			if mesh and pt.img then mesh.TextureContent = pt.img :: Content end
 			bp.Color = pt.avg; bp.Material = Enum.Material.SmoothPlastic; bp.Reflectance = fin
 		elseif sk.b then                               -- skin uni (Noir mat…)
 			bp.Color = (if secondary or role == "wood" then hex(sk.a) else hex(sk.b)) or bp.Color
