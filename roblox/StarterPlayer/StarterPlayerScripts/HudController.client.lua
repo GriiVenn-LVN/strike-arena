@@ -80,6 +80,11 @@ local function tween(o: Instance, t: number, props: { [string]: any }, style: En
 	return tw
 end
 -- lettres espacées (letter-spacing du web)
+-- majuscules avec les accents (string.upper laisse « é », « î »… en minuscules)
+local ACC = { ["é"] = "É", ["è"] = "È", ["ê"] = "Ê", ["à"] = "À", ["â"] = "Â", ["î"] = "Î", ["ï"] = "Ï", ["ô"] = "Ô", ["û"] = "Û", ["ù"] = "Ù", ["ç"] = "Ç" }
+local function upper(s: string): string
+	return (string.gsub(string.upper(s), "[\195][\128-\191]", function(c: string) return ACC[c] or c end))
+end
 local function spaced(s: string, n: number?): string
 	local gap = string.rep(" ", n or 1)   -- espace fine
 	local out = {}
@@ -675,7 +680,7 @@ bannerRemote.OnClientEvent:Connect(function(b: any)
 		tween(killMsg, 0.3, { TextTransparency = 1, TextStrokeTransparency = 1 })
 	end)
 	if b.streakName then
-		streakLabel.Text = spaced(string.upper(b.streakName), 2) .. '\n<font size="19" color="#ffd75e">' .. spaced(b.streak .. " ÉLIMINATIONS D'AFFILÉE", 1) .. "</font>"
+		streakLabel.Text = spaced(upper(b.streakName), 2) .. '\n<font size="19" color="#ffd75e">' .. spaced(b.streak .. " ÉLIMINATIONS D'AFFILÉE", 1) .. "</font>"
 		streakLabel.TextTransparency = 0; streakScale.Scale = 1.3
 		tween(streakScale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
 		playSound(ModeConfig.SOUNDS.streak)

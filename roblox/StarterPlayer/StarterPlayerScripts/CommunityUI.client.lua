@@ -193,7 +193,7 @@ local function refreshZone()
 	local zone = player:GetAttribute("Zone")
 	playBtn.Visible = false    -- remplacés par le menu principal (JOUER, « Quitter la partie »)
 	lobbyBtn.Visible = false
-	side.Visible = zone ~= "duel" and player:GetAttribute("MenuOpen") ~= true
+	side.Visible = zone ~= "duel" and zone ~= "match" and player:GetAttribute("MenuOpen") ~= true   -- comme le web : rien de ça en partie
 	local q = player:GetAttribute("DuelQueued")
 	queueLabel.Text = if zone == "lobby" and q then "⏳ En attente d'adversaires… reste sur la plateforme" else ""
 end

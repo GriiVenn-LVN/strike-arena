@@ -160,17 +160,23 @@ local KINDS: { [string]: { Color3 | number } } = {
 	gold = { rgb(0xffd23a), rgb(0xffb300), 0 }, white = { rgb(0xffffff), rgb(0xe8eef9), 0 }, blue = { rgb(0x4aa3ff), rgb(0x2c7fe0), 0 },
 	purple = { rgb(0x7a3dff), rgb(0x5a2bd6), 0 }, green = { rgb(0x2fd27a), rgb(0x1fa35e), 0 }, dark = { rgb(0x0b111c), rgb(0x0b111c), 0.2 },
 }
+-- Fond uni (milieu du dégradé du web) : un UIGradient sur un bouton teinte aussi son texte, ce qui rendait
+-- les libellés invisibles (texte rouge sur fond rouge).
+local function kindColor(k: { any }): Color3 return (k[1] :: Color3):Lerp(k[2] :: Color3, 0.5) end
 function K.btn(parent: Instance?, text: string, kind: BtnKind?, cb: (() -> ())?, props: { [string]: any }?): TextButton
 	local k = KINDS[kind or "alt"] or KINDS.alt
 	local dark = kind == "gold" or kind == "white"
-	local b = make("TextButton", { Text = text, Font = K.BLACK, TextSize = 14, BackgroundColor3 = C.white, BackgroundTransparency = k[3] :: number,
+	local b = make("TextButton", { Text = text, Font = K.BLACK, TextSize = 14, BackgroundColor3 = kindColor(k), BackgroundTransparency = k[3] :: number,
 		TextColor3 = if dark then rgb(0x111111) else C.white, Size = UDim2.fromOffset(160, 40), Selectable = true }, parent)
-	local g = K.gradient(b, k[1] :: Color3, k[2] :: Color3, 90)
 	K.corner(b, 8)
 	if kind == "ghost" or kind == "alt" or kind == "dark" then K.stroke(b, C.white, 1, 0.9) end
 	if props then for key, v in pairs(props) do (b :: any)[key] = v end end
-	-- survol / sélection manette : éclaircit un peu (filter:brightness du web) — le fond blanc transparaît sous le dégradé
-	local function hi(on: boolean) g.Transparency = NumberSequence.new(if on then 0.12 else 0) end
+	b:SetAttribute("BaseColor", b.BackgroundColor3)
+	-- survol / sélection manette : éclaircit un peu (filter:brightness du web)
+	local function hi(on: boolean)
+		local base = b:GetAttribute("BaseColor")
+		if typeof(base) == "Color3" then b.BackgroundColor3 = if on then base:Lerp(C.white, 0.12) else base end
+	end
 	b.MouseEnter:Connect(function() hi(true) end)
 	b.MouseLeave:Connect(function() hi(false) end)
 	b.SelectionGained:Connect(function() hi(true) end)
@@ -178,10 +184,13 @@ function K.btn(parent: Instance?, text: string, kind: BtnKind?, cb: (() -> ())?,
 	if cb then b.Activated:Connect(cb) end
 	return b
 end
+-- change la couleur de fond d'un bouton K.btn (garde l'effet de survol)
+function K.setBtnColor(b: GuiObject, c: Color3)
+	b:SetAttribute("BaseColor", c); b.BackgroundColor3 = c
+end
 function K.setKind(b: TextButton, kind: BtnKind)
 	local k = KINDS[kind] or KINDS.alt
-	local g = b:FindFirstChildOfClass("UIGradient")
-	if g then g.Color = ColorSequence.new(k[1] :: Color3, k[2] :: Color3) end
+	K.setBtnColor(b, kindColor(k))
 	b.BackgroundTransparency = k[3] :: number
 	b.TextColor3 = if kind == "gold" or kind == "white" then rgb(0x111111) else C.white
 end

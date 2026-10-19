@@ -39,10 +39,26 @@ local function plain(name: string, size: Vector3, color: Color3, material: Enum.
 end
 
 -- ---------- une pièce en EditableMesh ----------
-local function meshPiece(g: any, scale: number): (MeshPart?, Vector3)
+-- chaque pièce est construite une seule fois (taille 1) puis copiée et agrandie : bien moins de mémoire
+-- (Roblox limite fortement la mémoire des EditableMesh côté joueur)
+local pieceCache: { [string]: { mp: MeshPart, center: Vector3 } } = {}
+local buildPiece: (g: any) -> (MeshPart?, Vector3)
+local function meshPiece(g: any, id: string, scale: number): (MeshPart?, Vector3)
+	local c = pieceCache[id]
+	if not c then
+		local mp0, center0 = buildPiece(g)
+		if not mp0 then return nil, Vector3.zero end
+		c = { mp = mp0, center = center0 }
+		pieceCache[id] = c
+	end
+	local mp = c.mp:Clone()
+	mp.Size = c.mp.Size * scale
+	return mp, c.center * scale
+end
+buildPiece = function(g: any): (MeshPart?, Vector3)
 	local raw = decode(g.data)
-	local k = scale / WeaponModels.Q
-	local uvK = UV_SCALE / scale                   -- studs -> mètres -> répétitions de la peinture
+	local k = 1 / WeaponModels.Q
+	local uvK = UV_SCALE                           -- studs -> mètres -> répétitions de la peinture
 	local pos = table.create(g.nv)
 	local lo, hi = Vector3.new(math.huge, math.huge, math.huge), Vector3.new(-math.huge, -math.huge, -math.huge)
 	for i = 0, g.nv - 1 do
@@ -51,6 +67,7 @@ local function meshPiece(g: any, scale: number): (MeshPart?, Vector3)
 	end
 	local center = (lo + hi) / 2
 	local em = AssetService:CreateEditableMesh({ FixedSize = false })
+	if not em then error("mémoire des maillages pleine (CreateEditableMesh a renvoyé nil)") end
 	local ids = table.create(g.nv)
 	for i, v in ipairs(pos) do ids[i] = em:AddVertex(v - center) end
 	local base = g.nv * 6
@@ -141,10 +158,11 @@ local function make(key: string, scale: number): Model
 		local folder = ReplicatedStorage.Shared:FindFirstChild("WeaponMeshes")
 		local src = folder and folder:FindFirstChild(key)
 		if src and WeaponModels.meshApi then
-			ok = pcall(function()
+			local err
+			ok, err = pcall(function()
 				local groups = require(src :: ModuleScript) :: any
-				for _, g in ipairs(groups) do
-					local mp, center = meshPiece(g, scale)
+				for gi, g in ipairs(groups) do
+					local mp, center = meshPiece(g, key .. "#" .. gi, scale)
 					if mp then
 						local look = LOOK[g.role]
 						mp.Name = g.part .. "_" .. g.role
@@ -158,8 +176,13 @@ local function make(key: string, scale: number): Model
 				end
 			end)
 			if not ok then
-				WeaponModels.meshApi = false
-				warn("[WeaponModels] EditableMesh indisponible : coche Game Settings → Security → « Allow Mesh / Image APIs ». Armes en blocs en attendant.")
+				-- seul le refus de Roblox (réglage non coché) coupe tout ; une autre erreur ne touche que cette arme
+				local msg = tostring(err)
+				if string.find(string.lower(msg), "permission") or string.find(string.lower(msg), "not enabled") or string.find(msg, "API") then
+					WeaponModels.meshApi = false
+				end
+				warn("[WeaponModels] arme « " .. key .. " » en blocs : " .. msg
+					.. " (si ça parle de permission : Paramètres du jeu → Sécurité → coche « Allow Mesh / Image APIs »)")
 				for _, c in ipairs(model:GetChildren()) do if c ~= grip then c:Destroy() end end
 			end
 		end
