@@ -1,7 +1,8 @@
 --!strict
 -- ReplicatedStorage/Shared/MenuConfig (ModuleScript, client + serveur)
 -- Textes et listes du menu principal, repris du jeu web : nouveautés (src/87d_lobby.js NEWS), libellés des défis
--- (src/62_meta.js MPOOL, src/8O_defis.js WPOOL), titres de profil (Profil > Style), liste des touches (Réglages > Touches).
+-- (src/62_meta.js MPOOL, src/8O_defis.js WPOOL), titres de profil (Profil > Style), liste des touches (Réglages > Touches),
+-- liste des options et leur nettoyage (Menu/Options côté client, OptionsService côté serveur).
 local M = {}
 
 -- Nouveautés de l'accueil ; go = où mène un clic (onglet du menu)
@@ -68,8 +69,68 @@ M.KEYS = {
 	{ "Mode photo", "F4", "—" },
 	{ "Tableau des scores", "Tab (maintenir)", "Select" },
 	{ "Libérer la souris", "M", "Start" },
-	{ "Menu principal", "P", "Croix bas" },
+	{ "Menu principal (lobby) / pause (en partie)", "P ou Échap", "Croix bas" },
 	{ "Passer la kill-cam", "Espace / clic", "A" },
 }
+
+-- ---------- Options (Réglages du menu et panneau Options de la pause) ----------
+-- Même liste côté client (Menu/Options) et côté serveur (OptionsService, qui borne tout avant de l'enregistrer).
+-- { "num", min, max, défaut } · { "int", min, max, défaut } · { "bool", défaut } · { "enum", { valeurs }, défaut }
+M.OPTIONS = ({
+	fov = { "num", 60, 110, 70 }, sens = { "num", 0.1, 4, 1 }, aimSens = { "num", 0.2, 2, 1 },
+	quality = { "int", 1, 3, 3 },
+	invertY = { "bool", false }, showFps = { "bool", false }, showPing = { "bool", false },
+	-- viseur (cfg.xh du web : couleur XHCOL, forme)
+	xhColor = { "int", 1, 8, 2 }, xhStyle = { "enum", { "dot", "cross", "circle", "none" }, "dot" },
+	-- volumes : vol = général (0,7 = niveau d'origine, comme le curseur du web), les autres multiplient leur groupe (1 = origine)
+	vol = { "num", 0, 1, 0.7 }, volWeapons = { "num", 0, 2, 1 }, volSteps = { "num", 0, 2, 1 }, volUi = { "num", 0, 2, 1 },
+	volAmbient = { "num", 0, 2, 1 }, volMusic = { "num", 0, 2, 1 },
+} :: { [string]: { any } })
+-- curseur de volume -> groupe de Shared/Sfx (Sfx.setVolume) -> libellé
+M.VOLUME_GROUPS = { { "volWeapons", "weapons", "ARMES" }, { "volSteps", "steps", "PAS" }, { "volUi", "ui", "INTERFACE" },
+	{ "volAmbient", "ambient", "AMBIANCE" }, { "volMusic", "music", "MUSIQUE" } }
+-- couleurs du viseur (XHCOL de src/85_menu.js) et formes
+M.XH_COLORS = { 0x3dffa8, 0xffffff, 0x27e8ff, 0xffe14a, 0xff3b3b, 0xff58d6, 0x8a6bff, 0xff9a2a }
+M.XH_STYLES = { { "dot", "Point" }, { "cross", "Croix" }, { "circle", "Cercle" }, { "none", "Aucun" } }
+-- accessibilité (AccessibilityController, attribut « Access ») : gardée dans le profil avec les options
+M.ACCESS = ({
+	colorblind = { "enum", { "none", "deut", "prot", "trit" }, "none" }, subtitles = { "bool", false },
+	hudScale = { "num", 0.7, 1.4, 1 }, shake = { "num", 0, 1, 1 },
+} :: { [string]: { any } })
+
+local function cleanOne(r: { any }, v: any): any
+	local kind = r[1]
+	if kind == "num" or kind == "int" then
+		if typeof(v) ~= "number" or v ~= v then return r[4] end
+		local x = math.clamp(v, r[2], r[3])
+		return if kind == "int" then math.floor(x + 0.5) else x
+	elseif kind == "bool" then
+		return if typeof(v) == "boolean" then v else r[2]
+	elseif kind == "enum" then
+		return if typeof(v) == "string" and table.find(r[2], v) then v else r[3]
+	end
+	return nil
+end
+-- options reçues (client ou profil) -> table propre : seulement les clés connues, bornées, valeur par défaut sinon
+function M.cleanOptions(data: any): { [string]: any }
+	local src = if typeof(data) == "table" then data else {}
+	local out: { [string]: any } = {}
+	for k, r in pairs(M.OPTIONS) do out[k] = cleanOne(r, src[k]) end
+	local acc = if typeof(src.access) == "table" then src.access else {}
+	local a: { [string]: any } = {}
+	for k, r in pairs(M.ACCESS) do a[k] = cleanOne(r, acc[k]) end
+	-- sensibilité par arme (AccessibilityController) : 40 armes au plus, noms courts
+	local ws: { [string]: number } = {}
+	local n = 0
+	if typeof(acc.weaponSens) == "table" then
+		for w, v in pairs(acc.weaponSens) do
+			if n >= 40 then break end
+			if typeof(w) == "string" and #w <= 24 and typeof(v) == "number" and v == v then ws[w] = math.clamp(v, 0.2, 3); n += 1 end
+		end
+	end
+	a.weaponSens = ws
+	out.access = a
+	return out
+end
 
 return M

@@ -101,6 +101,7 @@ return function(ctx: any, body: Frame, _sub: string?)
 	text(play, { Text = spaced(sel, 1), Font = K.BOLD, TextSize = 11, Size = UDim2.new(1, 0, 0, 16), Position = UDim2.fromOffset(0, 60),
 		TextXAlignment = Enum.TextXAlignment.Center, TextWrapped = false, TextTransparency = 0.15, ZIndex = play.ZIndex + 1 })
 	K.cut(play, 14, if hw then K.rgb(0x170f1d) else K.rgb(0x111a2b))
+	K.shine(play, 2.4, 0.25)   -- reflet qui revient sur JOUER (.hero::after et playglow du web)
 	local row = make("Frame", { LayoutOrder = 5, Size = UDim2.new(1, 0, 0, 46) }, hero)
 	local q = K.btn(row, "⚡  " .. spaced("PARTIE RAPIDE", 1), "alt", function() ctx.quick(nil) end, { Size = UDim2.new(0.5, -5, 1, 0), TextSize = 14 })
 	local fr = K.btn(row, "👥  " .. spaced("AVEC DES AMIS", 1), "alt", function() ctx.friends = true; ctx.go("play") end,

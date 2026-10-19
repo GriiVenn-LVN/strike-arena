@@ -25,7 +25,12 @@ return {
 	kc = nil :: any,
 	onSkin = nil :: (() -> ())?,             -- repeint l'arme du viewmodel (ViewmodelController)
 	-- menu principal (MainMenu) : réglages lus par WeaponController, fenêtres des autres interfaces
-	opt = { fov = 70, sens = 1, aimSens = 1, wsens = 1 },  -- champ de vision, sensibilité, multiplicateur en visée, réglage par arme
+	opt = { fov = 70, sens = 1, aimSens = 1, wsens = 1,  -- champ de vision, sensibilité, multiplicateur en visée, réglage par arme
+		invertY = false,                     -- axe vertical inversé (à lire par la caméra : WeaponController)
+		xhColor = Color3.new(1, 1, 1),       -- couleur du viseur (à lire par HudController)
+		xhStyle = "dot",                     -- forme du viseur : "dot", "cross", "circle", "none" (à lire par HudController)
+		showFps = false, showPing = false,   -- compteurs en haut à droite (PauseMenu)
+	},
 	menuOpen = false,
 	panels = {} :: { [string]: () -> () },   -- ouvre la fenêtre d'une autre interface (shop, gifts, vip, codes, group, loadout)
 }
