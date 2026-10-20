@@ -137,6 +137,8 @@ local function run()
 	step("skins", function()
 		local SkinPaint = require(Shared.SkinPaint) :: any
 		for _, m in ipairs(Shared.SkinTextures:GetChildren()) do SkinPaint.paint(m.Name, false); SkinPaint.paint(m.Name, true) end
+		-- peintures 256 px « sk2: » (ServerStorage/SkinTexturesHQ), masques lumineux et cartes métal / rugosité des finitions
+		SkinPaint.uploadAll()
 	end)
 	step("véhicules", function()   -- arrivées : blindé et camion (models/vehicles, VehicleMeshes)
 		local VehicleModels = require(Shared.VehicleModels) :: any

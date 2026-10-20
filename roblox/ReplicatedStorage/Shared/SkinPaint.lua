@@ -5,10 +5,20 @@
 -- Les camos animés (exclusifs Robux) sont recalculés en direct, comme sur le web (src/44b_animcamo.js).
 -- Comme pour les armes 3D, il faut « Allow Mesh / Image APIs » ; sinon l'arme prend la couleur moyenne du skin.
 --
+-- Rendu (comme le MeshStandardMaterial du web, src/45_models.js gunMats + src/44d_skinhq.js) :
+--   * arme dans le monde (vue à la 1re personne, 3e personne, killcam) : SurfaceAppearance = peinture + carte de métal
+--     (metalness de la finition) + carte de rugosité (vernis, usure, traces de doigts : skinRough du web) + masque lumineux
+--     des skins néon et des camos animés (émission du web) ; pièces secondaires teintées #8c8c8c comme M.acc ;
+--   * aperçus (ViewportFrame : pas de reflets de l'environnement, le métal y paraîtrait noir) et repli sans SurfaceAppearance :
+--     peinture posée en TextureContent, SmoothPlastic + reflet selon la finition.
+--   * peinture 256 px « sk2:<motif> » (ServerStorage/SkinTexturesHQ, envoyée par MeshUploader) dès qu'elle est envoyée,
+--     sinon la 128 px « sk:<motif> » de SkinTextures ; pièces simples (lame du couteau, arme en blocs) : Texture sur les faces.
+--
 -- SkinPaint.apply(model, skinIndex, camoId?) : skinIndex suit Config.SKINS (1 = Défaut), camoId = clé de SkinInfo.ANIM.
 local AssetService = game:GetService("AssetService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerStorage = game:GetService("ServerStorage")
 
 local Info = require(ReplicatedStorage.Shared.SkinInfo)
 local decode = require(ReplicatedStorage.Shared.Base64)
@@ -18,8 +28,23 @@ local SkinPaint = {}
 SkinPaint.imageApi = true
 
 local DARK = 0.55                  -- pièces secondaires : peinture assombrie (teinte #8c8c8c du web)
--- finition -> reflet (SmoothPlastic pour que la peinture reste lisible)
+-- finition -> reflet (SmoothPlastic pour que la peinture reste lisible), quand la SurfaceAppearance n'est pas utilisée
 local REFLECT = { matte = 0, paint = 0.02, gloss = 0.08, anod = 0.14, pearl = 0.18, chrome = 0.26 }
+-- finitions du web (FIN, src/44_skins.js) : m = metalness, r = roughness
+local FIN: { [string]: { m: number, r: number } } = {
+	matte = { m = 0.5, r = 0.55 }, gloss = { m = 0.65, r = 0.24 }, chrome = { m = 1, r = 0.12 },
+	anod = { m = 0.9, r = 0.3 }, pearl = { m = 0.85, r = 0.16 }, paint = { m = 0.3, r = 0.42 },
+}
+-- émission des skins lumineux du web (ge = couleur, ei = intensité) ; camos animés : leur propre image, blanc
+local GLOW: { [string]: { number } } = {
+	neonlines = { 0x35d6ff, 1.1 }, galaxy = { 0xffffff, 0.9 }, toxic = { 0x6dff2e, 1 }, circuit = { 0x28f0ff, 1.2 },
+	lava = { 0xff7a1a, 1.4 }, matrix = { 0x45ff7a, 1.1 }, pixel8 = { 0xffffff, 0.7 },
+	hw_pumpkin = { 0xffb040, 1.2 }, hw_ecto = { 0x6dff6a, 1.1 }, hw_witch = { 0xffc070, 1 },
+}
+local ANIM_EI: { [string]: number } = { plasma = 0.55, magma = 0.9, code = 0.8, nebula = 0.6, prism = 0.35, storm = 1 }
+local TINT = Color3.fromRGB(140, 140, 140)  -- web : M.acc color #8c8c8c
+-- taille d'une répétition de la peinture, en mètres d'arme (web : 0,78 / 1,35) ; × échelle du modèle pour les Texture
+local TILE = 0.78 / 1.35
 
 -- sans EditableImage : couleur vive du camo animé
 local ANIM_FALLBACK: { [string]: Color3 } = {
@@ -77,7 +102,7 @@ end
 SkinPaint.paint = paint
 
 -- ---------- camos animés (port de ANIM_DRAW, src/44b_animcamo.js) ----------
-local AS = 64                       -- 64 × 64 pixels recalculés ~20 fois par seconde, comme acPix() du web
+local AS = 64                       -- 64 × 64 pixels recalculés 30 fois par seconde, comme acPix() du web
 local P2 = math.pi * 2
 local sin, cos, abs, max, min, floor = math.sin, math.cos, math.abs, math.max, math.min, math.floor
 
@@ -186,9 +211,11 @@ local DRAW: { [string]: (buf: buffer, t: number) -> () } = {
 	end,
 }
 local STARS: { { number } } = {}
-do local r = rng(77); for i = 1, 35 do STARS[i] = { r(0, AS), r(0, AS), r(0, P2), r(1.5, 4) } end end
+-- web : 70 étoiles sur 128 × 128 ; ici 64 × 64, donc 4 fois moins de place
+do local r = rng(77); for i = 1, 18 do STARS[i] = { r(0, AS), r(0, AS), r(0, P2), r(1.5, 4) } end end
 
-type Live = { img: EditableImage, dimg: EditableImage, buf: buffer, dbuf: buffer, users: { [Instance]: boolean } }
+-- dark : la version assombrie (pièces secondaires) n'est recalculée que si une pièce l'utilise sans teinte possible
+type Live = { img: EditableImage, dimg: EditableImage, buf: buffer, dbuf: buffer, users: { [Instance]: boolean }, dark: boolean }
 local live: { [string]: Live } = {}
 
 local function render(id: string, L: Live, t: number)
@@ -209,9 +236,11 @@ local function render(id: string, L: Live, t: number)
 	elseif DRAW[id] then
 		DRAW[id](buf, t)
 	end
-	for i = 0, AS * AS * 4 - 1 do buffer.writeu8(L.dbuf, i, if i % 4 == 3 then 255 else buffer.readu8(buf, i) * DARK) end
 	L.img:WritePixelsBuffer(Vector2.zero, Vector2.new(AS, AS), buf)
-	L.dimg:WritePixelsBuffer(Vector2.zero, Vector2.new(AS, AS), L.dbuf)
+	if L.dark then
+		for i = 0, AS * AS * 4 - 1 do buffer.writeu8(L.dbuf, i, if i % 4 == 3 then 255 else buffer.readu8(buf, i) * DARK) end
+		L.dimg:WritePixelsBuffer(Vector2.zero, Vector2.new(AS, AS), L.dbuf)
+	end
 end
 
 local function animImage(id: string): Live?
@@ -220,7 +249,7 @@ local function animImage(id: string): Live?
 	local ok, L = pcall(function()
 		local size = Vector2.new(AS, AS)
 		return { img = AssetService:CreateEditableImage({ Size = size }), dimg = AssetService:CreateEditableImage({ Size = size }),
-			buf = buffer.create(AS * AS * 4), dbuf = buffer.create(AS * AS * 4), users = setmetatable({}, { __mode = "k" }) :: any }
+			buf = buffer.create(AS * AS * 4), dbuf = buffer.create(AS * AS * 4), users = setmetatable({}, { __mode = "k" }) :: any, dark = false }
 	end)
 	if not ok then SkinPaint.imageApi = false; return nil end
 	render(id, L, os.clock())
@@ -228,11 +257,11 @@ local function animImage(id: string): Live?
 	return L
 end
 
--- un seul camo de chaque sorte est recalculé, et seulement tant qu'une arme le porte
+-- un seul camo de chaque sorte est recalculé, et seulement tant qu'une arme le porte (web : ~30 images par seconde)
 local acc = 0
 RunService.Heartbeat:Connect(function(dt: number)
 	acc += dt
-	if acc < 0.05 then return end
+	if acc < 1 / 30 then return end
 	acc = 0
 	local t = os.clock()
 	for id, L in pairs(live) do
@@ -242,16 +271,226 @@ RunService.Heartbeat:Connect(function(dt: number)
 	end
 end)
 
+-- ---------- peintures 256 px (envoyées) et masques lumineux ----------
+-- Côté joueur, seulement si MeshUploader les a envoyées (clé « i:sk2:… » dans MeshAssets) ; les données restent dans
+-- ServerStorage/SkinTexturesHQ, que seul l'envoi depuis Studio lit.
+local function hqFill(name: string): EditableImage?
+	local folder = ServerStorage:FindFirstChild("SkinTexturesHQ")
+	local src = folder and folder:FindFirstChild(name)
+	if not src or not SkinPaint.imageApi then return nil end
+	local data = require(src :: ModuleScript) :: any
+	local size = data.size :: number
+	local out = buffer.create(size * size * 4)
+	if data.gray then
+		local g = decode(data.gray)
+		for i = 0, size * size - 1 do
+			local l = buffer.readu8(g, i)
+			buffer.writeu8(out, i * 4, l); buffer.writeu8(out, i * 4 + 1, l); buffer.writeu8(out, i * 4 + 2, l); buffer.writeu8(out, i * 4 + 3, 255)
+		end
+	else
+		local pal, px = decode(data.pal), decode(data.px)
+		for i = 0, size * size - 1 do
+			local c = buffer.readu8(px, i) * 3
+			buffer.writeu8(out, i * 4, buffer.readu8(pal, c)); buffer.writeu8(out, i * 4 + 1, buffer.readu8(pal, c + 1))
+			buffer.writeu8(out, i * 4 + 2, buffer.readu8(pal, c + 2)); buffer.writeu8(out, i * 4 + 3, 255)
+		end
+	end
+	local e = AssetService:CreateEditableImage({ Size = Vector2.new(size, size) })
+	e:WritePixelsBuffer(Vector2.zero, Vector2.new(size, size), out)
+	return e
+end
+
+local sent: { [string]: Content | false } = {}
+local function uploaded(name: string): Content?
+	local c = sent[name]
+	if c == nil then
+		local id = MeshStore.ids["i:sk2:" .. name]
+		local got: Content | false = false
+		if id then got = Content.fromUri("rbxassetid://" .. id) end
+		sent[name] = got
+		c = got
+	end
+	return if c then c :: Content else nil
+end
+
+-- ---------- cartes de métal et de rugosité par finition ----------
+-- rugosité du web (skinRough + 44d) : roughness = r × 1,5 (pièces secondaires r + 0,1) × carte 150..255 (bruit + usure)
+local function hash(x: number, y: number, s: number): number
+	local h = (x * 374761393 + y * 668265263 + (s + 1) * 1442695041) % 4294967296
+	h = bit32.bxor(h, bit32.rshift(h, 13))
+	h = (h * 1274126177) % 4294967296
+	return bit32.bxor(h, bit32.rshift(h, 16)) / 4294967296
+end
+-- bruit de valeur sans couture (période P cellules), comme vnoise/fbm du web
+local function vnoise(u: number, v: number, P: number, s: number): number
+	local x, y = u * P, v * P
+	local ix, iy = floor(x), floor(y)
+	local fx, fy = x - ix, y - iy
+	local x0, y0 = ix % P, iy % P
+	local x1, y1 = (x0 + 1) % P, (y0 + 1) % P
+	local a, b, c, d = hash(x0, y0, s), hash(x1, y0, s), hash(x0, y1, s), hash(x1, y1, s)
+	local sx, sy = fx * fx * (3 - 2 * fx), fy * fy * (3 - 2 * fy)
+	return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy
+end
+local function fbm(u: number, v: number, P: number, oct: number, s: number): number
+	local t, amp, n = 0, 0.5, 0
+	for i = 0, oct - 1 do t += amp * vnoise(u, v, P, s + i * 31); n += amp; amp *= 0.5; P *= 2 end
+	return t / n
+end
+local function sstep(a: number, b: number, x: number): number
+	local t = max(0, min(1, (x - a) / (b - a)))
+	return t * t * (3 - 2 * t)
+end
+
+local RS = 64                       -- carte de rugosité 64 × 64 (répétée comme la peinture)
+local finCache: { [string]: Content | false } = {}
+-- kind : "m" (métal, uni) | "r" (rugosité) | "ra" (rugosité des pièces secondaires)
+local function finMap(fin: string, kind: string): Content?
+	local id = fin .. ":" .. kind
+	local c = finCache[id]
+	if c ~= nil then return if c then c :: Content else nil end
+	local f = FIN[fin] or FIN.gloss
+	local ok, img = pcall(function()
+		return (MeshStore.image("fin:" .. id, function(): EditableImage?
+			if not SkinPaint.imageApi then return nil end
+			local size = if kind == "m" then 8 else RS
+			local out = buffer.create(size * size * 4)
+			local R = min(1, (f.r + (if kind == "ra" then 0.1 else 0)) * 1.5)
+			for y = 0, size - 1 do
+				for x = 0, size - 1 do
+					local l
+					if kind == "m" then l = f.m * 255
+					else
+						local u, v = x / size, y / size
+						local wear = sstep(0.6, 0.75, fbm(u, v, 3, 4, 17))
+						l = R * min(255, 150 + fbm(u, v, 6, 4, 11) * 70 + wear * 35)
+					end
+					local i = (y * size + x) * 4
+					buffer.writeu8(out, i, l); buffer.writeu8(out, i + 1, l); buffer.writeu8(out, i + 2, l); buffer.writeu8(out, i + 3, 255)
+				end
+			end
+			local e = AssetService:CreateEditableImage({ Size = Vector2.new(size, size) })
+			e:WritePixelsBuffer(Vector2.zero, Vector2.new(size, size), out)
+			return e
+		end))
+	end)
+	local res = if ok then img else nil
+	finCache[id] = res or false
+	return res
+end
+
+-- envoi depuis Studio (MeshUploader, mode Edit) : peintures 256 px, masques lumineux, cartes des finitions
+function SkinPaint.uploadAll()
+	local folder = ServerStorage:FindFirstChild("SkinTexturesHQ")
+	if folder then
+		for _, m in ipairs(folder:GetChildren()) do
+			local _, e = MeshStore.image("sk2:" .. m.Name, function() return hqFill(m.Name) end)
+			if e then pcall(function() (e :: EditableImage):Destroy() end) end
+		end
+	end
+	for fin in pairs(FIN) do for _, k in ipairs({ "m", "r", "ra" }) do finCache[fin .. ":" .. k] = nil; finMap(fin, k) end end
+end
+
 -- ---------- application sur une arme ----------
 local DEFAULT: { [Instance]: { Color3 | Enum.Material | number } } = setmetatable({}, { __mode = "k" }) :: any
+local saOK = true                   -- passe à false si Roblox refuse la SurfaceAppearance créée par script
+local tintOK = true                 -- passe à false si la teinte (SurfaceAppearance.Color) est refusée
+local pending: { [Instance]: { any } } = setmetatable({}, { __mode = "k" }) :: any
+local FACES = { Enum.NormalId.Left, Enum.NormalId.Right, Enum.NormalId.Top, Enum.NormalId.Bottom }
+local WHITE = Color3.new(1, 1, 1)
+
+-- peinture d'une pièce (MeshPart) en SurfaceAppearance ; renvoie false si Roblox la refuse
+type Glow = { mask: Content, tint: Color3, k: number }
+type Look = { color: Content, dark: Content?, fin: string, secondary: boolean, glow: Glow? }
+local function surface(mesh: MeshPart, o: Look): boolean
+	local ok = pcall(function()
+		local sa = Instance.new("SurfaceAppearance")
+		sa.Name = "SkinSA"
+		sa.ColorMapContent = o.color
+		if o.secondary then
+			-- teinte #8c8c8c comme M.acc du web ; sans teinte possible, l'image assombrie
+			local tinted = pcall(function() sa.Color = TINT end)
+			if not tinted then
+				tintOK = false
+				if o.dark then sa.ColorMapContent = o.dark :: Content end
+			end
+		end
+		local m, r = finMap(o.fin, "m"), finMap(o.fin, if o.secondary then "ra" else "r")
+		if m then pcall(function() sa.MetalnessMapContent = m :: Content end) end
+		if r then pcall(function() sa.RoughnessMapContent = r :: Content end) end
+		local g = o.glow
+		if g and not o.secondary then
+			pcall(function()
+				sa.EmissiveMaskContent = g.mask; sa.EmissiveTint = g.tint; sa.EmissiveStrength = g.k
+			end)
+		end
+		sa.Parent = mesh
+	end)
+	if not ok then
+		saOK = false
+		warn("[SkinPaint] SurfaceAppearance refusée : skins en texture simple (sans métal ni rugosité).")
+	end
+	return ok
+end
+
+-- pièce simple (Part, WedgePart) : la peinture en Texture sur les faces, à la même échelle que sur les maillages
+local function faces(part: BasePart, color: Content, tint: Color3, tile: number): boolean
+	for _, f in ipairs(FACES) do
+		local t = Instance.new("Texture")
+		t.Name = "SkinTex"; t.Face = f; t.StudsPerTileU = tile; t.StudsPerTileV = tile; t.Color3 = tint
+		local ok = pcall(function() t.ColorMapContent = color end)
+		if not ok then
+			local uri = color.Uri
+			if not uri then t:Destroy(); return false end
+			t.Texture = uri
+		end
+		t.Parent = part
+	end
+	return true
+end
+
+local applyNow: (model: Instance, skinIndex: number?, camo: string?, world: boolean) -> ()
 
 function SkinPaint.apply(model: Instance, skinIndex: number?, camo: string?)
+	-- SurfaceAppearance seulement dans le monde (pas dans un ViewportFrame, sans reflets de l'environnement) ;
+	-- un modèle peint avant d'être posé est repeint en SurfaceAppearance dès qu'il entre dans le workspace
+	local world = saOK and model:IsDescendantOf(workspace)
+	applyNow(model, skinIndex, camo, world)
+	if world or not saOK then pending[model] = nil; return end
+	local first = pending[model] == nil
+	pending[model] = { skinIndex, camo }
+	if first then
+		local conn: RBXScriptConnection
+		conn = model.AncestryChanged:Connect(function()
+			local p = pending[model]
+			if not p then conn:Disconnect(); return end
+			if saOK and model:IsDescendantOf(workspace) then
+				pending[model] = nil; conn:Disconnect()
+				applyNow(model, p[1], p[2], true)
+			end
+		end)
+	end
+end
+
+applyNow = function(model: Instance, skinIndex: number?, camo: string?, world: boolean)
 	local sk = Info.SKINS[skinIndex or 1] or Info.SKINS[1]
 	local anim = camo and Info.ANIM[camo]
-	local fin = REFLECT[(if anim then anim.fin else sk.fin) or "gloss"] or 0.08
+	local finName = (if anim then anim.fin else sk.fin) or "gloss"
+	local fin = REFLECT[finName] or 0.08
 	local L = anim and animImage(camo :: string) or nil
 	local main = (not anim) and sk.tex and paint(sk.tex, false) or nil
 	local dark = (not anim) and sk.tex and paint(sk.tex, true) or nil
+	local hq = (not anim) and sk.tex and uploaded(sk.tex :: string) or nil
+	local scale = model:GetAttribute("Scale")
+	local tile = TILE * (if type(scale) == "number" then scale else 1)
+	-- émission (web : emissiveMap × ge × ei) : masque, teinte, intensité
+	local glow: Glow? = nil
+	if anim and L then glow = { mask = Content.fromObject(L.img), tint = WHITE, k = ANIM_EI[camo :: string] or 0.6 }
+	elseif sk.glow and sk.tex and GLOW[sk.tex] then
+		local mask = uploaded(sk.tex .. "#g")
+		local gl = GLOW[sk.tex]
+		if mask then glow = { mask = mask, tint = Color3.fromHex(string.format("%06x", gl[1])), k = gl[2] } end
+	end
 	for _, p in ipairs(model:GetDescendants()) do
 		if not p:IsA("BasePart") then continue end
 		local role = p:GetAttribute("Role")
@@ -262,10 +501,22 @@ function SkinPaint.apply(model: Instance, skinIndex: number?, camo: string?)
 		local secondary = role == "acc"
 		local mesh = if bp:IsA("MeshPart") then bp :: MeshPart else nil
 		if mesh then mesh.TextureContent = Content.none end
+		for _, c in ipairs(bp:GetChildren()) do if c.Name == "SkinSA" or c.Name == "SkinTex" then c:Destroy() end end
 		bp.Color = d[1] :: Color3; bp.Material = d[2] :: Enum.Material; bp.Reflectance = d[3] :: number
 		if anim then
-			if L and mesh then
-				mesh.TextureContent = Content.fromObject(if secondary then L.dimg else L.img); L.users[mesh] = true
+			if L then
+				local img = Content.fromObject(L.img)
+				if mesh then
+					if not (world and surface(mesh, { color = img, dark = Content.fromObject(L.dimg), fin = finName, secondary = secondary, glow = glow })) then
+						if secondary then L.dark = true end
+						mesh.TextureContent = Content.fromObject(if secondary then L.dimg else L.img)
+					elseif secondary and not tintOK then
+						L.dark = true
+					end
+					L.users[mesh] = true
+				elseif faces(bp, img, if secondary then TINT else WHITE, tile) then
+					L.users[bp] = true
+				end
 				bp.Material = Enum.Material.SmoothPlastic
 			else
 				bp.Color = (if secondary then ANIM_FALLBACK[camo :: string]:Lerp(Color3.new(), 0.45) else ANIM_FALLBACK[camo :: string]) or bp.Color
@@ -274,8 +525,22 @@ function SkinPaint.apply(model: Instance, skinIndex: number?, camo: string?)
 			bp.Reflectance = fin
 		elseif main then
 			local pt = if secondary then dark :: Paint else main
-			if mesh and pt.img then mesh.TextureContent = pt.img :: Content end
-			bp.Color = pt.avg; bp.Material = Enum.Material.SmoothPlastic; bp.Reflectance = fin
+			-- peinture 256 px si elle est envoyée (pièces secondaires : teinte de la SurfaceAppearance), sinon 128 px
+			local col = hq or main.img
+			local done = false
+			if mesh and col and world then
+				done = surface(mesh, { color = col :: Content, dark = dark and dark.img, fin = finName, secondary = secondary, glow = glow })
+			end
+			if not done then
+				if mesh then
+					local c = if secondary then pt.img else (hq or pt.img)
+					if c then mesh.TextureContent = c :: Content end
+				elseif col then
+					faces(bp, col :: Content, if secondary then TINT else WHITE, tile)
+				end
+				bp.Reflectance = fin
+			end
+			bp.Color = pt.avg; bp.Material = Enum.Material.SmoothPlastic
 		elseif sk.b then                               -- skin uni (Noir mat…)
 			bp.Color = (if secondary or role == "wood" then hex(sk.a) else hex(sk.b)) or bp.Color
 			bp.Material = Enum.Material.SmoothPlastic; bp.Reflectance = fin

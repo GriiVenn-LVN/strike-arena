@@ -139,11 +139,14 @@ local function knife(model: Model, grip: BasePart, scale: number)
 		local p = plain(name, size, color, mat); p:SetAttribute("Piece", "body"); p:SetAttribute("Role", role); p:SetAttribute("Offset", at)
 		p.CFrame = grip.CFrame * at; p.Parent = model
 	end
-	add("Handle", Vector3.new(0.03, 0.035, 0.12) * scale, CFrame.new(0, 0, 0.03 * scale), Color3.fromRGB(30, 31, 34), Enum.Material.SmoothPlastic, "acc")
+	-- web (buildKnife) : seule la lame prend le skin ; poignée noire (M.blk) et garde sombre (M.dark) restent nues
+	add("Handle", Vector3.new(0.03, 0.035, 0.12) * scale, CFrame.new(0, 0, 0.03 * scale), Color3.fromRGB(30, 31, 34), Enum.Material.SmoothPlastic, "grip")
 	add("Guard", Vector3.new(0.035, 0.06, 0.012) * scale, CFrame.new(0, 0, -0.035 * scale), Color3.fromRGB(80, 82, 88), Enum.Material.Metal, "steel")
 	add("Blade", Vector3.new(0.006, 0.035, 0.16) * scale, CFrame.new(0, 0.004 * scale, -0.12 * scale), Color3.fromRGB(200, 205, 212), Enum.Material.Metal, "body")   -- le skin couvre aussi la lame
-	local tip = plain("Tip", Vector3.new(0.006, 0.035, 0.03) * scale, Color3.fromRGB(200, 205, 212), Enum.Material.Metal)
-	local mesh = Instance.new("SpecialMesh"); mesh.MeshType = Enum.MeshType.Wedge; mesh.Parent = tip
+	-- pointe en WedgePart (même forme que l'ancien SpecialMesh « Wedge ») : elle accepte les Texture du skin
+	local tip = Instance.new("WedgePart"); tip.Name = "Tip"; tip.Size = Vector3.new(0.006, 0.035, 0.03) * scale
+	tip.Color = Color3.fromRGB(200, 205, 212); tip.Material = Enum.Material.Metal
+	tip.CanCollide = false; tip.CanQuery = false; tip.CanTouch = false; tip.Massless = true; tip.CastShadow = false; tip.Anchored = true
 	local at = CFrame.new(0, 0.004 * scale, -0.215 * scale) * CFrame.Angles(0, math.rad(180), 0)
 	tip:SetAttribute("Piece", "body"); tip:SetAttribute("Role", "body"); tip:SetAttribute("Offset", at); tip.CFrame = grip.CFrame * at; tip.Parent = model
 end
@@ -213,6 +216,7 @@ local function make(key: string, scale: number): Model
 	left.Position = if inf then Vector3.new(inf.left[1], inf.left[2], inf.left[3]) * scale else Vector3.new()
 	left.Parent = grip
 	model:SetAttribute("SightY", sightY)
+	model:SetAttribute("Scale", scale)          -- SkinPaint : taille de la peinture sur les pièces simples (Texture)
 	return model
 end
 
