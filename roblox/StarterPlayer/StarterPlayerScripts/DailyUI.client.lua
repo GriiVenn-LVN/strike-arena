@@ -38,7 +38,7 @@ end
 text(win, { Position = UDim2.fromOffset(28, 18), Size = UDim2.new(1, -100, 0, 30), Font = K.BLACK, TextSize = 26, TextWrapped = false,
 	Text = "📅  " .. spaced("CALENDRIER DE CONNEXION", 2) })
 local subL = text(win, { Position = UDim2.fromOffset(30, 52), Size = UDim2.new(1, -100, 0, 18), TextSize = 13, TextColor3 = C.sub, TextWrapped = false, Text = "" })
-K.btn(win, "✕", "dark", function() gui.Enabled = false end, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -16, 0, 16), Size = UDim2.fromOffset(40, 40), TextSize = 18 })
+local closeB = K.btn(win, "✕", "dark", function() gui.Enabled = false end, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -16, 0, 16), Size = UDim2.fromOffset(40, 40), TextSize = 18 })
 local days = make("Frame", { Position = UDim2.fromOffset(28, 86), Size = UDim2.new(1, -56, 0, 210) }, win)
 K.hlist(days, 10, Enum.VerticalAlignment.Bottom)
 local foot = make("Frame", { Position = UDim2.fromOffset(28, 312), Size = UDim2.new(1, -56, 0, 140) }, win)
@@ -54,6 +54,7 @@ end
 
 local data: any = nil
 local render: () -> ()
+local claimB: TextButton? = nil   -- RÉCUPÉRER du jour (sélectionné à la manette à l'ouverture)
 local function claim()
 	local res = call("ClaimDaily")
 	if res and res.reward then
@@ -69,6 +70,7 @@ end
 
 render = function()
 	K.clear(days); K.clear(foot)   -- les UIListLayout restent
+	claimB = nil
 	local ds = data and data.daily or { canClaim = false, day = 1, streak = 0 }
 	local today = tonumber(ds.day) or 1
 	for i, r in ipairs(Config.DAILY) do
@@ -94,6 +96,7 @@ render = function()
 			local b = K.btn(f, spaced("RÉCUPÉRER", 1), "gold", claim, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -10), Size = UDim2.new(1, -16, 0, 34), TextSize = 12 })
 			K.beat(b, 1.06, 1)
 			K.shine(f, 2.2, 0.3)
+			claimB = b
 		else
 			text(f, { AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 0, 1, -14), Size = UDim2.new(1, 0, 0, 16), TextSize = 11, TextColor3 = C.dim,
 				TextXAlignment = Enum.TextXAlignment.Center, Text = if i == today and not ds.canClaim then "Reviens demain" else "Dans " .. (i - today + (if ds.canClaim then 0 else 0)) .. " j" })
@@ -134,6 +137,8 @@ local function open()
 	winScale.Scale = target * 0.9; K.tween(winScale, 0.25, { Scale = target }, Enum.EasingStyle.Back)
 end
 veil.Activated:Connect(function() gui.Enabled = false end)
+-- B / Échap / Retour arrière ferment le calendrier ; à la manette, la sélection arrive sur RÉCUPÉRER (sinon la croix)
+K.overlay(gui, function() gui.Enabled = false end, function() return claimB or closeB end)
 S.panels.daily = function()
 	if gui.Enabled then gui.Enabled = false else task.spawn(open) end
 end

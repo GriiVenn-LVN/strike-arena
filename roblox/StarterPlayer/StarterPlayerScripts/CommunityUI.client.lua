@@ -10,6 +10,8 @@ local RunService = game:GetService("RunService")
 local GroupService = game:GetService("GroupService")
 
 local CommunityConfig = require(ReplicatedStorage.Shared.CommunityConfig)
+-- présentation et « retour » (B / Échap) communs avec le menu principal
+local K = require(script.Parent:WaitForChild("Menu"):WaitForChild("Kit"))
 
 local player = Players.LocalPlayer
 
@@ -21,6 +23,7 @@ local C = {
 
 local function make(class: string, props: { [string]: any }, parent: Instance?): any
 	local o: any = Instance.new(class)
+	if o:IsA("GuiObject") then o.BorderSizePixel = 0 end
 	if class == "TextLabel" or class == "TextButton" or class == "TextBox" then
 		o.Font = Enum.Font.GothamBold; o.TextColor3 = C.text; o.BorderSizePixel = 0
 	end
@@ -69,22 +72,28 @@ end
 
 local function panel(title: string, accent: Color3, height: number): (Frame, Frame)
 	local f = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(440, height),
-		BackgroundColor3 = C.bg, Visible = false, ZIndex = 40 }, gui)
-	corner(f, 12)
-	make("UIStroke", { Color = accent, Thickness = 2 }, f)
+		BackgroundColor3 = Color3.new(1, 1, 1), Visible = false, ZIndex = 40 }, gui)
+	-- même fenêtre que le passe, le calendrier et la boutique : dégradé teinté de la couleur du panneau, bord fin
+	corner(f, 16); K.gradient(f, accent:Lerp(K.rgb(0x0b111c), 0.8), K.rgb(0x0b111c), 90)
+	make("UIStroke", { Color = accent, Thickness = 1.5, Transparency = 0.4 }, f)
 	make("TextLabel", { Size = UDim2.new(1, -60, 0, 44), Position = UDim2.fromOffset(20, 8), Text = title, TextSize = 24, Font = Enum.Font.GothamBlack,
 		TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = accent, ZIndex = 41 }, f)
 	local close = make("TextButton", { Size = UDim2.fromOffset(36, 36), Position = UDim2.new(1, -48, 0, 12), BackgroundColor3 = C.panel, Text = "✕", TextSize = 18,
 		Modal = true, ZIndex = 41 }, f)   -- Modal : libère le curseur en vue à la première personne
 	corner(close, 8)
-	close.MouseButton1Click:Connect(function() setOpen(nil) end)
+	close.Activated:Connect(function() setOpen(nil) end)
+	K.juice(close)
+	-- B / Échap / Retour arrière ferment le panneau ; à la manette, la sélection arrive sur la croix
+	K.overlay(f, function() if openPanel == f then setOpen(nil) end end, function() return close end)
 	local body = make("Frame", { Size = UDim2.new(1, -40, 1, -70), Position = UDim2.fromOffset(20, 60), BackgroundTransparency = 1, ZIndex = 41 }, f)
 	return f, body
 end
 
 local function button(parent: Instance, text: string, color: Color3, pos: UDim2, size: UDim2): TextButton
-	local b = make("TextButton", { Position = pos, Size = size, BackgroundColor3 = color, Text = text, TextSize = 16, Font = Enum.Font.GothamBlack, ZIndex = 42 }, parent)
+	local b = make("TextButton", { Position = pos, Size = size, BackgroundColor3 = color, Text = text, TextSize = 16, Font = Enum.Font.GothamBlack, ZIndex = 42,
+		AutoButtonColor = false }, parent)
 	corner(b, 8)
+	K.juice(b)   -- survol, clic et son d'interface comme les boutons du menu
 	return b
 end
 
@@ -114,7 +123,7 @@ local function submitCode()
 		codeResult.Text = "❌ " .. (res and res.msg or "Erreur")
 	end
 end
-codeBtn.MouseButton1Click:Connect(submitCode)
+codeBtn.Activated:Connect(submitCode)
 codeBox.FocusLost:Connect(function(enter: boolean) if enter then submitCode() end end)
 
 -- ---------- Groupe Roblox ----------
@@ -138,11 +147,11 @@ local function refreshGroup()
 		claimBtn.Text = "✅ RÉCOMPENSE RÉCUPÉRÉE"; claimBtn.BackgroundColor3 = C.panel
 	end
 end
-joinBtn.MouseButton1Click:Connect(function()
+joinBtn.Activated:Connect(function()
 	if G.id <= 0 then return end
 	pcall(function() (GroupService :: any):PromptJoinAsync(G.id) end)   -- fenêtre officielle Roblox « Rejoindre le groupe »
 end)
-claimBtn.MouseButton1Click:Connect(function()
+claimBtn.Activated:Connect(function()
 	local res = claimGroup:InvokeServer()
 	if res and res.ok then
 		groupResult.TextColor3 = C.green; groupResult.Text = "✅ " .. res.msg .. "  " .. table.concat(res.lines or {}, "   ")
@@ -171,7 +180,7 @@ make("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.Layo
 local function sideButton(text: string, color: Color3, order: number, cb: () -> ()): TextButton
 	local b = make("TextButton", { Size = UDim2.fromOffset(150, 40), BackgroundColor3 = color, Text = text, TextSize = 15, Font = Enum.Font.GothamBlack, LayoutOrder = order }, side)
 	corner(b, 8)
-	b.MouseButton1Click:Connect(cb)
+	b.Activated:Connect(cb)
 	return b
 end
 local playBtn = sideButton("🎮 JOUER", C.red, 1, function()
