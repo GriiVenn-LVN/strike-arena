@@ -66,15 +66,16 @@ local function part(name: string, size: Vector3, color: Color3, mat: Enum.Materi
 end
 
 local GLOVE = Color3.fromRGB(34, 36, 40)
+-- manches : diamètres des cônes du web (SG.uarm / SG.farm, ×1,15 dans place()) ; poignet : bande de manche (cR / cL)
+local ARM_U, ARM_F, CUFF_D, CUFF_L = 0.132, 0.112, 0.118, 0.054
 local arms = {
-	uR = part("UpperR", Vector3.new(0.1, 0.1, 0.34), Color3.new()), fR = part("ForeR", Vector3.new(0.085, 0.085, 0.3), Color3.new()),
-	uL = part("UpperL", Vector3.new(0.1, 0.1, 0.34), Color3.new()), fL = part("ForeL", Vector3.new(0.085, 0.085, 0.3), Color3.new()),
-	cR = part("CuffR", Vector3.new(0.095, 0.095, 0.05), Color3.fromRGB(45, 48, 40)), cL = part("CuffL", Vector3.new(0.095, 0.095, 0.05), Color3.fromRGB(45, 48, 40)),
+	uR = part("UpperR", Vector3.new(0.34, ARM_U, ARM_U), Color3.new()), fR = part("ForeR", Vector3.new(0.3, ARM_F, ARM_F), Color3.new()),
+	uL = part("UpperL", Vector3.new(0.34, ARM_U, ARM_U), Color3.new()), fL = part("ForeL", Vector3.new(0.3, ARM_F, ARM_F), Color3.new()),
+	cR = part("CuffR", Vector3.new(CUFF_L, CUFF_D, CUFF_D), Color3.fromRGB(45, 48, 40)), cL = part("CuffL", Vector3.new(CUFF_L, CUFF_D, CUFF_D), Color3.fromRGB(45, 48, 40)),
 	hR = part("HandR", Vector3.new(0.075, 0.09, 0.11), GLOVE), hL = part("HandL", Vector3.new(0.075, 0.09, 0.11), GLOVE),
 }
-for _, k in ipairs({ "uR", "fR", "uL", "fL" }) do
-	local m = Instance.new("SpecialMesh"); m.MeshType = Enum.MeshType.Cylinder; m.Parent = arms[k]
-end
+-- vrais cylindres (axe X) : un SpecialMesh « Cylinder » s'affiche en pavé sur Roblox (manches et poignets en blocs)
+for _, k in ipairs({ "uR", "fR", "uL", "fL", "cR", "cL" }) do arms[k].Shape = Enum.PartType.Cylinder end
 -- hR / hL : simples repères invisibles, les gants modelés (ci-dessous) s'y accrochent
 arms.hR.Transparency = 1; arms.hL.Transparency = 1
 for _, k in ipairs({ "uR", "fR", "uL", "fL" }) do arms[k].Material = Enum.Material.Fabric end
@@ -92,9 +93,43 @@ local function newGlove(): { GPiece }
 		p.Parent = rig
 		table.insert(list, { p = p, at = at, mat = mat })
 	end
-	local function box(size: Vector3, pos: Vector3, ry: number, mat: string)
-		local p = Instance.new("Part"); p.Name = "Gant"; p.Size = size
-		add(p, CFrame.new(pos) * CFrame.Angles(0, ry, 0), mat)
+	-- pavé arrondi « gonflé » (puffGeo du web) : rayon r = round × plus petite demi-taille ; sans maillage, il est
+	-- refait en pièces simples (somme d'un pavé et d'une boule) : 3 pavés + 12 cylindres d'arêtes + 8 boules de coins,
+	-- les pièces de longueur nulle (axe entièrement arrondi) sont sautées. Plus de coins vifs « en blocs ».
+	local function puff(size: Vector3, pos: Vector3, ry: number, round: number, mat: string)
+		local h = size / 2
+		local r = math.min(h.X, h.Y, h.Z) * round
+		local function inner(x: number): number return if x - r < 0.0008 then 0 else x - r end
+		local i = Vector3.new(inner(h.X), inner(h.Y), inner(h.Z))
+		local at = CFrame.new(pos) * CFrame.Angles(0, ry, 0)
+		local function piece(p: BasePart, cf: CFrame) p.Name = "Gant"; add(p, at * cf, mat) end
+		local function signs(x: number): { number } return if x > 0 then { -x, x } else { 0 } end
+		-- cœur : un pavé par axe, gonflé de r sur cet axe
+		for _, s in ipairs({ Vector3.new(h.X, i.Y, i.Z), Vector3.new(i.X, h.Y, i.Z), Vector3.new(i.X, i.Y, h.Z) }) do
+			if s.X > 1e-4 and s.Y > 1e-4 and s.Z > 1e-4 then
+				local p = Instance.new("Part"); p.Size = s * 2; piece(p, CFrame.identity)
+			end
+		end
+		-- arêtes : cylindres de rayon r (axe X du cylindre tourné sur l'axe de l'arête)
+		local function edge(len: number, rot: CFrame, offs: { Vector3 })
+			if len <= 1e-4 then return end
+			for _, o in ipairs(offs) do
+				local c = Instance.new("Part"); c.Shape = Enum.PartType.Cylinder; c.Size = Vector3.new(len, r * 2, r * 2)
+				piece(c, CFrame.new(o) * rot)
+			end
+		end
+		local ex, ey, ez = {}, {}, {}
+		for _, a in ipairs(signs(i.Y)) do for _, b in ipairs(signs(i.Z)) do table.insert(ex, Vector3.new(0, a, b)) end end
+		for _, a in ipairs(signs(i.X)) do for _, b in ipairs(signs(i.Z)) do table.insert(ey, Vector3.new(a, 0, b)) end end
+		for _, a in ipairs(signs(i.X)) do for _, b in ipairs(signs(i.Y)) do table.insert(ez, Vector3.new(a, b, 0)) end end
+		edge(i.X * 2, CFrame.identity, ex)
+		edge(i.Y * 2, CFrame.Angles(0, 0, math.pi / 2), ey)
+		edge(i.Z * 2, CFrame.Angles(0, math.pi / 2, 0), ez)
+		-- coins
+		for _, x in ipairs(signs(i.X)) do for _, y in ipairs(signs(i.Y)) do for _, z in ipairs(signs(i.Z)) do
+			local b = Instance.new("Part"); b.Shape = Enum.PartType.Ball; b.Size = Vector3.one * (r * 2)
+			piece(b, CFrame.new(x, y, z))
+		end end end
 	end
 	-- capsule (cylindre + deux demi-sphères) de longueur totale L, axe = up
 	local function caps(center: Vector3, up: Vector3, r: number, L: number, mat: string)
@@ -120,9 +155,9 @@ local function newGlove(): { GPiece }
 		local k = rr or R
 		return Vector3.new(math.cos(phi) * k, y, math.sin(phi) * k)
 	end
-	box(Vector3.new(0.028, 0.084, 0.07), Vector3.new(0.03, -0.036, 0.018), -0.62, "fab")      -- paume + dos
-	box(Vector3.new(0.012, 0.07, 0.026), Vector3.new(0.046, -0.034, -0.006), -0.35, "pad")    -- coque des jointures
-	box(Vector3.new(0.03, 0.05, 0.02), Vector3.new(0.03, -0.03, 0.05), -0.9, "strap")         -- sangle du poignet
+	puff(Vector3.new(0.028, 0.084, 0.07), Vector3.new(0.03, -0.036, 0.018), -0.62, 1, "fab")      -- paume + dos
+	puff(Vector3.new(0.012, 0.07, 0.026), Vector3.new(0.046, -0.034, -0.006), -0.35, 0.9, "pad")  -- coque des jointures
+	puff(Vector3.new(0.03, 0.05, 0.02), Vector3.new(0.03, -0.03, 0.05), -0.9, 0.6, "strap")       -- sangle du poignet
 	local F = {
 		{ y = -0.008, L = { 0.042, 0.026, 0.021 }, r = 0.0088 }, { y = -0.027, L = { 0.046, 0.029, 0.022 }, r = 0.0092 },
 		{ y = -0.046, L = { 0.043, 0.027, 0.021 }, r = 0.0088 }, { y = -0.063, L = { 0.034, 0.021, 0.018 }, r = 0.0076 },
@@ -437,9 +472,9 @@ local function placeArm(up: BasePart, fore: BasePart, cuff: BasePart, hand: Vect
 	pole = (pole - dir * pole:Dot(dir)).Unit
 	local el = sh + dir * a + pole * h
 	local function w(v: Vector3): Vector3 return camCF:PointToWorldSpace(v) end
-	seg(up, w(sh), w(el), 0.1)
-	seg(fore, w(el), w(hand), 0.085)
-	cuff.CFrame = CFrame.lookAt(w(el:Lerp(hand, 0.9)), w(hand))
+	seg(up, w(sh), w(el), ARM_U)
+	seg(fore, w(el), w(hand), ARM_F)
+	cuff.CFrame = CFrame.lookAt(w(el:Lerp(hand, 0.9)), w(hand)) * CFrame.Angles(0, math.rad(90), 0)   -- axe X du cylindre le long de l'avant-bras
 end
 
 local function setVisible(on: boolean)
