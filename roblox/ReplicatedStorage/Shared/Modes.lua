@@ -33,7 +33,7 @@ Modes.LIST = {
 	zombies = { n = "Zombies (coop)", ic = "🧟", c = rgb(0x8fd14f), team = true, respawn = 0, desc = "Façon Black Ops : points, armes aux murs, boîte mystère, atouts, Forge Arcane et armes prodiges.", limitLabel = "Manches à survivre", limits = { 10, 15, 25, 99 }, tag = "Coop contre des vagues" },
 	inf = { n = "Infecté", ic = "☣", c = rgb(0x9dff5a), team = true, respawn = 2.5, desc = "Un joueur commence infecté. Chaque survivant tué rejoint les infectés. Tiens jusqu'à la fin du chrono.", limitLabel = "", limits = {}, tag = "Survis aux infectés", time = 300 },
 	jug = { n = "Mastodonte", ic = "🛡", c = rgb(0xff5a3c), team = false, respawn = 2, desc = "Le premier à éliminer devient le Mastodonte : 400 PV et une mitrailleuse. Lui seul marque des points. Élimine-le pour prendre sa place.", limitLabel = "Points pour gagner", limits = { 25, 40, 60 }, tag = "Deviens le Mastodonte et tiens", time = 480 },
-	br = { n = "Bataille royale", ic = "🪂", c = rgb(0xc77dff), team = false, respawn = 0, desc = "Un seul survivant. Ramasse des armes, évite la zone qui se resserre.", limitLabel = "", limits = {}, tag = "Un seul survivant" },
+	br = { n = "Bataille royale", ic = "🌀", c = rgb(0xc77dff), team = false, respawn = 0, desc = "Un seul survivant. Ramasse des armes, évite la zone qui se resserre.", limitLabel = "", limits = {}, tag = "Un seul survivant" },
 	train = { n = "Entraînement", ic = "🎯", c = rgb(0xff9a3a), team = false, respawn = 1, desc = "Cibles mobiles, chronomètre 60 s. Mesure précision et réflexes.", limitLabel = "", limits = {}, tag = "Stand de tir, sans limite de temps" },
 } :: { [string]: ModeDef }
 for id, m in pairs(Modes.LIST) do m.id = id end
@@ -96,7 +96,7 @@ Modes.MUTATORS = {
 	{ k = "turbo", ic = "⚡", n = "Turbo", d = "Tout le monde court 30 % plus vite" },
 	{ k = "tetes", ic = "🎯", n = "Têtes seulement", d = "Seuls les tirs à la tête blessent" },
 	{ k = "balle", ic = "💥", n = "Une balle", d = "Chaque touche élimine" },
-	{ k = "vamp", ic = "🩸", n = "Vampire", d = "Chaque élimination rend 50 PV" },
+	{ k = "vamp", ic = "🦇", n = "Vampire", d = "Chaque élimination rend 50 PV" },
 	{ k = "nades", ic = "💣", n = "Grenades à volonté", d = "Une grenade revient toutes les 5 s" },
 }
 

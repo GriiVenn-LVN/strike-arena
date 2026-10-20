@@ -162,7 +162,7 @@ return function(ctx: any, body: Frame, _sub: string?)
 	K.vlist(gcard, 6)
 	K.h4(gcard, "🎁 CADEAUX", nil, 1)
 	text(gcard, { LayoutOrder = 2, Font = K.BLACK, TextSize = 22, Size = UDim2.new(1, 0, 0, 26), TextWrapped = false,
-		Text = if lp > 0 then lp .. ' <font size="12" color="#8da0bd">à récupérer</font>' else '<font color="#7dff9f">✔</font>' })
+		Text = if lp > 0 then lp .. ' <font size="12" color="#8da0bd">à récupérer</font>' else "✅" })
 	if lp > 0 then
 		local st = gcard:FindFirstChildOfClass("UIStroke")
 		if st then st.Color = C.gold; st.Transparency = 0.35 end

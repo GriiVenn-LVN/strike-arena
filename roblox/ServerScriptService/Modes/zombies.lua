@@ -330,7 +330,7 @@ local function buildWall(m: any, s: Spot, key: string, price: number)
 	local sg = surface(p, Enum.NormalId.Front, 30)
 	local fr = Instance.new("Frame"); fr.BackgroundTransparency = 1; fr.Size = UDim2.fromScale(0.86, 0.62); fr.Position = UDim2.fromScale(0.07, 0.06); fr.Parent = sg
 	local st = Instance.new("UIStroke"); st.Color = Color3.fromRGB(244, 244, 240); st.Thickness = 3; st.Transparency = 0.25; st.Parent = fr
-	text(fr, "✎ " .. string.upper(Config.WEAPONS[key].name), UDim2.fromScale(0.05, 0.2), UDim2.fromScale(0.9, 0.6), Color3.fromRGB(244, 244, 240), Enum.Font.PermanentMarker)
+	text(fr, "✏️ " .. string.upper(Config.WEAPONS[key].name), UDim2.fromScale(0.05, 0.2), UDim2.fromScale(0.9, 0.6), Color3.fromRGB(244, 244, 240), Enum.Font.PermanentMarker)
 	text(sg, string.upper(Config.WEAPONS[key].name) .. " — " .. price, UDim2.fromScale(0, 0.74), UDim2.fromScale(1, 0.24), Color3.fromRGB(244, 244, 240), Enum.Font.PermanentMarker)
 	local pp = prompt(p, "wall", "Acheter " .. Config.WEAPONS[key].name .. " — " .. price .. " pts", "Arme murale", 2.4)
 	pp:SetAttribute("Weapon", key); pp:SetAttribute("Price", price)

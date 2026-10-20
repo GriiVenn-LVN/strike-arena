@@ -28,6 +28,7 @@ local S = require(ReplicatedStorage.Shared.ClientState)
 local MenuDir = script.Parent:WaitForChild("Menu")
 local K = require(MenuDir:WaitForChild("Kit"))
 local Options = require(MenuDir:WaitForChild("Options"))
+local Icons = require(ReplicatedStorage.Shared.Icons)
 local C = K.C
 local make, text, spaced = K.make, K.text, K.spaced
 
@@ -51,10 +52,11 @@ end
 -- ---------- interface ----------
 local bgGui = make("ScreenGui", { Name = "MainMenuBg", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 18, Enabled = false,
 	ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, playerGui)
--- voile du web : sombre à gauche (là où sont les panneaux), le lobby reste visible derrière
+-- voile du web : sombre à gauche (là où sont les panneaux), le lobby reste visible derrière (plus sombre que le web :
+-- les panneaux et les textes 3D du lobby brouillaient la lecture du menu)
 local veil = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 0, BackgroundColor3 = Color3.new(1, 1, 1) }, bgGui)
 make("UIGradient", { Color = ColorSequence.new(K.rgb(0x05080e), K.rgb(0x0b1220)), Transparency = NumberSequence.new({
-	NumberSequenceKeypoint.new(0, 0.12), NumberSequenceKeypoint.new(0.55, 0.38), NumberSequenceKeypoint.new(1, 0.55) }), Rotation = 0 }, veil)
+	NumberSequenceKeypoint.new(0, 0.06), NumberSequenceKeypoint.new(0.55, 0.2), NumberSequenceKeypoint.new(1, 0.32) }), Rotation = 0 }, veil)
 local veil2 = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 0, BackgroundColor3 = Color3.new(1, 1, 1) }, bgGui)
 make("UIGradient", { Color = ColorSequence.new(K.rgb(0x05080e), K.rgb(0x2a1608)), Transparency = NumberSequence.new(0.35, 0.75), Rotation = -90 }, veil2)
 -- fond animé du web (#menu::before) : une lueur rouge en bas à gauche, une bleue en haut à droite, qui dérivent lentement
@@ -99,7 +101,7 @@ type Sub = { id: string, n: string, help: string }
 local TABS: { { id: string, n: string, ic: string, help: string?, subs: { Sub }? } } = {
 	{ id = "home", n = "ACCUEIL", ic = "⌂", help = "Lance une partie, récupère tes cadeaux et relève les défis du jour." },
 	{ id = "play", n = "JOUER", ic = "▶", help = "Trois étapes : choisis un mode, puis une carte, puis appuie sur JOUER." },
-	{ id = "arsenal", n = "ARSENAL", ic = "✦", subs = {
+	{ id = "arsenal", n = "ARSENAL", ic = "◆", subs = {
 		{ id = "Armes", n = "Armes", help = "Choisis tes armes, compare leurs statistiques et mets-leur un skin." },
 		{ id = "Viseurs", n = "Viseurs", help = "L'optique posée sur chaque arme et le réticule qu'on voit dedans." },
 		{ id = "Casier", n = "Tenues et effets", help = "Tenue du soldat, danses (T), sprays (J), effets d'élimination et traînées de balles." },
@@ -236,7 +238,7 @@ function ctx.claimDaily()
 	if res and res.reward then
 		local r = res.reward
 		local parts = {}
-		if r.coins then table.insert(parts, "+" .. r.coins .. " 🪙") end
+		if r.coins then table.insert(parts, "+" .. r.coins .. " 💰") end
 		if r.box then table.insert(parts, "1 caisse") end
 		if r.dance then table.insert(parts, "danse") end
 		ctx.toast("🎁 Jour " .. tostring(res.day) .. " : " .. table.concat(parts, " · "), C.gold)
@@ -306,6 +308,8 @@ end
 -- ---------- en-tête : logo, navigation, profil ----------
 local header = make("Frame", { Name = "Header", Size = UDim2.new(1, 0, 0, 90) }, root)
 local subRow = make("Frame", { Name = "SubRow", Size = UDim2.new(1, -56, 0, 40), Position = UDim2.fromOffset(28, 96) }, root)
+-- en partie : bandeau « PARTIE EN COURS » (mode photo, reprendre, quitter) sur sa propre ligne, sous les sous-onglets
+local matchRow = make("Frame", { Name = "MatchRow", Size = UDim2.new(1, -56, 0, 36), Position = UDim2.fromOffset(28, 140), Visible = false }, root)
 local body = make("Frame", { Name = "Body", Size = UDim2.new(1, -56, 1, -170), Position = UDim2.fromOffset(28, 140), ClipsDescendants = true }, root)
 -- en haut de chaque page : « RUBRIQUE › SOUS-PARTIE   phrase d'aide » ; la page elle-même est dessinée dans « pageBox »
 local helpBar = text(body, { Name = "HelpBar", Size = UDim2.new(1, 0, 0, 22), TextSize = 13, TextColor3 = C.white, Font = K.MED, TextWrapped = false,
@@ -316,74 +320,94 @@ local footer = text(root, { Name = "Footer", AnchorPoint = Vector2.new(0, 1), Po
 	Text = 'P : menu (en partie : pause)  •  Échap · B : retour  •  LB / RB : rubriques  •  Tous les réglages sont sauvegardés automatiquement  •  <u>Crédits</u> : modèles d\'armes « Low-Poly » de TastyTony (CC BY 4.0)' })
 local navButtons: { [string]: TextButton } = {}
 
+-- Mise en page de l'en-tête (barre du haut du web : logo | navigation | encart du profil, puis BOUTIQUE / CADEAUX /
+-- PREMIUM sous l'encart). Tout a une taille fixe : rien ne grandit avec son texte, donc rien ne se chevauche.
+--   large (W >= 1552, écrans 21:9) : logo, onglets et profil sur une ligne ; sous-onglets à gauche et boutons à droite dessous
+--   normal (16:9, 4:3, 1024 à 1920 px : W vaut 1280 avec l'UIScale) : logo et profil, puis onglets à gauche et boutons à droite
+--   étroit (téléphone en hauteur) : profil, onglets, puis boutons ; le logo est caché
+local TAB_W, TAB_H = 132, 42   -- barre : 5 onglets + écarts de 2 + marge intérieure de 4 de chaque côté = 676
+local LOGO_W, PBOX_W, SHOP_W = 340, 440, 380
 local function buildHeader()
 	K.clear(header)
 	navButtons = {}
 	local W = ctx.W
-	local wide = W >= 1570   -- logo (450) + navigation (~620) + encart du profil (480) sur une seule ligne
+	-- téléphone en hauteur : les onglets rétrécissent pour tenir dans la largeur
+	local tabW = math.min(TAB_W, math.floor((W - 56 - 8 - 2 * (#TABS - 1)) / #TABS))
+	local NAV_W = #TABS * tabW + (#TABS - 1) * 2 + 8
+	local wide = W >= 28 + LOGO_W + 20 + NAV_W + 20 + PBOX_W + 28
+	local narrow = W < 28 + LOGO_W + 16 + PBOX_W + 28
+	local shopBeside = W >= 28 + NAV_W + 16 + SHOP_W + 28   -- boutons sur la ligne des onglets
 	-- logo
-	local logo = make("Frame", { Position = UDim2.fromOffset(28, 22), Size = UDim2.fromOffset(420, 50) }, header)
+	local logo = make("Frame", { Position = UDim2.fromOffset(28, 20), Size = UDim2.fromOffset(LOGO_W, 50), Visible = not narrow }, header)
 	local barL = make("Frame", { Size = UDim2.fromOffset(4, 44), BackgroundTransparency = 0, BackgroundColor3 = C.white }, logo)
 	K.gradient(barL, C.orange, C.accent, 90)
-	text(logo, { Position = UDim2.fromOffset(18, -2), Size = UDim2.fromOffset(400, 32), Font = K.BLACK, TextSize = 29, TextWrapped = false,
-		Text = spaced("STRIKE", 2) .. '   <font color="#ff8a3a">' .. spaced("ARENA", 2) .. "</font>" })
+	K.fit(text(logo, { Position = UDim2.fromOffset(18, -2), Size = UDim2.new(1, -18, 0, 32), Font = K.BLACK, TextSize = 29, TextWrapped = false,
+		Text = spaced("STRIKE", 2) .. '   <font color="#ff8a3a">' .. spaced("ARENA", 2) .. "</font>" }), 29, 16)
 	local nModes, nMaps = 0, #Modes.MAPS
 	for _ in pairs(Modes.LIST) do nModes += 1 end
-	text(logo, { Position = UDim2.fromOffset(19, 32), Size = UDim2.fromOffset(400, 14), Font = K.BOLD, TextSize = 10, TextColor3 = C.dim, TextWrapped = false,
-		Text = spaced("FPS TACTIQUE  •  " .. nModes .. " MODES  •  " .. nMaps .. " CARTES  •  BOTS IA", 1) })
-	-- navigation
-	local nav = make("Frame", { AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 50), BackgroundTransparency = 0.4, BackgroundColor3 = C.deep }, header)
-	K.corner(nav, 12); K.stroke(nav, C.white, 1, 0.93); K.pad(nav, 4); K.hlist(nav, 2)
-	if wide then
-		nav.AnchorPoint = Vector2.new(0, 0); nav.Position = UDim2.fromOffset(456, 22)   -- juste après le logo, comme le web
-	else
-		nav.AnchorPoint = Vector2.new(0, 0); nav.Position = UDim2.fromOffset(28, 84)
+	K.fit(text(logo, { Position = UDim2.fromOffset(19, 32), Size = UDim2.new(1, -19, 0, 14), Font = K.BOLD, TextSize = 10, TextColor3 = C.dim, TextWrapped = false,
+		Text = spaced("FPS TACTIQUE  •  " .. nModes .. " MODES  •  " .. nMaps .. " CARTES  •  BOTS IA", 1) }), 10, 7)
+	-- encart du profil (en haut à droite ; à gauche sur un téléphone en hauteur)
+	local pw = math.min(PBOX_W, W - 56)
+	local pbox = make("Frame", { AnchorPoint = Vector2.new(if narrow then 0 else 1, 0), Position = if narrow then UDim2.fromOffset(28, 16) else UDim2.new(1, -28, 0, 16),
+		Size = UDim2.fromOffset(pw, 62), BackgroundTransparency = 0.15, BackgroundColor3 = C.deep }, header)
+	K.corner(pbox, 6); K.stroke(pbox, C.white, 1, 0.9)
+	local d = ctx.data
+	local lvl = if d then d.level else 1
+	local badge = K.levelBadge(pbox, lvl, 38); badge.Position = UDim2.fromOffset(12, 12)
+	-- colonnes de l'encart : niveau 12-50 · pseudo et XP 60-190 · pièces et caisses 198-280 · BONUS DU JOUR (148) à droite
+	local nameL = text(pbox, { Position = UDim2.fromOffset(60, 8), Size = UDim2.fromOffset(130, 18), Font = K.BLACK, TextSize = 15, TextWrapped = false,
+		TextTruncate = Enum.TextTruncate.AtEnd, Text = K.esc(player.DisplayName) })
+	local xpBar = K.bar(pbox, if d then d.xp / math.max(1, d.xpNeed) else 0, { Position = UDim2.fromOffset(60, 30), Size = UDim2.fromOffset(110, 5) })
+	local xpL = text(pbox, { Position = UDim2.fromOffset(60, 38), Size = UDim2.fromOffset(130, 14), TextSize = 10, TextColor3 = C.dim, TextWrapped = false,
+		TextTruncate = Enum.TextTruncate.AtEnd, Text = if d then K.fmt(d.xp) .. " / " .. K.fmt(d.xpNeed) .. " XP" else "…" })
+	-- pièces : la pièce est dessinée (Shared/Icons), l'emoji pièce du web donne un carré vide dans Roblox
+	Icons.coin(pbox, 16, { Position = UDim2.fromOffset(198, 10) })
+	local coinsL = text(pbox, { Position = UDim2.fromOffset(220, 8), Size = UDim2.fromOffset(62, 20), Font = K.BLACK, TextSize = 15, TextWrapped = false,
+		TextTruncate = Enum.TextTruncate.AtEnd, Text = "…" })
+	local boxL = text(pbox, { Position = UDim2.fromOffset(198, 34), Size = UDim2.fromOffset(84, 18), Font = K.BOLD, TextSize = 12, TextColor3 = C.sub, TextWrapped = false,
+		TextTruncate = Enum.TextTruncate.AtEnd, Text = "" })
+	-- bonus du jour (ClaimDaily) : rouge quand il attend, discret une fois récupéré
+	local canClaim = d ~= nil and d.daily ~= nil and d.daily.canClaim == true
+	local rew = K.btn(pbox, "📅  BONUS DU JOUR", if canClaim or not d then "primary" else "alt", ctx.claimDaily,
+		{ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0), Size = UDim2.fromOffset(148, 40), TextSize = 12, Name = "DailyBonus" })
+	K.fit(rew, 12, 8)
+	if canClaim or not d then K.setBtnColor(rew, K.rgb(0xff5f48)) end
+	if pw < 420 then   -- téléphone : plus de place pour les pièces que pour le bouton
+		rew.Size = UDim2.fromOffset(math.max(90, pw - 292), 40)
 	end
+	-- navigation : onglets de taille fixe (l'onglet choisi ne s'étire plus sur toute la barre)
+	local navY = if wide then 20 else 86
+	local navX = if wide then math.floor((28 + LOGO_W + 20 + (W - 28 - PBOX_W - 20)) / 2 - NAV_W / 2) else 28
+	local nav = make("Frame", { Position = UDim2.fromOffset(navX, navY), Size = UDim2.fromOffset(NAV_W, 50), BackgroundTransparency = 0.4, BackgroundColor3 = C.deep }, header)
+	K.corner(nav, 12); K.stroke(nav, C.white, 1, 0.93); K.pad(nav, 4); K.hlist(nav, 2)
 	for i, t in ipairs(TABS) do
 		local on = ctx.tab == t.id
-		local b = K.btn(nav, t.ic .. "  " .. spaced(t.n, 2), if on then "primary" else "ghost", function()
+		local b = K.btn(nav, t.ic .. "  " .. spaced(t.n, 1), if on then "primary" else "ghost", function()
 			ctx.go(t.id)
-		end, { LayoutOrder = i, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 42), TextSize = 13, BackgroundTransparency = if on then 0 else 1,
-			TextColor3 = if on then C.white else K.rgb(0xc5d1e4) })
-		K.pad(b, 16, 0)
+		end, { LayoutOrder = i, Size = UDim2.fromOffset(tabW, TAB_H), TextSize = 13, BackgroundTransparency = if on then 0 else 1,
+			TextColor3 = if on then C.white else K.rgb(0xc5d1e4), TextWrapped = false })
+		K.pad(b, 8, 0); K.fit(b, 13, 9)
 		local st = b:FindFirstChildOfClass("UIStroke"); if st then st:Destroy() end
 		-- pastilles : ce qui attend sur l'Accueil (défis finis, bonus, cadeaux, nouveautés), caisses à ouvrir dans l'Arsenal
 		local n = if t.id == "home" then ctx.pending() elseif t.id == "arsenal" then ctx.boxCount() else 0
 		if n > 0 and not on then   -- comme le web : pas de pastille sur la rubrique ouverte
-			local dot = text(b, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -2, 0, 2), Size = UDim2.fromOffset(17, 17), Text = tostring(math.min(n, 99)),
+			local dot = text(b, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 6, 0, -2), Size = UDim2.fromOffset(17, 17), Text = tostring(math.min(n, 99)),
 				BackgroundTransparency = 0, BackgroundColor3 = if t.id == "home" then C.gold else C.blue, TextColor3 = if t.id == "home" then C.ink else C.white,
 				Font = K.BLACK, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Center, ZIndex = b.ZIndex + 1 })
 			K.corner(dot, 9); K.beat(dot)   -- bat comme la pastille .ndot du web
 		end
 		navButtons[t.id] = b
 	end
-	-- encart du profil (en haut à droite)
-	local pbox = make("Frame", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -28, 0, 16), Size = UDim2.fromOffset(450, 62),
-		BackgroundTransparency = 0.15, BackgroundColor3 = C.deep }, header)
-	K.corner(pbox, 6); K.stroke(pbox, C.white, 1, 0.9)
-	local d = ctx.data
-	local lvl = if d then d.level else 1
-	local badge = K.levelBadge(pbox, lvl, 38); badge.Position = UDim2.fromOffset(12, 12)
-	local nameL = text(pbox, { Position = UDim2.fromOffset(60, 8), Size = UDim2.fromOffset(150, 18), Font = K.BLACK, TextSize = 15, TextWrapped = false,
-		TextTruncate = Enum.TextTruncate.AtEnd, Text = K.esc(player.DisplayName) })
-	local xpBar = K.bar(pbox, if d then d.xp / math.max(1, d.xpNeed) else 0, { Position = UDim2.fromOffset(60, 30), Size = UDim2.fromOffset(110, 5) })
-	local xpL = text(pbox, { Position = UDim2.fromOffset(60, 38), Size = UDim2.fromOffset(150, 14), TextSize = 10, TextColor3 = C.dim, TextWrapped = false,
-		Text = if d then K.fmt(d.xp) .. " / " .. K.fmt(d.xpNeed) .. " XP" else "…" })
-	local coinsL = text(pbox, { Position = UDim2.fromOffset(186, 16), Size = UDim2.fromOffset(100, 28), Font = K.BLACK, TextSize = 16, TextWrapped = false,
-		TextXAlignment = Enum.TextXAlignment.Right, Text = "" })
-	-- bonus du jour (ClaimDaily) : rouge quand il attend, discret une fois récupéré
-	local canClaim = d ~= nil and d.daily ~= nil and d.daily.canClaim == true
-	local rew = K.btn(pbox, "📅  BONUS DU JOUR", if canClaim or not d then "primary" else "alt", ctx.claimDaily,
-		{ AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0), Size = UDim2.fromOffset(150, 40), TextSize = 12, Name = "DailyBonus" })
-	if canClaim or not d then K.setBtnColor(rew, K.rgb(0xff5f48)) end
-	-- CADEAUX, BOUTIQUE et PREMIUM sous l'encart
-	local row = make("Frame", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -150, 0, 84), Size = UDim2.fromOffset(400, 32) }, header)
+	-- CADEAUX, BOUTIQUE et PREMIUM : sous l'encart (large), au bout de la ligne des onglets, ou sur leur propre ligne
+	local shopY = if wide then 86 elseif shopBeside then navY + 9 else navY + 58
+	local row = make("Frame", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -28, 0, shopY), Size = UDim2.fromOffset(SHOP_W, 32) }, header)
 	local lay = K.hlist(row, 10); lay.HorizontalAlignment = Enum.HorizontalAlignment.Right
-	K.btn(row, "🛒  " .. spaced("BOUTIQUE", 1), "alt", function() ctx.panel("shop") end, { Size = UDim2.fromOffset(124, 30), TextSize = 11, LayoutOrder = 1 })
+	K.fit(K.btn(row, "🛒  " .. spaced("BOUTIQUE", 1), "alt", function() ctx.panel("shop") end, { Size = UDim2.fromOffset(124, 30), TextSize = 11, LayoutOrder = 1 }), 11, 8)
 	local giftB = K.btn(row, "🎁  " .. spaced("CADEAUX", 1), "purple", function() ctx.panel("gifts") end, { Size = UDim2.fromOffset(118, 30), TextSize = 11, LayoutOrder = 2 })
 	local vipB = K.btn(row, "⭐  " .. spaced("PREMIUM", 1), "gold", function() ctx.panel("vip") end, { Size = UDim2.fromOffset(118, 30), TextSize = 11, LayoutOrder = 3 })
+	K.fit(giftB, 11, 8); K.fit(vipB, 11, 8)
 	K.setBtnColor(vipB, K.rgb(0xffc53a))
-	row.Position = UDim2.new(1, -28, 0, 84)
 	local giftDot = text(giftB, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 6, 0, -6), Size = UDim2.fromOffset(18, 18), BackgroundTransparency = 0,
 		BackgroundColor3 = C.accent, TextXAlignment = Enum.TextXAlignment.Center, Font = K.BLACK, TextSize = 10, Text = "", Visible = false, ZIndex = giftB.ZIndex + 1 })
 	K.corner(giftDot, 9)
@@ -395,7 +419,8 @@ local function buildHeader()
 			if fill then fill.Size = UDim2.fromScale(math.clamp(dd.xp / math.max(1, dd.xpNeed), 0, 1), 1) end
 			xpL.Text = K.fmt(dd.xp) .. " / " .. K.fmt(dd.xpNeed) .. " XP"
 			local b = dd.profile.boxes or {}
-			coinsL.Text = '<font color="#ffd23a">🪙</font> ' .. K.fmt(dd.profile.coins or 0) .. '   📦 ' .. tostring((b.std or 0) + (b.prem or 0))
+			coinsL.Text = K.fmt(dd.profile.coins or 0)
+			boxL.Text = "📦  " .. tostring((b.std or 0) + (b.prem or 0)) .. " caisse" .. (if (b.std or 0) + (b.prem or 0) > 1 then "s" else "")
 			local title = player:GetAttribute("Title")
 			nameL.Text = K.esc(player.DisplayName) .. (if typeof(title) == "string" then '  <font size="10" color="#ffd23a">' .. K.esc(title) .. "</font>" else "")
 		end
@@ -404,22 +429,26 @@ local function buildHeader()
 		if ctx.loy and ctx.loy.vip then vipB.Text = "⭐  " .. spaced("PREMIUM", 1) .. " · " .. tostring(ctx.loy.vipDaysLeft) .. " j" end
 	end
 	headerRefs.update()
-	-- disposition : en-tête sur une ou deux lignes
-	local hh = if wide then 120 else 140
-	header.Size = UDim2.new(1, 0, 0, hh)
-	subRow.Position = UDim2.fromOffset(28, if wide then 88 else 140)
-	local top = (if wide then 88 else 140) + 46
+	-- disposition verticale : ligne des sous-onglets, bandeau « partie en cours » (en partie), puis la page
+	local subY = if wide then 86 elseif shopBeside then navY + 58 else shopY + 40
+	header.Size = UDim2.new(1, 0, 0, subY)
+	-- en large, les sous-onglets partagent leur ligne avec les boutons de droite
+	subRow.Position = UDim2.fromOffset(28, subY)
+	subRow.Size = UDim2.new(1, if wide then -(56 + SHOP_W + 16) else -56, 0, 36)
+	local top = subY + 42
+	matchRow.Visible = ctx.inMatch()
+	matchRow.Position = UDim2.fromOffset(28, top)
+	if ctx.inMatch() then top += 42 end
 	body.Position = UDim2.fromOffset(28, top); body.Size = UDim2.new(1, -56, 1, -(top + 30))
-	if not wide then row.Position = UDim2.new(1, -28, 0, 92); row.AnchorPoint = Vector2.new(1, 0) end
 	footer.Visible = ctx.W >= 900
 end
 
 -- ---------- sous-onglets (Armes / Viseurs…) et bandeau « partie en cours » ----------
 local function buildSubRow()
-	K.clear(subRow)
+	K.clear(subRow); K.clear(matchRow)
 	local t: any = nil
 	for _, x in ipairs(TABS) do if x.id == ctx.tab then t = x end end
-	local row = make("Frame", { Size = UDim2.new(1, if ctx.inMatch() then -640 else 0, 1, 0), AutomaticSize = Enum.AutomaticSize.None }, subRow)
+	local row = make("Frame", { Size = UDim2.fromScale(1, 1), AutomaticSize = Enum.AutomaticSize.None }, subRow)
 	K.hlist(row, 8)
 	if t and t.subs then
 		for i, s in ipairs(t.subs) do
@@ -442,8 +471,8 @@ local function buildSubRow()
 	end
 	-- en partie : on peut reprendre ou quitter
 	if ctx.inMatch() then
-		local strip = make("Frame", { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.fromOffset(760, 36),
-			BackgroundTransparency = 0.1, BackgroundColor3 = K.rgb(0x2a0f14) }, subRow)
+		local strip = make("Frame", { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.new(0, math.min(760, ctx.W - 56), 0, 36),
+			BackgroundTransparency = 0.1, BackgroundColor3 = K.rgb(0x2a0f14) }, matchRow)
 		K.corner(strip, 8); K.stroke(strip, C.accent, 1, 0.5); K.pad(strip, 12, 0, 4, 0)
 		local mm = player:GetAttribute("MatchMode")
 		local mdef = if typeof(mm) == "string" then Modes.LIST[mm] else nil
@@ -614,12 +643,29 @@ local function hideHud(on: boolean)
 		if bar then bar.Enabled = not on end
 	end)
 end
+-- textes 3D du lobby (classements, « Duel 1v1 0/2 », remise à zéro…) : SurfaceGui et BillboardGui coupés tant que le menu
+-- est ouvert, sinon ils se lisent à travers le voile et brouillent les cartes du menu ; rallumés à la fermeture
+local hidden3d: { LayerCollector } = {}
+local function hide3d(on: boolean)
+	if on then
+		for _, d in ipairs(workspace:GetDescendants()) do
+			-- seulement ceux qui portent du texte (pas les étoiles du ciel de MapAmbience)
+			if (d:IsA("SurfaceGui") or d:IsA("BillboardGui")) and d.Enabled and d:FindFirstChildWhichIsA("TextLabel", true) then
+				d.Enabled = false; table.insert(hidden3d, d)
+			end
+		end
+	else
+		for _, g in ipairs(hidden3d) do if g.Parent then g.Enabled = true end end
+		table.clear(hidden3d)
+	end
+end
 local function setOpen(on: boolean)
 	if on and zone() == "duel" then return end
 	if on == open then return end
 	open = on
 	S.menuOpen = on
 	hideHud(on)
+	if not on or zone() == "lobby" then hide3d(on) end
 	gui.Enabled = on; bgGui.Enabled = on; modal.Visible = on
 	openBtn.Visible = not on and zone() == "lobby"
 	player:SetAttribute("UiOpen", on)

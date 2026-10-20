@@ -81,6 +81,7 @@ local function panel(title: string, accent: Color3, height: number): (Frame, Fra
 	local close = make("TextButton", { Size = UDim2.fromOffset(36, 36), Position = UDim2.new(1, -48, 0, 12), BackgroundColor3 = C.panel, Text = "✕", TextSize = 18,
 		Modal = true, ZIndex = 41 }, f)   -- Modal : libère le curseur en vue à la première personne
 	corner(close, 8)
+	require(ReplicatedStorage.Shared.Icons).closeButton(close, 14)   -- la croix U+2715 donne un carré vide
 	close.Activated:Connect(function() setOpen(nil) end)
 	K.juice(close)
 	-- B / Échap / Retour arrière ferment le panneau ; à la manette, la sélection arrive sur la croix
@@ -132,7 +133,7 @@ local claimGroup = ReplicatedStorage:WaitForChild("ClaimGroupReward") :: RemoteF
 local G = CommunityConfig.GROUP
 local groupPanel, groupBody = panel("👥 GROUPE ROBLOX", C.robloxGreen, 300)
 make("TextLabel", { Size = UDim2.new(1, 0, 0, 70), TextWrapped = true, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top,
-	Text = "Rejoins le groupe du jeu et reçois " .. (G.reward.coins or 0) .. " 🪙 + l'effet d'élimination « Esprit du groupe », qu'on ne trouve nulle part ailleurs.",
+	Text = "Rejoins le groupe du jeu et reçois " .. (G.reward.coins or 0) .. " 💰 + l'effet d'élimination « Esprit du groupe », qu'on ne trouve nulle part ailleurs.",
 	ZIndex = 42 }, groupBody)
 local joinBtn = button(groupBody, "REJOINDRE LE GROUPE", C.robloxGreen, UDim2.fromOffset(0, 80), UDim2.new(1, 0, 0, 44))
 local claimBtn = button(groupBody, "RÉCUPÉRER MA RÉCOMPENSE", C.gold, UDim2.fromOffset(0, 132), UDim2.new(1, 0, 0, 44))
@@ -273,7 +274,7 @@ if duelState then
 	duelState.OnClientEvent:Connect(function(s: any)
 		if s.phase == "feed" then showToast(s.feed, C.text, 2.5); return end
 		duelTop.Visible = true
-		duelMode.Text = string.upper(s.mode or "Duel") .. "  ·  premier à " .. s.toWin .. (if (s.pot or 0) > 0 then "  ·  pot " .. s.pot .. " 🪙" else "")
+		duelMode.Text = string.upper(s.mode or "Duel") .. "  ·  premier à " .. s.toWin .. (if (s.pot or 0) > 0 then "  ·  pot " .. s.pot .. " 💰" else "")
 		duelScore.Text = s.me .. " - " .. s.them
 		if s.myTeam then duelMe.Text = s.myTeam .. "  " end
 		if s.theirTeam then duelThem.Text = "  " .. s.theirTeam end
@@ -296,7 +297,7 @@ if duelEnd then
 		local title = if r.draw then "ÉGALITÉ" elseif r.won then "VICTOIRE !" else "DÉFAITE"
 		flashBig(title, if r.won then C.gold elseif r.draw then C.dim else C.red, 3.5)
 		local elo = (if r.eloDelta >= 0 then "+" else "") .. r.eloDelta .. " Elo · " .. r.rank .. " (" .. r.elo .. ")"
-		local coins = if r.coins > 0 then "  ·  +" .. r.coins .. " 🪙" elseif r.stake > 0 and not r.won then "  ·  -" .. r.stake .. " 🪙" else ""
+		local coins = if r.coins > 0 then "  ·  +" .. r.coins .. " 💰" elseif r.stake > 0 and not r.won then "  ·  -" .. r.stake .. " 💰" else ""
 		showToast(r.me .. " - " .. r.them .. "  ·  " .. elo .. coins, if r.won then C.gold else C.text, 6)
 	end)
 end

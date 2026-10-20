@@ -18,7 +18,7 @@ function CodeService.grant(profile: any, reward: any): { string }
 	local lines = {}
 	if reward.coins then
 		profile.coins += reward.coins
-		table.insert(lines, "🪙 " .. reward.coins .. " pièces")
+		table.insert(lines, "💰 " .. reward.coins .. " pièces")
 	end
 	if reward.box then
 		profile.boxes[reward.box] = (profile.boxes[reward.box] or 0) + 1

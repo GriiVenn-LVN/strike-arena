@@ -278,7 +278,7 @@ function DuelService.start()
 						if def.stake > 0 and (not profile or profile.coins < def.stake) then
 							if not p:GetAttribute("StakeWarned") then
 								p:SetAttribute("StakeWarned", true)
-								LobbyService.toast(p, "Il te faut " .. def.stake .. " 🪙 pour cette mise", Color3.fromRGB(255, 90, 90))
+								LobbyService.toast(p, "Il te faut " .. def.stake .. " 💰 pour cette mise", Color3.fromRGB(255, 90, 90))
 								task.delay(5, function() p:SetAttribute("StakeWarned", nil) end)
 							end
 						else
@@ -292,7 +292,7 @@ function DuelService.start()
 						elseif p:GetAttribute("DuelQueued") == def.id then p:SetAttribute("DuelQueued", nil) end
 					end
 				end
-				pad.label.Text = def.name .. "  ·  " .. math.min(#on, need) .. "/" .. need .. (if def.stake > 0 then "  ·  " .. def.stake .. " 🪙" else "")
+				pad.label.Text = def.name .. "  ·  " .. math.min(#on, need) .. "/" .. need .. (if def.stake > 0 then "  ·  " .. def.stake .. " 💰" else "")
 				if #on >= need then
 					local group = {}
 					for i = 1, need do table.insert(group, on[i]) end

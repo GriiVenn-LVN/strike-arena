@@ -467,7 +467,7 @@ feedRemote.OnClientEvent:Connect(function(k: any)
 	order += 1
 	if key then weaponIcon(row, key, Vector2.new(52, 19), { LayoutOrder = order })
 	else part("[" .. tostring(k.weapon) .. "]", C.dim) end
-	if k.headshot then part("✦", C.gold) end
+	if k.headshot then part("◆", C.gold) end
 	part(k.victim, teamColor(k.victimTeam))
 	-- au plus 6 lignes, chaque ligne s'efface après 7 s
 	local rows = {}
@@ -660,7 +660,7 @@ local function damageNumber(pos: Vector3, dmg: number, head: boolean, kill: bool
 	n.total += dmg; n.hs = n.hs or head; n.sh = n.sh and shieldOnly; n.tu = t; n.bump = 1
 	if kill then n.kill = true end
 	n.txt.TextColor3 = if n.kill then rgb(0xff4655) elseif n.hs then rgb(0xffd23f) elseif n.sh then rgb(0x5fd6ff) else Color3.new(1, 1, 1)
-	n.txt.Text = tostring(math.floor(n.total + 0.5)) .. (if n.kill then '<font size="13"> ☠</font>' elseif n.hs then '<font size="13"> ✦</font>' else "")
+	n.txt.Text = tostring(math.floor(n.total + 0.5)) .. (if n.kill then '<font size="13"> ☠</font>' elseif n.hs then '<font size="13"> ◆</font>' else "")
 	n.txt.TextSize = math.min(40, 20 + math.sqrt(n.total) * 1.5 + (if n.hs then 4 else 0) + (if n.kill then 5 else 0))
 	if target and target:IsA("Model") then
 		local head = target:FindFirstChild("Head") :: BasePart?

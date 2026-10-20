@@ -48,6 +48,7 @@ local hint = make("TextLabel", { Size = UDim2.new(1, -48, 0, 20), Position = UDi
 local close = make("TextButton", { Size = UDim2.fromOffset(40, 40), Position = UDim2.new(1, -54, 0, 14), BackgroundColor3 = C.panel, Text = "✕", TextSize = 20,
 	Modal = true, ZIndex = 52 }, win)   -- Modal : libère le curseur en vue à la première personne
 corner(close)
+require(ReplicatedStorage.Shared.Icons).closeButton(close, 16)   -- la croix U+2715 donne un carré vide
 
 make("TextLabel", { Size = UDim2.new(1, -48, 0, 16), Position = UDim2.new(0, 24, 1, -18), TextSize = 11, TextColor3 = C.dim,
 	Text = "Modèles d'armes : série « Low-Poly » de TastyTony (Sketchfab), licence CC BY 4.0", TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 51 }, win)
@@ -142,7 +143,7 @@ render = function()
 		bar(card, 74, "Cadence", w.rpm / 1000, C.gold)
 		bar(card, 92, "Précision", 1 - math.min(1, w.spread / 2), C.green)
 		bar(card, 110, "Mobilité", (w.speed - 0.75) / 0.3, Color3.fromRGB(74, 163, 255))
-		local status = if isSel then "✔ ÉQUIPÉE" elseif have then "Choisir" else ("🔒 " .. Catalog.weaponPrice(key) .. " 🪙 · Boutique")
+		local status = if isSel then "✔ ÉQUIPÉE" elseif have then "Choisir" else ("🔒 " .. Catalog.weaponPrice(key) .. " 💰 · Boutique")
 		make("TextLabel", { Size = UDim2.new(1, -24, 0, 18), Position = UDim2.new(0, 12, 1, -24), Text = status, TextSize = 13,
 			TextXAlignment = Enum.TextXAlignment.Right, TextColor3 = if isSel then C.accent elseif have then C.green else C.gold, ZIndex = 53 }, card)
 		card.Activated:Connect(function() if have and not isSel then choose(key) end end)

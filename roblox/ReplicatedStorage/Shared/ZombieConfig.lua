@@ -50,9 +50,9 @@ function Z.isWonder(key: string?): boolean return key ~= nil and Z.WONDERS[key] 
 -- ---------- atouts ----------
 Z.PERK_ORDER = { "jugg", "speed", "dtap", "revive", "stamin" }
 Z.PERKS = {
-	jugg = { n = "Mastodonte", price = 2500, c = rgb(0xe0383e), ic = "✚", d = "Encaisse 2× plus de coups" },
-	speed = { n = "Turbo Cola", price = 3000, c = rgb(0x33d17a), ic = "⟳", d = "Rechargement 2× plus rapide" },
-	dtap = { n = "Double Détente", price = 2000, c = rgb(0xf5c542), ic = "❚❚", d = "+33 % cadence, +50 % dégâts" },
+	jugg = { n = "Mastodonte", price = 2500, c = rgb(0xe0383e), ic = "❤️", d = "Encaisse 2× plus de coups" },
+	speed = { n = "Turbo Cola", price = 3000, c = rgb(0x33d17a), ic = "🔄", d = "Rechargement 2× plus rapide" },
+	dtap = { n = "Double Détente", price = 2000, c = rgb(0xf5c542), ic = "II", d = "+33 % cadence, +50 % dégâts" },
 	revive = { n = "Second Souffle", price = 1500, c = rgb(0x4aa3ff), ic = "♥", d = "Te relève une fois quand tu tombes" },
 	stamin = { n = "Pas de Course", price = 2000, c = rgb(0xff9a3a), ic = "»", d = "Course 18 % plus rapide" },
 }
@@ -69,7 +69,7 @@ Z.DOOR_PRICES = { 750, 1000, 1250, 1500 }
 -- bonus lâchés par les zombies
 Z.DROP_ORDER = { "ammo", "insta", "dbl", "nuke", "fire" }
 Z.DROPS = {
-	ammo = { n = "MUNITIONS MAX", c = rgb(0x7dff6a), ic = "⬢" },
+	ammo = { n = "MUNITIONS MAX", c = rgb(0x7dff6a), ic = "📦" },
 	insta = { n = "MORT INSTANTANÉE", c = rgb(0xff3a3a), ic = "☠" },
 	dbl = { n = "POINTS DOUBLES", c = rgb(0xffd23a), ic = "×2" },
 	nuke = { n = "BOMBE", c = rgb(0xff9a3a), ic = "☢" },
@@ -87,10 +87,10 @@ Z.ZDIFF = {
 Z.ZSLOW = 0.88
 Z.RUN = 5.2                  -- vitesse de course du web (m/s) ; un joueur Roblox court à 16 studs/s
 
--- I, II, III, IIII, 𝍸 puis chiffres (compteur de manche « Black Ops »)
+-- I, II, III, IIII, IIIII puis chiffres (compteur de manche « Black Ops »)
 function Z.tally(n: number): string
 	if n > 5 then return tostring(n) end
-	return ({ "I", "II", "III", "IIII", "𝍸" })[n] or tostring(n)
+	return ({ "I", "II", "III", "IIII", "IIIII" })[n] or tostring(n)
 end
 
 -- ---------- Bataille royale ----------
