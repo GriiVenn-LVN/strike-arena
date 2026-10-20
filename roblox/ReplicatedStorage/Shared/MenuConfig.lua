@@ -121,6 +121,7 @@ end
 M.OPTIONS = ({
 	fov = { "num", 60, 110, 70 }, sens = { "num", 0.1, 4, 1 }, aimSens = { "num", 0.2, 2, 1 },
 	quality = { "int", 1, 3, 3 },
+	realGuns = { "bool", true },           -- armes réalistes (AK, M4, AWP, Desert Eagle) sans skin, comme cfg.realGuns du web
 	invertY = { "bool", false }, showFps = { "bool", false }, showPing = { "bool", false },
 	-- viseur (cfg.xh du web : couleur XHCOL, forme)
 	xhColor = { "int", 1, 8, 2 }, xhStyle = { "enum", { "dot", "cross", "circle", "none" }, "dot" },

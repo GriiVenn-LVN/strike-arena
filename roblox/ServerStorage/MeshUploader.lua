@@ -1,7 +1,7 @@
 --!strict
 -- ServerStorage/MeshUploader (ModuleScript, Studio seulement, en mode Edit)
 -- Envoie une seule fois sur le compte Roblox du créateur tous les maillages et textures du jeu web (armes, viseurs,
--- soldats et leurs cartes de matière, gants de la vue subjective, skins, véhicules des arrivées, décor des cartes). Roblox limite très fort la mémoire des EditableMesh / EditableImage chez le
+-- armes réalistes et matériaux des armes, soldats et leurs cartes de matière, gants de la vue subjective, skins, véhicules des arrivées, décor des cartes). Roblox limite très fort la mémoire des EditableMesh / EditableImage chez le
 -- joueur : avec ces assets, le jeu charge de vrais modèles (MeshStore), aussi sur téléphone.
 -- Il faut la fonctionnalité bêta de Studio « CreateAssetAsync Luau API ». Dans la barre de commande :
 --   require(game.ServerStorage.MeshUploader).start()     -- lance l'envoi (30 par minute au plus), reprend où il s'était arrêté
@@ -122,6 +122,17 @@ local function run()
 	step("armes", function()
 		local WeaponModels = require(Shared.WeaponModels) :: any
 		for _, m in ipairs(Shared.WeaponMeshes:GetChildren()) do WeaponModels.build(m.Name, 1) end
+	end)
+	-- armes réalistes (AK, M4, AWP, Desert Eagle) : maillages « w:real:… » et cartes « i:wr:<arme>:<n°>:c|n|m|r »
+	-- (JPEG de ServerStorage/WeaponRealData décodés par ServerStorage/JpegDecode, 1024 px au plus)
+	step("armes réalistes", function()
+		local WeaponReal = require(Shared.WeaponReal) :: any
+		WeaponReal.uploadAll()
+	end)
+	-- matériaux des armes stylisées : « i:mat:<bruni|anod|poly|bois|acier>:c|n|r|m » (ServerStorage/WeaponMatData)
+	step("matériaux des armes", function()
+		local WeaponMaterials = require(Shared.WeaponMaterials) :: any
+		WeaponMaterials.uploadAll()
 	end)
 	step("viseurs", function()
 		local AM = require(Shared.AttachmentModels) :: any
