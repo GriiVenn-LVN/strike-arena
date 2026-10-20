@@ -79,6 +79,7 @@ local function glow(pos: UDim2, size: number, color: Color3, drift: UDim2): { Fr
 end
 glow(UDim2.fromScale(0.15, 1.05), 0.75, C.accent, UDim2.fromScale(0.03, -0.04))
 glow(UDim2.fromScale(0.9, -0.08), 0.6, C.blue, UDim2.fromScale(-0.03, 0.03))
+pcall(function() require(MenuDir:WaitForChild("Fx")).ambient(bgGui) end)   -- poussières lumineuses et éclats (Menu/Fx)
 -- Halloween (#menu.theme-hw::before) : orange et violet
 local function glowTheme(hw: boolean)
 	local cols = if hw then { C.orange, K.rgb(0x8a3dff) } else { C.accent, C.blue }

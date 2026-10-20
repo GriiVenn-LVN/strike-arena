@@ -11,6 +11,8 @@ local Modes = require(ReplicatedStorage.Shared.Modes)
 local DataService = require(script.Parent.DataService)
 local LoyaltyService = require(script.Parent.LoyaltyService)
 local LeaderboardService = require(script.Parent.LeaderboardService)
+local Catalog = require(ReplicatedStorage.Shared.ShopCatalog)
+local RateLimit = require(script.Parent.RateLimit)
 
 local RewardService = {}
 
@@ -125,7 +127,43 @@ local MISSION_POOL = {
 	-- modes ajoutés : Gunfight et Survolté
 	{ id = "w_gunfight", n = "Gagne {t} Gunfight", target = 1, coins = 220, xp = 90 },
 	{ id = "w_survolte", n = "Gagne {t} partie de Survolté", target = 1, coins = 220, xp = 90 },
+	-- port Roblox (défis renouvelables) : médailles (MedalService, « md_ »), mouvements et têtes (CareerService),
+	-- sites de bombe (Modes/rounds), autres modes. Gains modestes : l'économie reste lente.
+	{ id = "md_assist", n = "Fais {t} assistances", target = 4, coins = 60, xp = 60 },
+	{ id = "md_long", n = "Réussis {t} tirs lointains (plus de 38 m)", target = 3, coins = 70, xp = 70 },
+	{ id = "md_double", n = "Fais {t} doubles éliminations", target = 2, coins = 70, xp = 70 },
+	{ id = "md_revenge", n = "Venge-toi {t} fois de ton tueur", target = 2, coins = 55, xp = 60 },
+	{ id = "md_first", n = "Fais le premier sang {t} fois", target = 1, coins = 60, xp = 60 },
+	{ id = "md_slide", n = "Élimine {t} adversaires en glissade", target = 2, coins = 70, xp = 70 },
+	{ id = "md_air", n = "Élimine {t} adversaires en plein saut", target = 2, coins = 70, xp = 70 },
+	{ id = "md_pointblank", n = "Élimine {t} adversaires à bout portant", target = 3, coins = 55, xp = 60 },
+	{ id = "md_buzzkill", n = "Arrête {t} séries adverses (Rabat-joie)", target = 2, coins = 65, xp = 70 },
+	{ id = "slide", n = "Fais {t} glissades en partie", target = 15, coins = 45, xp = 50 },
+	{ id = "climb", n = "Escalade {t} rebords en partie", target = 10, coins = 45, xp = 50 },
+	{ id = "hs_sniper", n = "Fais {t} headshots au fusil de précision", target = 3, coins = 80, xp = 80 },
+	{ id = "hs_pistol", n = "Fais {t} headshots au pistolet", target = 4, coins = 70, xp = 70 },
+	{ id = "hs_rifle", n = "Fais {t} headshots au fusil d'assaut", target = 6, coins = 70, xp = 70 },
+	{ id = "site_a", n = "Pose la bombe {t} fois sur le site A", target = 1, coins = 60, xp = 60 },
+	{ id = "site_b", n = "Pose la bombe {t} fois sur le site B", target = 1, coins = 60, xp = 60 },
+	{ id = "w_tdm", n = "Gagne {t} Match à mort par équipe", target = 1, coins = 70, xp = 80 },
+	{ id = "w_ffa", n = "Gagne {t} Match à mort", target = 1, coins = 90, xp = 90 },
+	{ id = "w_koth", n = "Gagne {t} Capture de zone", target = 1, coins = 80, xp = 90 },
+	{ id = "w_ctf", n = "Gagne {t} Capture du drapeau", target = 1, coins = 80, xp = 90 },
+	{ id = "w_kc", n = "Gagne {t} Élimination confirmée", target = 1, coins = 80, xp = 90 },
+	{ id = "w_bomb", n = "Gagne {t} partie de Compétitif", target = 1, coins = 90, xp = 100 },
 }
+-- défi d'arme du jour (3e défi) : « Élimine N adversaires avec : AK-47 », parmi les armes que le joueur possède
+-- (CareerService envoie « kw_<arme> » à chaque élimination). Objectif selon le type d'arme.
+local WEAPON_TARGET: { [string]: number } = { pistol = 5, smg = 8, shotgun = 5, rifle = 8, sniper = 4, lmg = 8 }
+local WEAPON_POOL: { any } = {}
+for key, w in pairs(Config.WEAPONS) do
+	if not w.melee and WEAPON_TARGET[w.cat] then
+		table.insert(WEAPON_POOL, { id = "kw_" .. key, weapon = key, n = "Élimine {t} adversaires avec : " .. w.name, target = WEAPON_TARGET[w.cat], coins = 70, xp = 70 })
+	end
+end
+table.sort(WEAPON_POOL, function(a, b) return a.id < b.id end)
+-- « Changer » un défi du jour : 1 changement gratuit par jour, ensuite REROLL.cost pièces, REROLL.max par jour au plus
+RewardService.REROLL = { free = 1, cost = 60, max = 5 }
 -- défis de la semaine (src/8O_defis.js WPOOL) : 3 par semaine (lundi), plus longs et mieux payés
 local WEEKLY_POOL = {
 	{ id = "kills", n = "Élimine {t} adversaires", target = 150, coins = 800, xp = 300 },
@@ -140,6 +178,11 @@ local WEEKLY_POOL = {
 	{ id = "z_wave", n = "Survis à {t} manches de Zombies", target = 20, coins = 900, xp = 350 },
 	{ id = "dmg", n = "Inflige {t} dégâts", target = 15000, coins = 700, xp = 280 },
 	{ id = "inf_surv", n = "Termine {t} parties d'Infecté sans être infecté", target = 3, coins = 900, xp = 350 },
+	-- port Roblox : médailles et mouvements
+	{ id = "md_assist", n = "Fais {t} assistances", target = 25, coins = 600, xp = 250 },
+	{ id = "md_double", n = "Fais {t} doubles éliminations", target = 12, coins = 650, xp = 260 },
+	{ id = "md_slide", n = "Élimine {t} adversaires en glissade", target = 12, coins = 650, xp = 260 },
+	{ id = "climb", n = "Escalade {t} rebords en partie", target = 60, coins = 500, xp = 220 },
 }
 local function poolDef(pool: { any }, id: string): any
 	for _, m in ipairs(pool) do if m.id == id then return m end end
@@ -147,6 +190,21 @@ local function poolDef(pool: { any }, id: string): any
 end
 local function missionText(d: any): string
 	return (string.gsub(d.n, "{t}", tostring(d.target)))
+end
+-- définition d'un défi du jour (pool général ou défi d'arme)
+local function dailyDef(id: string): any
+	return poolDef(MISSION_POOL, id) or poolDef(WEAPON_POOL, id)
+end
+-- armes possédées (défi d'arme) ; repli sur toute la liste si l'inventaire est vide
+local function weaponChoices(profile: any): { any }
+	local out = {}
+	for _, d in ipairs(WEAPON_POOL) do
+		if Catalog.STARTER_WEAPONS[d.weapon] == true or Catalog.ownsWeapon(profile, d.weapon) then table.insert(out, d) end
+	end
+	return if #out > 0 then out else WEAPON_POOL
+end
+local function newMission(d: any, weapon: boolean?): any
+	return { id = d.id, target = d.target, coins = d.coins, xp = d.xp, progress = 0, done = false, claimed = false, w = if weapon then true else nil }
 end
 
 -- défi terminé : petit message au joueur (uiMissionDone / uiToast du web)
@@ -171,11 +229,13 @@ local function ensureMissions(profile: any)
 		profile.missions.day = t
 		local pool = table.clone(MISSION_POOL)
 		local list = {}
-		for _ = 1, 3 do
+		for _ = 1, 2 do
 			local i = math.random(#pool)
 			local m = table.remove(pool, i) :: any
-			table.insert(list, { id = m.id, target = m.target, coins = m.coins, xp = m.xp, progress = 0, done = false, claimed = false })
+			table.insert(list, newMission(m))
 		end
+		local wp = weaponChoices(profile)
+		table.insert(list, newMission(wp[math.random(#wp)], true))   -- défi d'arme du jour
 		profile.missions.list = list
 	end
 end
@@ -213,7 +273,7 @@ function RewardService.missionEvent(player: Player, id: string, n: number?)
 			m.progress = math.min(m.target, m.progress + (n or 1))
 			if m.progress >= m.target then
 				m.done = true
-				local d = poolDef(MISSION_POOL, m.id)
+				local d = dailyDef(m.id)
 				if d then
 					local info = { weekly = false, text = missionText(d), coins = m.coins, xp = m.xp }
 					doneEvent:FireClient(player, info); logDone(player, info)
@@ -261,17 +321,64 @@ function RewardService.challenges(player: Player): any
 	if not profile then return nil end
 	ensureMissions(profile)
 	ensureWeekly(profile)
-	local function view(list: { any }, pool: { any }): { any }
+	local function view(list: { any }, weekly: boolean): { any }
 		local out = {}
 		for i, m in ipairs(list) do
-			local d = poolDef(pool, m.id)
+			local d = if weekly then poolDef(WEEKLY_POOL, m.id) else dailyDef(m.id)
 			table.insert(out, { index = i, id = m.id, text = if d then missionText(d) else m.id, progress = m.progress, target = m.target,
-				coins = m.coins, xp = m.xp, done = m.done, claimed = m.claimed })
+				coins = m.coins, xp = m.xp, done = m.done, claimed = m.claimed, weapon = m.w == true })
 		end
 		return out
 	end
-	return { daily = view(profile.missions.list, MISSION_POOL), dailyLeft = 86400 - os.time() % 86400,
-		weekly = view(profile.wmis.list, WEEKLY_POOL), weeklyLeft = RewardService.weekSecondsLeft() }
+	return { daily = view(profile.missions.list, false), dailyLeft = 86400 - os.time() % 86400,
+		weekly = view(profile.wmis.list, true), weeklyLeft = RewardService.weekSecondsLeft(), reroll = RewardService.rerollInfo(profile) }
+end
+
+-- ---------- défis renouvelables (« Changer ») ----------
+local function rerollState(profile: any): any
+	local rr = profile.missions.rr
+	if typeof(rr) ~= "table" or rr.day ~= today() then rr = { day = today(), n = 0 }; profile.missions.rr = rr end
+	return rr
+end
+-- prix du prochain changement (0 = gratuit) et changements restants aujourd'hui
+function RewardService.rerollInfo(profile: any): any
+	local rr = rerollState(profile)
+	local R = RewardService.REROLL
+	return { cost = if rr.n < R.free then 0 else R.cost, left = math.max(0, R.max - rr.n), freeLeft = math.max(0, R.free - rr.n) }
+end
+-- remplace le défi du jour n° index par un autre, tiré au hasard (jamais un défi déjà présent ; défi d'arme -> autre arme)
+function RewardService.rerollMission(player: Player, index: number): any
+	local profile = DataService.get(player)
+	if not profile then return { ok = false, err = "Profil pas encore chargé" } end
+	ensureMissions(profile)
+	local list = profile.missions.list
+	local m = list[index]
+	if not m then return { ok = false, err = "Défi introuvable" } end
+	if m.done or m.claimed then return { ok = false, err = "Ce défi est déjà terminé" } end
+	local rr = rerollState(profile)
+	local R = RewardService.REROLL
+	if rr.n >= R.max then return { ok = false, err = "Plus de changement possible aujourd'hui" } end
+	local cost = if rr.n < R.free then 0 else R.cost
+	if profile.coins < cost then return { ok = false, err = "Il faut " .. cost .. " pièces pour changer ce défi" } end
+	local cand = {}
+	for _, d in ipairs(if m.w then weaponChoices(profile) else MISSION_POOL) do
+		local used = false
+		for _, o in ipairs(list) do if o.id == d.id then used = true; break end end
+		if not used then table.insert(cand, d) end
+	end
+	if #cand == 0 then return { ok = false, err = "Aucun autre défi disponible" } end
+	local d = cand[math.random(#cand)]
+	profile.coins -= cost
+	rr.n += 1
+	list[index] = newMission(d, m.w == true)
+	if cost > 0 then task.spawn(DataService.save, player) end   -- pièces dépensées : sauvegarde tout de suite
+	return { ok = true, cost = cost, coins = profile.coins, index = index, text = missionText(d), reroll = RewardService.rerollInfo(profile) }
+end
+local rerollRemote = Instance.new("RemoteFunction"); rerollRemote.Name = "RerollChallenge"; rerollRemote.Parent = ReplicatedStorage
+rerollRemote.OnServerInvoke = function(player: Player, index: any)
+	if typeof(index) ~= "number" or index ~= math.floor(index) or index < 1 or index > 6 then return { ok = false, err = "Défi introuvable" } end
+	if not RateLimit.ok(player, "RerollChallenge", 1) then return { ok = false, err = "Doucement !" } end
+	return RewardService.rerollMission(player, index)
 end
 
 -- ---------- fin de partie ----------

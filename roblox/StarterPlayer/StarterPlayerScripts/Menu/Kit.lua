@@ -497,7 +497,6 @@ function K.rarityColor(r: number): Color3
 	return ({ rgb(0x9aa6b8), rgb(0x4aa3ff), rgb(0xb36bff), rgb(0xffb938), rgb(0xff3df0) })[r] or rgb(0x9aa6b8)
 end
 
--- un défi (.lmis) : texte, bouton RÉCUPÉRER quand il est fini, jauge, progression et gains
 -- un défi (.lmis) : texte, bouton RÉCUPÉRER quand il est fini, jauge, progression et gains (Accueil et Profil)
 function K.mission(ctx: any, parent: Instance, m: any, i: number, weekly: boolean)
 	local f = K.make("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = if m.done and not m.claimed then 0.92 else 0.97,
@@ -511,7 +510,10 @@ function K.mission(ctx: any, parent: Instance, m: any, i: number, weekly: boolea
 	if m.done and not m.claimed then
 		K.btn(top, K.spaced("RÉCUPÉRER", 1), "gold", function()
 			local res = ctx.call(if weekly then "ClaimWeekly" else "ClaimMission", m.index or i)
-			if res then ctx.toast("✔ +" .. m.coins .. " 💰 · +" .. m.xp .. " XP", C.gold) end
+			if res then
+				ctx.toast("✔ +" .. m.coins .. " 💰 · +" .. m.xp .. " XP", C.gold)
+				pcall(function() (require :: any)(script.Parent:FindFirstChild("Fx")).reward(f, m.coins, m.xp) end)   -- confettis et pièces (Menu/Fx)
+			end
 			ctx.refresh()
 		end, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.fromOffset(104, 24), TextSize = 10 })
 	elseif m.claimed then
@@ -522,6 +524,10 @@ function K.mission(ctx: any, parent: Instance, m: any, i: number, weekly: boolea
 	bar.Size = UDim2.new(1, 0, 0, 5)
 	K.text(f, { LayoutOrder = 3, Size = UDim2.new(1, 0, 0, 14), TextSize = 11, TextColor3 = C.dim, TextWrapped = false,
 		Text = K.fmt(m.progress) .. " / " .. K.fmt(m.target) .. '  ·  <font color="#ffd23a">💰</font> ' .. m.coins .. "  ·  " .. m.xp .. " XP" })
+	-- bouton CHANGER, défi d'arme, animations (Menu/Reroll)
+	-- (chargé à la demande : Reroll utilise lui-même Kit)
+	local okR, errR = pcall(function() (require :: any)(script.Parent:FindFirstChild("Reroll"))(ctx, f, top, m, i, weekly) end)
+	if not okR then warn("[Kit] défi renouvelable :", errR) end
 end
 
 
