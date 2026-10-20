@@ -42,13 +42,40 @@ local function newImage(key: string, w: number, h: number, make: () -> buffer, b
 	return nil
 end
 
+-- version haute définition (ServerStorage/MapTexturesHQ, clés « t2: » / « tt2: ») : prise quand elle est déjà envoyée sur
+-- Roblox (le joueur n'a pas ses pixels, seulement le numéro d'asset), ou pendant l'envoi depuis Studio (MeshUploader) ;
+-- sinon la texture réduite d'avant (clés « t: » / « tt: », repli)
+local function wantHD(tid: string, key: string): boolean
+	if MeshStore.uploader then return MapScene.hasHD(tid) end
+	return MeshStore.ids["i:m:" .. key] ~= nil
+end
+
+-- image déjà envoyée : MeshStore.image renvoie son asset sans appeler fill (pas de pixels à lire)
+local function sentImage(key: string): Content?
+	local res = MeshStore.image("m:" .. key, function(): EditableImage? return nil end)
+	return res
+end
+
 local baseImg: { [string]: Content | false } = {}      -- textures du web (gardées pour toutes les cartes)
+local upImg: { [string]: Content | false } = {}        -- les mêmes pendant l'envoi (sans reprendre une image du jeu)
 local function texImage(tid: string): Content?
-	local c = baseImg[tid]
+	local cache = if MeshStore.uploader then upImg else baseImg
+	local c = cache[tid]
 	if c ~= nil then return if c then c :: any else nil end
-	local t = MapScene.texture(tid)
-	local img = t and newImage("t:" .. tid, t.w, t.h, function() return t.rgba end)
-	baseImg[tid] = img or false
+	local img: Content? = nil
+	if wantHD(tid, "t2:" .. tid) then
+		if MeshStore.uploader then
+			local t = MapScene.textureHD(tid)
+			img = t and newImage("t2:" .. tid, t.w, t.h, function() return t.rgba end)
+		else
+			img = sentImage("t2:" .. tid)
+		end
+	end
+	if not img then
+		local t = MapScene.texture(tid)
+		img = t and newImage("t:" .. tid, t.w, t.h, function() return t.rgba end)
+	end
+	cache[tid] = img or false
 	return img
 end
 
@@ -60,10 +87,16 @@ local function tintedImage(b: Build, cache: { [string]: Content | false }, tid: 
 	local key = tid .. "|" .. tintKey(tint)
 	local c = cache[key]
 	if c ~= nil then return if c then c :: any else nil end
-	local t = MapScene.texture(tid)
+	local hd = wantHD(tid, "tt2:" .. key)
+	if hd and not MeshStore.uploader then
+		local sent = sentImage("tt2:" .. key)
+		if sent then cache[key] = sent; return sent end
+		hd = false
+	end
+	local t = if hd then MapScene.textureHD(tid) else MapScene.texture(tid)
 	local img: Content? = nil
 	if t then
-		img = newImage("tt:" .. key, t.w, t.h, function()
+		img = newImage((if hd then "tt2:" else "tt:") .. key, t.w, t.h, function()
 			local n = t.w * t.h
 			local out = buffer.create(n * 4)
 			local r, g, bb = tint.R, tint.G, tint.B
@@ -132,6 +165,169 @@ end
 -- déjà envoyées (MeshStore) : réutilisées par MapAmbience (particules, halo de la lune, feuilles qui tombent)
 MapDress.glow = glow
 MapDress.texture = texImage
+
+-- ---------- décalcomanies d'usure (MapExtras) : images dessinées ici, envoyées une fois (clés « m:fx:<nom> ») ----------
+-- taches, coulures d'eau sous les toits, fissures, crasse au pied des murs, deux graffitis abstraits (sans texte).
+-- Dessin déterministe (graine fixe) : la même image à chaque partie, envoyée telle quelle par MeshUploader. Usure en gris
+-- clair (teinte donnée par Decal.Color3 selon la carte), graffitis en couleurs.
+local function fbm(seed: number, P: number): (number, number) -> number
+	-- bruit de valeur répété (période P cases) sur 4 octaves, de 0 à 1
+	local rng = Random.new(seed)
+	local grid = table.create(P * P)
+	for i = 1, P * P do grid[i] = rng:NextNumber() end
+	local function at(x: number, y: number): number return grid[(y % P) * P + (x % P) + 1] end
+	local function vn(u: number, v: number, f: number): number
+		local x, y = u * f, v * f
+		local x0, y0 = math.floor(x), math.floor(y)
+		local tx, ty = x - x0, y - y0
+		tx = tx * tx * (3 - 2 * tx); ty = ty * ty * (3 - 2 * ty)
+		local a = at(x0, y0) + (at(x0 + 1, y0) - at(x0, y0)) * tx
+		local b = at(x0, y0 + 1) + (at(x0 + 1, y0 + 1) - at(x0, y0 + 1)) * tx
+		return a + (b - a) * ty
+	end
+	return function(u: number, v: number): number
+		return vn(u, v, 4) * 0.5 + vn(u, v, 8) * 0.25 + vn(u, v, 16) * 0.15 + vn(u, v, 32) * 0.1
+	end
+end
+
+-- distance d'un point à une polyligne (liste de { x, y }) en pixels
+local function polyDist(pts: { { number } }, x: number, y: number): number
+	local best = math.huge
+	for i = 1, #pts - 1 do
+		local a, b = pts[i], pts[i + 1]
+		local dx, dy = b[1] - a[1], b[2] - a[2]
+		local t = math.clamp(((x - a[1]) * dx + (y - a[2]) * dy) / math.max(1e-6, dx * dx + dy * dy), 0, 1)
+		local ex, ey = a[1] + dx * t - x, a[2] + dy * t - y
+		local d = ex * ex + ey * ey
+		if d < best then best = d end
+	end
+	return math.sqrt(best)
+end
+
+type Painter = (u: number, v: number, x: number, y: number) -> (number, number, number, number)
+local DECALS: { [string]: { w: number, h: number, make: () -> Painter } } = {
+	-- tache sombre aux bords déchiquetés (huile, eau, terre)
+	tache = { w = 128, h = 128, make = function(): Painter
+		local n = fbm(101, 32)
+		return function(u, v)
+			local r = math.sqrt((u - 0.5) ^ 2 + (v - 0.5) ^ 2) * 2
+			local a = math.clamp((1 - r * 1.1) * 1.6 + (n(u, v) - 0.5) * 1.4, 0, 1) ^ 1.3
+			local k = 0.8 + n(v, u) * 0.4
+			return 240 * k, 240 * k, 240 * k, a * 0.85
+		end
+	end },
+	-- coulures d'eau sous le haut d'un mur (haut de l'image = haut du mur)
+	coulure = { w = 128, h = 256, make = function(): Painter
+		local n = fbm(202, 32)
+		local cols = table.create(128)
+		local rng = Random.new(203)
+		for i = 1, 128 do cols[i] = 0 end
+		for _ = 1, 9 do                                     -- traînées de largeurs et longueurs différentes
+			local c, w, len = rng:NextNumber(0.08, 0.92), rng:NextNumber(0.02, 0.07), rng:NextNumber(0.35, 1)
+			for i = 1, 128 do
+				local d = math.abs((i - 0.5) / 128 - c) / w
+				if d < 1 then cols[i] = math.max(cols[i], (1 - d * d) * len) end
+			end
+		end
+		return function(u, v, x)
+			local len = cols[math.clamp(x + 1, 1, 128)]
+			local fade = math.clamp(1 - v / math.max(0.05, len), 0, 1)
+			local a = fade ^ 1.6 * (0.55 + n(u * 0.5, v) * 0.6) + math.clamp(1 - v * 9, 0, 1) * 0.35
+			return 235, 235, 235, math.clamp(a, 0, 1) * 0.7
+		end
+	end },
+	-- fissures fines qui partent d'un point (marches aléatoires ramifiées)
+	fissure = { w = 128, h = 128, make = function(): Painter
+		local rng = Random.new(304)
+		local lines: { { { number } } } = {}
+		local function walk(x: number, y: number, ang: number, steps: number, depth: number)
+			local pts = { { x, y } }
+			for _ = 1, steps do
+				ang += rng:NextNumber(-0.6, 0.6)
+				x += math.cos(ang) * 5; y += math.sin(ang) * 5
+				table.insert(pts, { x, y })
+				if depth < 2 and rng:NextNumber() < 0.12 then walk(x, y, ang + rng:NextNumber(-1.2, 1.2), steps // 2, depth + 1) end
+			end
+			table.insert(lines, pts)
+		end
+		for k = 0, 2 do walk(64, 64, k * 2.1 + rng:NextNumber(-0.4, 0.4), 11, 0) end
+		return function(_u, _v, x, y)
+			local d = math.huge
+			for _, l in ipairs(lines) do d = math.min(d, polyDist(l, x + 0.5, y + 0.5)) end
+			local a = math.clamp(1.3 - d * 0.75, 0, 1)
+			return 255, 255, 255, a * 0.85
+		end
+	end },
+	-- crasse et éclaboussures au pied des murs (bas de l'image = sol)
+	suie = { w = 128, h = 64, make = function(): Painter
+		local n = fbm(405, 32)
+		return function(u, v)
+			local a = v ^ 2.2 * (0.45 + n(u, v * 0.5) * 0.8)
+			local side = math.clamp(math.min(u, 1 - u) * 6, 0, 1)    -- bords fondus
+			return 240, 240, 240, math.clamp(a * side, 0, 1) * 0.8
+		end
+	end },
+	-- graffitis abstraits (trait épais cerné, coulures de peinture), usés par le bruit
+	graffiti1 = { w = 256, h = 128, make = function(): Painter
+		local n = fbm(506, 32)
+		local pts = {}
+		for i = 0, 48 do local t = i / 48; table.insert(pts, { 20 + t * 216, 64 + math.sin(t * math.pi * 3 + 0.6) * 26 - t * 8 }) end
+		return function(u, v, x, y)
+			local d = polyDist(pts, x + 0.5, y + 0.5)
+			local wear = 0.65 + n(u, v) * 0.5
+			if d < 9 then return 168, 46, 40, math.clamp(wear, 0, 1) end
+			if d < 13 then return 26, 22, 22, math.clamp(wear, 0, 1) end
+			-- coulures sous le trait
+			local drip = (x % 37 < 3) and y > 64 and y < 64 + 40 * n(u, 0.3) and d < 40
+			if drip then return 150, 40, 36, 0.7 * wear end
+			return 0, 0, 0, 0
+		end
+	end },
+	graffiti2 = { w = 256, h = 128, make = function(): Painter
+		local n = fbm(607, 32)
+		local loops = {}
+		for i = 0, 64 do
+			local t = i / 64
+			table.insert(loops, { 28 + t * 200 + math.cos(t * math.pi * 8) * 14, 66 + math.sin(t * math.pi * 8) * 30 })
+		end
+		return function(u, v, x, y)
+			local d = polyDist(loops, x + 0.5, y + 0.5)
+			local wear = 0.6 + n(u, v) * 0.55
+			if d < 6 then return 44, 92, 164, math.clamp(wear, 0, 1) end
+			if d < 10 then return 232, 230, 220, math.clamp(wear * 0.95, 0, 1) end
+			return 0, 0, 0, 0
+		end
+	end },
+}
+MapDress.DECALS = { "tache", "coulure", "fissure", "suie", "graffiti1", "graffiti2" }
+
+local decalImg: { [string]: Content | false } = {}
+local decalUp: { [string]: Content | false } = {}
+function MapDress.decal(name: string): Content?
+	local cache = if MeshStore.uploader then decalUp else decalImg
+	local c = cache[name]
+	if c ~= nil then return if c then c :: any else nil end
+	local d = DECALS[name]
+	local img: Content? = nil
+	if d then
+		img = newImage("fx:" .. name, d.w, d.h, function()
+			local paint = d.make()
+			local buf = buffer.create(d.w * d.h * 4)
+			for y = 0, d.h - 1 do
+				for x = 0, d.w - 1 do
+					local r, g, b, a = paint((x + 0.5) / d.w, (y + 0.5) / d.h, x, y)
+					local o = (y * d.w + x) * 4
+					buffer.writeu8(buf, o, math.clamp(r, 0, 255)); buffer.writeu8(buf, o + 1, math.clamp(g, 0, 255))
+					buffer.writeu8(buf, o + 2, math.clamp(b, 0, 255)); buffer.writeu8(buf, o + 3, math.clamp(a, 0, 1) * 255)
+				end
+				if y % 16 == 15 then task.wait() end
+			end
+			return buf
+		end)
+	end
+	cache[name] = img or false
+	return img
+end
 
 local function mulC(a: Color3, b: Color3): Color3 return Color3.new(a.R * b.R, a.G * b.G, a.B * b.B) end
 local function cdiff(a: Color3, b: Color3): number return math.abs(a.R - b.R) + math.abs(a.G - b.G) + math.abs(a.B - b.B) end
@@ -531,6 +727,7 @@ function MapDress.prebuildImages(id: string)
 		if m.det then detailImage(m.det.tex, m.det.str) end
 	end
 	white(); glow()
+	for _, name in ipairs(MapDress.DECALS) do MapDress.decal(name) end
 	if info.theme and info.theme.sky then MapDress.skyImages(id, info.theme.sky) end
 end
 

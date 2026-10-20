@@ -86,11 +86,19 @@ function MapScene.meshBlob(id: string): buffer?
 end
 
 -- ---------- textures ----------
-local texCache: { [string]: Tex | false } = {}
-function MapScene.texture(tid: string): Tex?
+-- MapScenes/_Tex : textures réduites du web (43 à 128 px, sol 512 px) ; ServerStorage/MapTexturesHQ : les mêmes en 512 px
+-- au plus (taille d'origine du web si plus petite), rangées sous le même numéro (tools/tex_hd_to_lua.py). Seul
+-- MeshUploader (Studio) lit leurs pixels pour les envoyer sur Roblox ; le joueur charge l'image envoyée (MapDress), ou
+-- garde la texture réduite tant qu'elle ne l'est pas (en EditableImage, 16 fois plus de pixels pèseraient trop).
+local function hdFolder(): Instance?
+	local ok, ss = pcall(function() return game:GetService("ServerStorage") end)
+	return if ok and ss then ss:FindFirstChild("MapTexturesHQ") else nil
+end
+
+local function loadTex(hd: boolean, tid: string, texCache: { [string]: Tex | false }): Tex?
 	local c = texCache[tid]
 	if c ~= nil then return if c then c :: any else nil end
-	local folder = root and root:FindFirstChild("_Tex")
+	local folder = if hd then hdFolder() else (root and root:FindFirstChild("_Tex"))
 	local m = folder and folder:FindFirstChild(tid)
 	if not m then texCache[tid] = false; return nil end
 	local d = require(m :: ModuleScript) :: any
@@ -123,6 +131,16 @@ function MapScene.texture(tid: string): Tex?
 	local t: Tex = { w = w, h = h, fmt = d.fmt, kind = d.kind, avg = rgb8(d.avg[1], d.avg[2], d.avg[3]), rgba = out }
 	texCache[tid] = t
 	return t
+end
+
+local texLow: { [string]: Tex | false } = {}
+local texHigh: { [string]: Tex | false } = {}
+function MapScene.texture(tid: string): Tex? return loadTex(false, tid, texLow) end
+function MapScene.textureHD(tid: string): Tex? return loadTex(true, tid, texHigh) end
+-- vrai si les pixels HD de la texture sont là (Studio, serveur ; jamais chez le joueur), sans les décoder
+function MapScene.hasHD(tid: string): boolean
+	local folder = hdFolder()
+	return folder ~= nil and folder:FindFirstChild(tid) ~= nil
 end
 
 -- genre de texture du web (« leafbroad », « plaster »…) sans décoder les pixels

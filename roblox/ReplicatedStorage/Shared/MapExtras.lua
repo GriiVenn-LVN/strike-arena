@@ -7,10 +7,12 @@
 --     (Temple perdu, cartes hantées : herbe en 3D si Terrain.Decoration est coché dans Studio) ;
 --   • au sol : flaques qui brillent (nuit, métro, cartes hantées), traînées de saleté au pied des murs, gravats, feuilles
 --     mortes, congères (Station), douilles (Stand de tir) ;
+--   • décalcomanies d'usure (images de MapDress.decal) : taches au sol, coulures d'eau sous le haut des murs, fissures,
+--     crasse au pied des murs, graffitis abstraits sur les grands murs (pas dans le temple ni les cartes hantées) ;
 --   • câbles tendus entre les toits, projecteurs muraux et lampes des halos du web qui éclairent vraiment la nuit, fûts en
 --     feu (Port, Labo), brume au ras du sol (cartes hantées, Port).
--- Rien de neuf à envoyer sur Roblox : pièces simples, Beam, terrain, textures intégrées au client (rbxasset) et halo
--- de MapDress. Budget : quelques centaines de pièces non collisionnables et ignorées des rayons, une trentaine de lumières
+-- Pièces simples, Beam, terrain, textures intégrées au client (rbxasset) et images de MapDress (halo, décalcomanies
+-- « m:fx:* », envoyées par MeshUploader ; sinon dessinées en EditableImage, ou absentes si l'API est refusée). Budget : quelques centaines de pièces non collisionnables et ignorées des rayons, une trentaine de lumières
 -- au plus, une seule carte habillée à la fois. Qualité basse (ombres coupées dans les réglages) : ni particules, ni ombres.
 local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -32,27 +34,31 @@ type Build = MapDress.Build
 -- réglages par thème du web (nombres = combien en poser au plus)
 type Profile = { puddles: number, dirt: number, debris: number, debrisMat: Enum.Material, leaves: number, leafCols: { Color3 },
 	drifts: boolean, casings: number, cables: number, lamps: number, lampCol: Color3, glowLights: number, fire: number,
-	mist: boolean, grass: Color3? }
+	mist: boolean, grass: Color3?, stains: number, streaks: number, cracks: number, grime: number, graffiti: number, stainCol: Color3? }
 local GREEN = { Color3.fromRGB(86, 112, 48), Color3.fromRGB(112, 96, 52), Color3.fromRGB(70, 92, 40), Color3.fromRGB(128, 104, 60) }
 local DEAD = { Color3.fromRGB(92, 64, 36), Color3.fromRGB(120, 78, 38), Color3.fromRGB(70, 52, 34), Color3.fromRGB(140, 96, 44) }
 local function P(t: { [string]: any }): Profile
 	local d: { [string]: any } = { puddles = 0, dirt = 60, debris = 70, debrisMat = Enum.Material.Concrete, leaves = 0, leafCols = GREEN,
-		drifts = false, casings = 0, cables = 0, lamps = 0, lampCol = Color3.fromRGB(255, 214, 160), glowLights = 0, fire = 0, mist = false }
+		drifts = false, casings = 0, cables = 0, lamps = 0, lampCol = Color3.fromRGB(255, 214, 160), glowLights = 0, fire = 0, mist = false,
+		stains = 16, streaks = 12, cracks = 10, grime = 14, graffiti = 3 }
 	for k, v in pairs(t) do d[k] = v end
 	return d :: any
 end
 local PROFILES: { [string]: Profile } = {
-	sand = P({ dirt = 70, debris = 90, debrisMat = Enum.Material.Sandstone, cables = 6 }),
-	industrial = P({ puddles = 6, dirt = 90, debris = 110, cables = 8 }),
-	snow = P({ dirt = 0, debris = 40, debrisMat = Enum.Material.Rock, drifts = true, cables = 5 }),
-	night = P({ puddles = 18, dirt = 90, debris = 110, cables = 10, lamps = 6, lampCol = Color3.fromRGB(255, 196, 128), glowLights = 16, fire = 2, mist = true }),
-	metro = P({ puddles = 14, dirt = 100, debris = 120, glowLights = 10 }),
-	jungle = P({ puddles = 5, dirt = 60, debris = 70, debrisMat = Enum.Material.Rock, leaves = 220, grass = Color3.fromRGB(86, 120, 58) }),
-	range = P({ dirt = 60, debris = 60, casings = 90, cables = 6 }),
+	sand = P({ dirt = 70, debris = 90, debrisMat = Enum.Material.Sandstone, cables = 6, stains = 14, streaks = 8, cracks = 14, grime = 16, graffiti = 3 }),
+	industrial = P({ puddles = 6, dirt = 90, debris = 110, cables = 8, stains = 24, streaks = 16, graffiti = 6, stainCol = Color3.fromRGB(26, 26, 28) }),
+	snow = P({ dirt = 0, debris = 40, debrisMat = Enum.Material.Rock, drifts = true, cables = 5, stains = 6, streaks = 10, grime = 6, graffiti = 2 }),
+	night = P({ puddles = 18, dirt = 90, debris = 110, cables = 10, lamps = 6, lampCol = Color3.fromRGB(255, 196, 128), glowLights = 16, fire = 2, mist = true,
+		stains = 24, streaks = 18, graffiti = 6, stainCol = Color3.fromRGB(24, 24, 26) }),
+	metro = P({ puddles = 14, dirt = 100, debris = 120, glowLights = 10, stains = 28, streaks = 16, grime = 24, graffiti = 10, stainCol = Color3.fromRGB(24, 24, 26) }),
+	jungle = P({ puddles = 5, dirt = 60, debris = 70, debrisMat = Enum.Material.Rock, leaves = 220, grass = Color3.fromRGB(86, 120, 58),
+		stains = 14, streaks = 20, cracks = 12, graffiti = 0, stainCol = Color3.fromRGB(40, 52, 30) }),
+	range = P({ dirt = 60, debris = 60, casings = 90, cables = 6, stains = 14, graffiti = 2 }),
 	haunt = P({ puddles = 10, dirt = 70, debris = 80, debrisMat = Enum.Material.Slate, leaves = 200, leafCols = DEAD, lamps = 4,
-		lampCol = Color3.fromRGB(200, 220, 255), glowLights = 14, mist = true, grass = Color3.fromRGB(52, 64, 40) }),
+		lampCol = Color3.fromRGB(200, 220, 255), glowLights = 14, mist = true, grass = Color3.fromRGB(52, 64, 40),
+		stains = 26, streaks = 22, cracks = 18, grime = 20, graffiti = 0 }),
 	halloween = P({ puddles = 8, dirt = 70, debris = 80, debrisMat = Enum.Material.Slate, leaves = 220, leafCols = DEAD, lamps = 4,
-		glowLights = 18, mist = true, grass = Color3.fromRGB(56, 62, 38) }),
+		glowLights = 18, mist = true, grass = Color3.fromRGB(56, 62, 38), stains = 22, streaks = 20, cracks = 16, grime = 18, graffiti = 0 }),
 }
 
 -- état d'une carte habillée (terrain et éclairage global à remettre en partant)
@@ -170,6 +176,101 @@ local function scan(g: any): ({ Cell }, { Cell }, { Cell }, { Cell }, { Cell })
 	return open, outdoor, edges, tops, barrels
 end
 
+-- ---------- décalcomanies d'usure ----------
+-- Chaque décalcomanie est un Decal sur une pièce invisible très fine posée 3 cm devant le mur (ou sur le sol) : les blocs
+-- du décor restent intacts. Murs : face de la case libre contre une case pleine (grille du web), hauteur du mur lue
+-- dans la grille ; les graffitis seulement sur un mur continu sur trois cases (pas à cheval sur un angle ou une porte).
+local function decals(folder: Instance, rng: Random, prof: Profile, g: any, edges: { Cell }, open: { Cell }, floorCol: Color3,
+	at: (Cell, number, number, number) -> Vector3)
+	local N = MapData.N
+	local function wallH(c: Cell): number
+		local x, z = c.cx + c.dx, c.cz + c.dz
+		if x < 0 or z < 0 or x >= N or z >= N then return 0 end
+		local j = z * N + x
+		return math.min(g.h[j], g.ceil[c.cz * N + c.cx])
+	end
+	local function sameWall(c: Cell, k: number): boolean   -- case voisine le long du mur, libre et contre un mur aussi haut
+		local px, pz = c.cx + c.dz * k, c.cz + c.dx * k
+		if px < 0 or pz < 0 or px >= N or pz >= N then return false end
+		local i = pz * N + px
+		if g.type[i] ~= 0 or g.ramp[i] ~= 0 or g.h[i] > 0.05 then return false end
+		return wallH({ cx = px, cz = pz, dx = c.dx, dz = c.dz, h = 0 }) >= wallH(c) - 0.3
+	end
+	local function onWall(name: string, c: Cell, w: number, h: number, y: number, along: number, col: Color3, tr: number)
+		local img = MapDress.decal(name)
+		if not img then return end
+		local dir = Vector3.new(c.dx, 0, c.dz)
+		local side = Vector3.new(c.dz, 0, c.dx)
+		local pos = at(c, c.dx * (CELL / 2 - 0.1), c.dz * (CELL / 2 - 0.1), y * U) + side * along
+		local p = part(folder, "Usure", Vector3.new(w * U, h * U, 0.05), CFrame.lookAt(pos, pos - dir), Color3.new(), Enum.Material.SmoothPlastic)
+		p.Transparency = 1
+		local d = Instance.new("Decal")
+		d.Face = Enum.NormalId.Front; d.TextureContent = img; d.Color3 = col; d.Transparency = tr
+		d.Parent = p
+	end
+	local wallCol = darker(floorCol, 0.32)
+	-- coulures sous le haut des murs de plus de 2,2 m
+	for _ = 1, prof.streaks do
+		local c = edges[rng:NextInteger(1, math.max(1, #edges))]
+		if not c then break end
+		local hw = wallH(c)
+		if hw >= 2.2 and hw < 40 then
+			local h = math.min(hw - 0.1, rng:NextNumber(1.4, 2.8))
+			local w = rng:NextNumber(0.7, 1.5)
+			onWall("coulure", c, w, h, hw - 0.05 - h / 2, rng:NextNumber(-0.5, 0.5) * (S - w) * U, prof.stainCol or wallCol, rng:NextNumber(0.15, 0.4))
+		end
+	end
+	-- crasse au pied des murs
+	for _ = 1, prof.grime do
+		local c = edges[rng:NextInteger(1, math.max(1, #edges))]
+		if not c then break end
+		if wallH(c) >= 0.8 then
+			local h = rng:NextNumber(0.35, 0.7)
+			onWall("suie", c, S * rng:NextNumber(0.7, 1), h, h / 2 + 0.01, 0, prof.stainCol or wallCol, rng:NextNumber(0.2, 0.45))
+		end
+	end
+	-- fissures dans les murs
+	for _ = 1, prof.cracks do
+		local c = edges[rng:NextInteger(1, math.max(1, #edges))]
+		if not c then break end
+		local hw = wallH(c)
+		if hw >= 1.6 then
+			local s = rng:NextNumber(0.6, 1.3)
+			onWall("fissure", c, s, s, rng:NextNumber(0.6, math.min(hw - s / 2 - 0.1, 2.6)), rng:NextNumber(-0.3, 0.3) * (S - s) * U,
+				Color3.fromRGB(26, 23, 20), rng:NextNumber(0.1, 0.35))
+		end
+	end
+	-- graffitis (peinture usée), sur un mur continu d'au moins 3 cases
+	local placed, tries = 0, 0
+	while placed < prof.graffiti and tries < 300 and #edges > 0 do
+		tries += 1
+		local c = edges[rng:NextInteger(1, #edges)]
+		local hw = wallH(c)
+		if hw >= 2.4 and hw < 40 and sameWall(c, 1) and sameWall(c, -1) then
+			placed += 1
+			local w = rng:NextNumber(1.8, 2.8)
+			onWall(if rng:NextNumber() < 0.5 then "graffiti1" else "graffiti2", c, w, w / 2, rng:NextNumber(1.1, math.min(1.7, hw - w / 4 - 0.1)), 0,
+				Color3.new(1, 1, 1), rng:NextNumber(0.1, 0.3))
+		end
+	end
+	-- taches au sol
+	local img = MapDress.decal("tache")
+	if img then
+		for _ = 1, prof.stains do
+			local c = open[rng:NextInteger(1, math.max(1, #open))]
+			if not c then break end
+			local d = rng:NextNumber(0.7, 2) * U
+			local cf = CFrame.new(at(c, rng:NextNumber(-0.4, 0.4) * CELL, rng:NextNumber(-0.4, 0.4) * CELL, 0.135)) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0)
+			local p = part(folder, "Tache", Vector3.new(d, 0.02, d * rng:NextNumber(0.6, 1)), cf, Color3.new(), Enum.Material.SmoothPlastic)
+			p.Transparency = 1
+			local dc = Instance.new("Decal")
+			dc.Face = Enum.NormalId.Top; dc.TextureContent = img; dc.Color3 = prof.stainCol or darker(floorCol, 0.38)
+			dc.Transparency = rng:NextNumber(0.2, 0.5)
+			dc.Parent = p
+		end
+	end
+end
+
 -- ---------- construction ----------
 function MapExtras.build(b: Build, info: any)
 	if not b.alive or not b.details then return end
@@ -274,6 +375,10 @@ function MapExtras.build(b: Build, info: any)
 		local cf = CFrame.new(at(c, ox, oz, 0.05)) * CFrame.Angles(rng:NextNumber(-0.25, 0.25), rng:NextNumber(0, math.pi * 2), rng:NextNumber(-0.25, 0.25))
 		part(folder, "Feuille", Vector3.new(sz, 0.02, sz * 0.7), cf, prof.leafCols[rng:NextInteger(1, #prof.leafCols)], Enum.Material.Fabric)
 	end
+	task.wait()
+	if not b.alive then return end
+	local okD, errD = pcall(function(): any decals(folder, rng, prof, g, edges, open, floorCol, at); return nil end)
+	if not okD then warn("[MapDetail] décalcomanies : " .. tostring(errD)) end
 	task.wait()
 	if not b.alive then return end
 
