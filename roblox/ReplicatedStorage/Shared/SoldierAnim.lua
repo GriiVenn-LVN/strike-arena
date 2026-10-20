@@ -74,7 +74,7 @@ export type Pose = {
 local function rot(): Rot return { x = 0, y = 0, z = 0 } end
 function Anim.new(seed: number): State
 	return {
-		ph = seed % 628 / 100, ck = 0, ready = 0.4, rec = 0, flinch = 0, dieT = -1, dieStyle = 0, swT = 0,
+		ph = seed % 628 / 100, ck = 0, ak = 0, ready = 0.4, rec = 0, flinch = 0, dieT = -1, dieStyle = 0, swT = 0,
 		ks = 0, fw = 0, sd = 0, lyaw = nil, turn = 0, aw = nil,
 		hipsP = V(0, 0.94, 0), hipsR = rot(), spineP = V(0, 0.07, 0), spineR = rot(), neckR = rot(), headR = rot(),
 		legs = { L = { th = rot(), sh = rot(), ft = rot() }, R = { th = rot(), sh = rot(), ft = rot() } },
@@ -209,6 +209,12 @@ local function layer(R: State, st: Input, dt: number, gp: Vector3, gq: CFrame, a
 			Lg.th.x += (th - Lg.th.x) * A; Lg.sh.x += (sh - Lg.sh.x) * A; Lg.ft.x += (0.2 + r * 0.25 - Lg.ft.x) * A; Lg.th.z += (-side * 0.06 * dn) * A
 		end
 	end
+	-- accroupi en plein saut : genoux ramenés sous le corps (saut accroupi façon COD)
+	if A > 0.01 and R.ck > 0.01 then
+		local c = A * R.ck
+		for _, k in ipairs({ "L", "R" }) do legs[k].th.x += c * 0.55; legs[k].sh.x -= c * 0.8; legs[k].ft.x += c * 0.2 end
+		hy += c * 0.12                               -- les jambes remontent, le bassin ne descend pas autant qu'au sol
+	end
 	if land > 0.001 then
 		for _, k in ipairs({ "L", "R" }) do legs[k].th.x += land * 0.75; legs[k].sh.x -= land * 1.3; legs[k].ft.x += land * 0.5 end
 		hy -= land * 0.17
@@ -316,11 +322,18 @@ function Anim.step(R: State, st: Input, dt: number, t: number): Pose
 		local ae = 1 - exp(-dt * 9)
 		R.ks += (clamp(spd / 5.2, 0, 1.4) - R.ks) * ae
 		local k = R.ks
-		R.ph += dt * spd * 1.7
+		-- pieds qui ne glissent pas : la cadence suit la longueur de la foulée dessinée (balancement des hanches,
+		-- allongé en sprint) au lieu d'une cadence fixe ; petits pas plus rapides à faible allure
+		local g = if R.aw then R.aw.spr + R.aw.tac * 1.15 else 0
+		local stride = max(0.7, 2 * 0.91 * sin(min(1.2, 0.75 * min(1, k * 1.15) * (1 + 0.4 * g))))
+		R.ph += dt * spd * pi / (stride * 1.2)
 		local ph = R.ph
 		local sw, sw2 = sin(ph), sin(ph + pi)
-		R.ck += ((if st.crouch then 1 else 0) - R.ck) * min(1, dt * 10)
+		R.ck += ((if st.crouch then 1 else 0) - R.ck) * (1 - exp(-dt * 9))
 		local air = not st.onGround
+		-- passage sol ↔ air fondu (les jambes ne sautent plus d'une pose à l'autre au décollage)
+		R.ak += ((if air then 1 else 0) - R.ak) * (1 - exp(-dt * 14))
+		local ak = R.ak
 		R.fw += (clamp(st.lf / 5.2, -1.2, 1.2) - R.fw) * ae
 		R.sd += (clamp(st.lr / 5.2, -1.2, 1.2) - R.sd) * ae
 		local fw, sd = R.fw, R.sd
@@ -329,14 +342,16 @@ function Anim.step(R: State, st: Input, dt: number, t: number): Pose
 		local yr = angDiff(R.lyaw, st.yaw) / max(dt, 1e-3); R.lyaw = st.yaw
 		R.turn += (clamp(yr * 0.05, -0.12, 0.12) - R.turn) * (1 - exp(-dt * 6))
 		local amp = 0.75 * min(1, k * 1.15)
-		R.hipsP = V(sin(ph) * 0.012 * k, 0.94 - R.ck * 0.4 + (if air then 0.03 else abs(sw) * 0.035 * k), 0)
+		R.hipsP = V(sin(ph) * 0.012 * k, 0.94 - R.ck * 0.4 + lerp(abs(sw) * 0.035 * k, 0.03, ak), 0)
 		setR(hr, 0, -sd * 0.18 * k, sin(ph) * 0.03 * k)
 		local function leg(Lg: Leg, s: number, swv: number)
 			local hipA = swv * amp * (if abs(fw) > 0.15 then (if fw < 0 then -1 else 1) else 1)
 			local knee = max(0, cos(ph + (if s > 0 then 0 else pi))) * amp * 1.3 * (if abs(fw) > 0.15 then 1 else 0.6) + 0.06
 			setR(Lg.th, hipA + R.ck * 1.25, 0, -s * 0.03 - sd * 0.28 * swv * k)
 			setR(Lg.sh, -knee - R.ck * 1.7, 0, 0); setR(Lg.ft, -hipA * 0.3 + knee * 0.2, 0, 0)
-			if air then Lg.th.x = -0.5 - s * 0.1; Lg.sh.x = -0.9; Lg.ft.x = 0.3 end
+			if ak > 0.001 then
+				Lg.th.x = lerp(Lg.th.x, -0.5 - s * 0.1, ak); Lg.sh.x = lerp(Lg.sh.x, -0.9, ak); Lg.ft.x = lerp(Lg.ft.x, 0.3, ak)
+			end
 		end
 		leg(legs.L, -1, sw); leg(legs.R, 1, sw2)
 		if st.seated > 0 then

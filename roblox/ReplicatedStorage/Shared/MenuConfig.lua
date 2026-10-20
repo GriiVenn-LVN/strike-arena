@@ -64,6 +64,7 @@ M.KEYS = {
 	{ "Tirer", "Clic gauche", "RT" },
 	{ "Viser (ADS) / lunette", "Clic droit", "LT" },
 	{ "Recharger", "R", "X" },
+	{ "Poser / désamorcer la bombe (maintenir)", "E", "X" },
 	{ "Arme principale / pistolet / couteau", "1 / 2 / 3", "—" },
 	{ "Arme suivante", "Molette", "Y" },
 	{ "Inspecter l'arme", "V", "Croix haut" },

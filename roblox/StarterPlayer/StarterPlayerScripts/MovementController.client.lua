@@ -30,8 +30,16 @@ local STUDS = Config.STUDS_PER_METER
 local HARD_LAND = -16 * STUDS  -- chute plus rapide que 16 m/s : réception lourde (on freine un instant)
 
 local function smooth01(x: number): number x = math.clamp(x, 0, 1); return x * x * (3 - 2 * x) end
+-- façon Call of Duty, selon la famille de l'arme en main : temps pour sortir du sprint avant de pouvoir tirer
+-- (« sprint-to-fire ») et vitesse de marche en pleine visée
+local OUT_CAT: { [string]: number } = { melee = 0.5, pistol = 0.75, smg = 0.85, rifle = 1, shotgun = 1, sniper = 1.4, lmg = 1.5 }
+local ADS_MOVE: { [string]: number } = { pistol = 0.85, smg = 0.82, rifle = 0.75, shotgun = 0.78, sniper = 0.6, lmg = 0.62 }
+local function catOf(): string
+	local w = S.weapon and Config.WEAPONS[S.weapon]
+	return if w then (if w.melee then "melee" else w.cat) else "rifle"
+end
 
-local st = { tacE = 1, lastTap = -9, slideT = 0, slideCd = 0, slideDir = Vector3.zero, slideV = 0, slideV0 = 0, camY = 0, crouchKey = false,
+local st = { tacE = 1, lastTap = -9, slideT = 0, slideCd = 0, slideDir = Vector3.zero, slideV = 0, slideV0 = 0, camY = 0, camV = 0, crouchKey = false,
 	jl = 0, ws = BASE_SPEED, fall = 0, heavyT = 0 }
 local slideVel: LinearVelocity? = nil
 
@@ -46,7 +54,7 @@ end
 
 local function stopSprint()
 	if not S.sprint then return end
-	S.fireBlockedUntil = math.max(S.fireBlockedUntil, os.clock() + (if S.tactical then MV.OUT_TAC else MV.OUT))
+	S.fireBlockedUntil = math.max(S.fireBlockedUntil, os.clock() + (if S.tactical then MV.OUT_TAC else MV.OUT) * (OUT_CAT[catOf()] or 1))
 	S.sprint = false; S.tactical = false
 end
 
@@ -341,8 +349,9 @@ RunService.RenderStepped:Connect(function(dt: number)
 		-- poids de l'arme (vitesses du web : M249 plus lente, couteau plus rapide…) × mobilité des accessoires
 		local mult = (if w and S.weapon then w.speed * A.modsOf(A.activeOf(player, S.weapon)).mob else 1)
 		if S.sprint then mult *= if S.tactical then MV.TAC else MV.SPR
-		elseif S.crouch then mult *= MV.CROUCH
-		elseif S.aiming then mult *= 0.75 end
+		elseif S.crouch then mult *= MV.CROUCH end
+		-- visée : on ralentit au fil de la mise en joue (visée lissée du viewmodel), plus fort avec une arme lourde
+		if not S.sprint then mult *= 1 + ((ADS_MOVE[catOf()] or 0.75) - 1) * math.clamp(S.adsT, 0, 1) end
 		if st.heavyT > 0 then mult *= 0.55 end
 		local ch = hum.Parent
 		local target = BASE_SPEED * mult * ((ch and ch:GetAttribute("SpeedMult") :: number?) or 1)   -- modificateur « Turbo »
@@ -360,13 +369,18 @@ RunService.RenderStepped:Connect(function(dt: number)
 		hum.WalkSpeed = st.ws
 	end
 
-	-- caméra plus basse accroupi / en glissade (descente plus vive en glissade)
+	-- caméra plus basse accroupi / en glissade : ressort amorti (départ et arrivée en douceur, sans à-coup),
+	-- descente plus vive en glissade, relevé un peu plus lent que l'accroupi (on « pousse » sur les jambes)
 	local camTarget = if S.slide then SLIDE_CAM elseif S.crouch then CROUCH_CAM else 0
-	st.camY += (camTarget - st.camY) * math.min(1, dt * (if S.slide then 14 else 10))
+	local k = if S.slide then 260 elseif camTarget < st.camY then 150 else 110
+	local sd = math.min(dt, 1 / 30)
+	st.camV += ((camTarget - st.camY) * k - st.camV * 2 * math.sqrt(k)) * sd
+	st.camY += st.camV * sd
+	if st.camY < SLIDE_CAM - 0.2 then st.camY = SLIDE_CAM - 0.2; st.camV = 0 elseif st.camY > 0.05 then st.camY = 0.05; st.camV = 0 end
 	hum.CameraOffset = Vector3.new(0, st.camY, 0)
 end)
 
 player.CharacterAdded:Connect(function()
 	S.sprint = false; S.tactical = false; S.crouch = false; S.mantle = false; mt = nil; endSlide()
-	st.tacE = 1; st.camY = 0; st.ws = BASE_SPEED; st.fall = 0; st.heavyT = 0
+	st.tacE = 1; st.camY = 0; st.camV = 0; st.ws = BASE_SPEED; st.fall = 0; st.heavyT = 0
 end)

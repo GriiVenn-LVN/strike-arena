@@ -197,7 +197,7 @@ local function stepOf(w: Walker, dt: number, cam: Vector3)
 	w.foot = not w.foot
 	local vol = if own then (if S.sprint then 0.36 else 0.28) else 0.5
 	local sprint = if own then S.sprint == true else speed > 6
-	if own then Sfx.setGround(surface) end
+	if own then Sfx.setGround(surface); S.stepAt = os.clock() end   -- le viewmodel cale son balancement sur ce pas
 	Sfx.step(surface, if own then nil else r.Position, vol * (if w.foot then 1 else 0.9), sprint)
 end
 

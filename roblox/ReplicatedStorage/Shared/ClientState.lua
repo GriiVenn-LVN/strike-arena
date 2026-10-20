@@ -23,6 +23,7 @@ return {
 	fireBlockedUntil = 0,                    -- sortie de sprint : on ne tire pas tout de suite (comme sur le web)
 	drinkUntil = 0, drinkHideUntil = 0,      -- boisson d'atout (PerkDrinkController) : ni tir ni visée / arme rangée jusqu'à ces os.clock()
 	speed = 0, grounded = true, vy = 0,
+	stepAt = 0,                              -- os.clock() de notre dernier pas entendu (AmbienceController) : l'arme et la tête s'y calent
 	muzzle = nil :: Vector3?,                -- bout du canon du viewmodel (point de départ des traceurs)
 	-- kill-cam (écrit par KillcamController) : { key, skin, camo } de l'arme du tueur, nil hors kill-cam
 	kc = nil :: any,
