@@ -309,6 +309,8 @@ function MapDress.decal(name: string): Content?
 	if c ~= nil then return if c then c :: any else nil end
 	local d = DECALS[name]
 	local img: Content? = nil
+	-- chez le joueur, seulement une fois envoyée : une EditableImage affichée donne le damier rose et cyan de Roblox
+	if not MeshStore.uploader and MeshStore.ids["i:m:fx:" .. name] == nil then d = nil end
 	if d then
 		img = newImage("fx:" .. name, d.w, d.h, function()
 			local paint = d.make()
