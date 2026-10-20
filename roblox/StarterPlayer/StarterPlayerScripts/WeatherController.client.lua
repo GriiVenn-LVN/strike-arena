@@ -5,6 +5,9 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
 local SoundService = game:GetService("SoundService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Sfx = require(ReplicatedStorage.Shared.Sfx)
 
 local camera = workspace.CurrentCamera
 
@@ -18,17 +21,23 @@ rain.Speed = NumberRange.new(90); rain.EmissionDirection = Enum.NormalId.Bottom;
 rain.Transparency = NumberSequence.new(0.5); rain.Color = ColorSequence.new(Color3.fromRGB(180, 200, 225)); rain.Orientation = Enum.ParticleOrientation.VelocityParallel
 rain.Parent = rainPart; rainPart.Parent = workspace
 
-local rainSound = Instance.new("Sound")
-rainSound.SoundId = "rbxassetid://0"       -- remplace par un son de pluie (boucle)
-rainSound.Looped = true; rainSound.Volume = 0.35; rainSound.Parent = SoundService
-
-local thunder = Instance.new("Sound"); thunder.SoundId = "rbxassetid://0"; thunder.Volume = 0.9; thunder.Parent = SoundService
+-- son de pluie en boucle : seulement si un numéro est donné (un Sound à rbxassetid://0 remplit la Sortie d'erreurs)
+local RAIN_ID = 0
+local rainSound: Sound? = nil
+if RAIN_ID ~= 0 then
+	local s = Instance.new("Sound")
+	s.SoundId = "rbxassetid://" .. RAIN_ID; s.Looped = true; s.Volume = 0.35; s.Parent = SoundService
+	rainSound = s
+end
 
 local function refresh()
 	local w = workspace:GetAttribute("Weather")
 	local raining = w == "rain" or w == "storm"
 	rain.Rate = if w == "storm" then 900 elseif raining then 450 else 0
-	if raining and not rainSound.IsPlaying then rainSound:Play() elseif not raining then rainSound:Stop() end
+	local rs = rainSound
+	if rs then
+		if raining and not rs.IsPlaying then rs:Play() elseif not raining then rs:Stop() end
+	end
 end
 workspace:GetAttributeChangedSignal("Weather"):Connect(refresh)
 refresh()
@@ -43,6 +52,6 @@ RunService.RenderStepped:Connect(function()
 		Lighting.Brightness = old + 3
 		task.delay(0.1, function() Lighting.Brightness = old + 1 end)
 		task.delay(0.22, function() Lighting.Brightness = old end)
-		task.delay(0.3 + math.random() * 1.2, function() thunder:Play() end)
+		task.delay(0.3 + math.random() * 1.2, function() Sfx.play({ sheet = "boom" }, nil, 0.7) end)   -- tonnerre : explosion lointaine de la planche
 	end
 end)
