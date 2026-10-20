@@ -224,7 +224,7 @@ function P.arms(parent: Frame): { destroy: () -> (), refresh: () -> () }
 			local b = chip(modeBar, mdef[2], st.mode == mdef[1], i)
 			b.MouseButton1Click:Connect(function() sfx("ui"); st.mode = mdef[1]; applyMode(); drawModes() end)
 		end
-		local r = chip(modeBar, if st.spin then "⟳ Rotation auto" else "⟳ Rotation fixe", st.spin, 9)
+		local r = chip(modeBar, if st.spin then "🔄 Rotation auto" else "🔄 Rotation fixe", st.spin, 9)
 		r.MouseButton1Click:Connect(function() sfx("ui"); st.spin = not st.spin; drawModes() end)
 	end
 
@@ -636,7 +636,7 @@ function P.sights(parent: Frame): { destroy: () -> (), refresh: () -> () }
 				hflow(box, 5)
 				for i, kk in ipairs(l) do
 					local o = curOpt(kk)
-					local b = chip(box, Config.WEAPONS[kk].name .. (if o then "  ⌖" else ""), kk == key, i)
+					local b = chip(box, Config.WEAPONS[kk].name .. (if o then "  ◎" else ""), kk == key, i)
 					b.MouseButton1Click:Connect(function() sfx("ui"); st.key = kk; current.key = kk; draw() end)
 				end
 			end

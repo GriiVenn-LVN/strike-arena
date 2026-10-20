@@ -92,7 +92,7 @@ local function progression(ctx: any, sc: ScrollingFrame)
 	local sh = make("Frame", { LayoutOrder = 4, Size = UDim2.new(1, 0, 0, 36) }, sc)
 	text(sh, { Text = "🎟  " .. spaced(string.upper(X.SEASON.name) .. " — PALIER " .. tier .. " / " .. X.SEASON.tiers, 2), Font = K.BLACK, TextSize = 15, Size = UDim2.new(1, -330, 1, 0), TextWrapped = false })
 	if not bp.premium then
-		K.btn(sh, "🎟  Passe de saison Premium — " .. K.fmt(X.SEASON.premiumCoins) .. " 🪙", "alt", function()
+		K.btn(sh, "🎟  Passe de saison Premium — " .. K.fmt(X.SEASON.premiumCoins) .. " 💰", "alt", function()
 			local ok = ctx.call("BP_BuyPremium")
 			ctx.toast(if ok then "✔ Passe Premium débloqué !" else "Pas assez de pièces (ou Robux dans la Boutique)", if ok then C.gold else C.accent)
 			ctx.refresh()

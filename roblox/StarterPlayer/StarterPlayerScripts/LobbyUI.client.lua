@@ -31,7 +31,7 @@ local profileLabel = label("Chargement…", 20)
 local function refresh()
 	local data = getProfile:InvokeServer()
 	if not data then return end
-	profileLabel.Text = string.format("Niv. %d  •  %d/%d XP  •  🪙 %d  •  📦 %d", data.level, data.xp, data.xpNeed, data.profile.coins, (data.profile.boxes.std or 0) + (data.profile.boxes.prem or 0))
+	profileLabel.Text = string.format("Niv. %d  •  %d/%d XP  •  💰 %d  •  📦 %d", data.level, data.xp, data.xpNeed, data.profile.coins, (data.profile.boxes.std or 0) + (data.profile.boxes.prem or 0))
 	return data
 end
 

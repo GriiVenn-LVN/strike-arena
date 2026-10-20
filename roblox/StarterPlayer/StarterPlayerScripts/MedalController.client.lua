@@ -155,7 +155,7 @@ local doneRemote = ReplicatedStorage:WaitForChild("ChallengeDone", 30) :: Remote
 if doneRemote then
 	doneRemote.OnClientEvent:Connect(function(d: any)
 		if typeof(d) ~= "table" then return end
-		toast((if d.weekly then "Défi de la semaine terminé : " else "Défi du jour terminé : ") .. tostring(d.text) .. "  (🪙 " .. tostring(d.coins) .. " • " .. tostring(d.xp) .. " XP à récupérer)",
+		toast((if d.weekly then "Défi de la semaine terminé : " else "Défi du jour terminé : ") .. tostring(d.text) .. "  (💰 " .. tostring(d.coins) .. " • " .. tostring(d.xp) .. " XP à récupérer)",
 			if d.weekly then Color3.fromRGB(199, 125, 255) else GOLD)
 		pcall(function() Sfx.play(ModeConfig.SOUNDS.streak) end)
 	end)

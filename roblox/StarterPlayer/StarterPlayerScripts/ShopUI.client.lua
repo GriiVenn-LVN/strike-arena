@@ -46,7 +46,12 @@ end
 text(win, { Position = UDim2.fromOffset(26, 16), Size = UDim2.fromOffset(400, 32), Font = K.BLACK, TextSize = 28, TextWrapped = false,
 	Text = "🛒  " .. spaced("BOUTIQUE", 3) })
 local coinsLabel = text(win, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -72, 0, 20), Size = UDim2.fromOffset(260, 26), Font = K.BLACK,
-	TextSize = 20, TextColor3 = C.gold, TextXAlignment = Enum.TextXAlignment.Right, TextWrapped = false, Text = "🪙 …" })
+	TextSize = 20, TextColor3 = C.gold, TextXAlignment = Enum.TextXAlignment.Right, TextWrapped = false, Text = "…" })
+-- pièce dessinée juste à gauche du montant (l'emoji pièce du web donne un carré vide dans Roblox)
+local coinIcon = require(ReplicatedStorage.Shared.Icons).coin(win, 20, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -110, 0, 23) })
+coinsLabel:GetPropertyChangedSignal("TextBounds"):Connect(function()
+	coinIcon.Position = UDim2.new(1, -72 - coinsLabel.TextBounds.X - 8, 0, 23)
+end)
 local function close() win.Visible = false; veil.Visible = false end
 K.btn(win, "✕", "dark", close, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -16, 0, 14), Size = UDim2.fromOffset(42, 42), TextSize = 18 })
 veil.Activated:Connect(close)
@@ -79,7 +84,7 @@ local renderSide: () -> ()
 local function refresh()
 	local ok, res = pcall(getShop.InvokeServer, getShop)
 	if ok and res then state = res; fetchedAt = os.clock() end
-	if state then coinsLabel.Text = "🪙 " .. K.fmt(state.coins) end
+	if state then coinsLabel.Text = K.fmt(state.coins) end
 	render()
 end
 
@@ -97,9 +102,9 @@ end
 local function iconFor(it: any): string
 	local k = it.kind
 	if k == "weapon" then return "🔫" elseif k == "skin" then return "🎨" elseif k == "sight" then return "🔭" elseif k == "reticle" then return "➕"
-	elseif k == "outfit" then return "🪖" elseif k == "trail" then return "✨" elseif k == "killfx" then return "💥" elseif k == "vip" then return "👑"
+	elseif k == "outfit" then return "👕" elseif k == "trail" then return "✨" elseif k == "killfx" then return "💥" elseif k == "vip" then return "👑"
 	elseif k == "exclusive" then return "🌈" elseif k == "gamepass" then return "⚡" elseif it.once then return "🎁"
-	elseif k == "devproduct" then return if it.premium then "⭐" elseif it.box then "📦" else "🪙" end
+	elseif k == "devproduct" then return if it.premium then "⭐" elseif it.box then "📦" else "💰" end
 	return "🏷"
 end
 
@@ -143,7 +148,7 @@ local function actionFor(it: any): (string, string, (() -> ())?)
 		if it.event then return "Événement 🎃", "dark", nil end
 		local o = offerOf(it.id)
 		local price = if o then o.price else it.price
-		return "🪙 " .. K.fmt(price), if state and state.coins >= price then "primary" else "alt", function()
+		return "💰 " .. K.fmt(price), if state and state.coins >= price then "primary" else "alt", function()
 			local ok, res = pcall(shopBuy.InvokeServer, shopBuy, it.id)
 			if ok and res and res.ok then say("Acheté : " .. it.name .. " !", C.green); pcall(function() K.uiSound(false) end)
 			else say("Achat impossible : " .. (if ok and res and res.err then res.err else "erreur"), C.accent2) end
@@ -199,7 +204,7 @@ local function card(it: any, parent: Instance, order: number, size: UDim2?): Fra
 	if o and not (state and state.owned[it.id]) then
 		tag(f, "-" .. o.off .. " %", if o.featured then C.gold else C.accent, o.featured)
 		text(f, { Position = UDim2.fromOffset(12, 88), Size = UDim2.new(1, -24, 0, 14), TextSize = 11, TextColor3 = C.mute, TextWrapped = false,
-			Text = "au lieu de " .. K.fmt(o.was) .. " 🪙" })
+			Text = "au lieu de " .. K.fmt(o.was) .. " 💰" })
 	end
 	local label, kind, cb = actionFor(it)
 	K.btn(f, label, kind, cb or function() select(it) end, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -10), Size = UDim2.new(1, -20, 0, 32),
@@ -304,7 +309,7 @@ end
 local function renderCoins()
 	local base = Catalog.get("coins_s")
 	local rate = if base and base.robux > 0 then base.coins / base.robux else 0
-	section("🪙 LOTS DE PIÈCES", "Les pièces achètent armes, skins, viseurs et tenues", 1, C.gold)
+	section("💰 LOTS DE PIÈCES", "Les pièces achètent armes, skins, viseurs et tenues", 1, C.gold)
 	local g = gridBox(2, UDim2.new(0.25, -8, 0, 230))
 	local n = 0
 	for _, it in ipairs(Catalog.ITEMS) do
@@ -319,7 +324,7 @@ local function renderCoins()
 			K.juice(f :: any, 0.03)
 			-- plus le lot est gros, plus la pile de pièces est haute
 			text(f, { Position = UDim2.fromOffset(0, 26), Size = UDim2.new(1, 0, 0, 70), TextSize = 30 + n * 8, TextXAlignment = Enum.TextXAlignment.Center,
-				Text = string.rep("🪙", math.min(n, 3)) })
+				Text = string.rep("💰", math.min(n, 3)) })
 			text(f, { Position = UDim2.fromOffset(0, 104), Size = UDim2.new(1, 0, 0, 30), Font = K.BLACK, TextSize = 26, TextXAlignment = Enum.TextXAlignment.Center,
 				TextWrapped = false, Text = K.fmt(it.coins) })
 			text(f, { Position = UDim2.fromOffset(0, 134), Size = UDim2.new(1, 0, 0, 16), Font = K.BOLD, TextSize = 12, TextColor3 = C.sub,
@@ -411,7 +416,7 @@ renderSide = function()
 	if it.kind == "weapon" then table.insert(lines, "Débloquée pour toujours dans l'Arsenal") end
 	if it.kind == "skin" then table.insert(lines, "Skin pour " .. Config.WEAPONS[it.weapon].name) end
 	local o = offerOf(it.id)
-	if o and not state.owned[it.id] then table.insert(lines, "Offre du jour : -" .. o.off .. " % (" .. K.fmt(o.was) .. " → " .. K.fmt(o.price) .. " 🪙)") end
+	if o and not state.owned[it.id] then table.insert(lines, "Offre du jour : -" .. o.off .. " % (" .. K.fmt(o.was) .. " → " .. K.fmt(o.price) .. " 💰)") end
 	local info = make("Frame", { Position = UDim2.fromOffset(16, 300), Size = UDim2.new(1, -32, 1, -360) }, side)
 	K.vlist(info, 4)
 	for i, l in ipairs(lines) do K.para(info, l, 12, C.sub, i) end

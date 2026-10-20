@@ -177,7 +177,7 @@ local function arms(ctx: any, body: Frame)
 		{ "PRÉCISION", math.floor(acc * 100) .. "%", acc }, { "TÊTE", "×" .. tostring(w.hs), w.hs / 4 }, { "CONTRÔLE", math.floor((1 - math.min(1, w.recoil / 5)) * 100) .. "%", 1 - math.min(1, w.recoil / 5) },
 		{ "PERFORATION", math.floor(w.armorPen * 100) .. "%", w.armorPen }, { "MOBILITÉ", string.format("%.2f", w.speed), (w.speed - 0.7) / 0.4 },
 		{ "RECHARGEMENT", if w.reload > 0 then w.reload .. " s" else "—", if w.reload > 0 then 1 - w.reload / 6 else 0 },
-		{ "PRIX", if owned(key) then "✔" else K.fmt(Catalog.weaponPrice(key)) .. " 🪙", 1 },
+		{ "PRIX", if owned(key) then "✔" else K.fmt(Catalog.weaponPrice(key)) .. " 💰", 1 },
 	}
 	for i, s in ipairs(list) do
 		local t = make("Frame", { LayoutOrder = i, BackgroundTransparency = 0.1, BackgroundColor3 = C.panel }, stats)
@@ -193,7 +193,7 @@ local function arms(ctx: any, body: Frame)
 	if w.slot == 0 or w.slot == 1 then
 		local cur = player:GetAttribute(if w.slot == 0 then "Primary" else "Secondary")
 		if not owned(key) then
-			K.btn(act, "🔒  Débloquer · " .. K.fmt(Catalog.weaponPrice(key)) .. " 🪙", "gold", function()
+			K.btn(act, "🔒  Débloquer · " .. K.fmt(Catalog.weaponPrice(key)) .. " 💰", "gold", function()
 				local res = ctx.call("ShopBuy", "weapon_" .. key)
 				ctx.toast(if res and res.ok then "✔ " .. w.name .. " débloquée !" else "Achat impossible : " .. tostring(res and res.err or "erreur"), if res and res.ok then C.green else C.accent)
 				ctx.refresh()
@@ -360,7 +360,7 @@ local function locker(ctx: any, body: Frame)
 				local have = it ~= nil and profile ~= nil and Catalog.owns(profile, it)
 				local nm = if it then (string.gsub(it.name, "^Traînée ", "")) else t
 				if eqTrail == t then status = "✔ Traînée : " .. nm end
-				itemCard(g, i, nm .. (if have or not it then "" else "  · " .. K.fmt(it.price) .. " 🪙"), if it then it.rarity else 1, have, eqTrail == t, function()
+				itemCard(g, i, nm .. (if have or not it then "" else "  · " .. K.fmt(it.price) .. " 💰"), if it then it.rarity else 1, have, eqTrail == t, function()
 					if not have then ctx.panel("shop"); return end
 					ctx.call("ShopEquip", "trail_" .. t); ctx.refresh()
 				end)
@@ -418,7 +418,7 @@ local function crates(ctx: any, body: Frame)
 		text(icon, { Text = "?", Size = UDim2.fromScale(1, 1), TextSize = 40, Font = K.BLACK, TextXAlignment = Enum.TextXAlignment.Center })
 		text(f, { Text = spaced(string.upper(def.name), 2), Position = UDim2.fromOffset(0, 140), Size = UDim2.new(1, 0, 0, 22), Font = K.BLACK, TextSize = 18, TextXAlignment = Enum.TextXAlignment.Center })
 		local stock = profile and profile.boxes and profile.boxes[id] or 0
-		text(f, { Text = "En stock : <b>" .. stock .. "</b>  •  Prix : 🪙 " .. K.fmt(def.coins), Position = UDim2.fromOffset(0, 166), Size = UDim2.new(1, 0, 0, 16), TextSize = 12,
+		text(f, { Text = "En stock : <b>" .. stock .. "</b>  •  Prix : 💰 " .. K.fmt(def.coins), Position = UDim2.fromOffset(0, 166), Size = UDim2.new(1, 0, 0, 16), TextSize = 12,
 			TextColor3 = C.sub, TextXAlignment = Enum.TextXAlignment.Center })
 		-- probabilités (obligatoires sur Roblox)
 		for r, wgt in ipairs(def.weights) do
@@ -430,7 +430,7 @@ local function crates(ctx: any, body: Frame)
 			text(f, { Text = wgt .. " %", Position = UDim2.fromOffset(108 + wgt, y), Size = UDim2.fromOffset(60, 16), TextSize = 11, TextColor3 = C.dim })
 		end
 		local can = stock > 0 or (profile ~= nil and (profile.coins or 0) >= def.coins)
-		local b = K.btn(f, if stock > 0 then spaced("OUVRIR", 3) else spaced("ACHETER ET OUVRIR (🪙 " .. K.fmt(def.coins) .. ")", 1), if can then "primary" else "dark", function()
+		local b = K.btn(f, if stock > 0 then spaced("OUVRIR", 3) else spaced("ACHETER ET OUVRIR (💰 " .. K.fmt(def.coins) .. ")", 1), if can then "primary" else "dark", function()
 			if ctx.busyCrate then return end
 			ctx.busyCrate = true
 			local res = ctx.call("OpenBox", id)

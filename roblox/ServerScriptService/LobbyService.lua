@@ -256,7 +256,7 @@ local function endChallenge()
 	if score >= L.range.firstReward and not lb.rangeRewarded then
 		lb.rangeRewarded = true
 		profile.coins += L.range.rewardCoins
-		msg ..= " · +" .. L.range.rewardCoins .. " 🪙"
+		msg ..= " · +" .. L.range.rewardCoins .. " 💰"
 	end
 	LobbyService.toast(p, msg, GOLD)
 end
@@ -331,7 +331,7 @@ local function hookParkour()
 		if not lb.parkourRewarded then
 			lb.parkourRewarded = true
 			profile.coins += L.parkour.rewardCoins
-			msg ..= " · +" .. L.parkour.rewardCoins .. " 🪙"
+			msg ..= " · +" .. L.parkour.rewardCoins .. " 💰"
 		end
 		LobbyService.toast(p, msg, GOLD)
 	end)

@@ -123,6 +123,7 @@ local buyMoney = label(buyWin, { AnchorPoint = Vector2.new(1, 0), Position = UDi
 local buyClose = make("TextButton", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -12, 0, 10), Size = UDim2.fromOffset(36, 30), BackgroundColor3 = C.panel2,
 	Text = "✕", TextColor3 = C.text, TextSize = 18, Font = Enum.Font.GothamBlack, ZIndex = 41 }, buyWin)
 corner(buyClose)
+require(ReplicatedStorage.Shared.Icons).closeButton(buyClose, 13)   -- la croix U+2715 donne un carré vide
 local buyInfo = label(buyWin, { Position = UDim2.new(0, 18, 1, -30), Size = UDim2.new(1, -36, 0, 22), TextSize = 13, TextColor3 = C.dim,
 	TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 41 })
 local buyGrid = make("ScrollingFrame", { Position = UDim2.fromOffset(12, 48), Size = UDim2.new(1, -24, 1, -84), BackgroundTransparency = 1, ScrollBarThickness = 6,
