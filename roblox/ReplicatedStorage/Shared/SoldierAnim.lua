@@ -370,7 +370,9 @@ function Anim.step(R: State, st: Input, dt: number, t: number): Pose
 			-sin(ph) * 0.07 * min(1, k) + sin(t * 1.3 + R.ph) * 0.01 * (1 - min(1, k)) + R.flinch * (sin(t * 40) * 0.03),
 			-sd * 0.06 * k - R.turn)
 		setR(R.neckR, p * 0.35, 0, 0)
-		setR(R.headR, 0, clamp(sin(t * 0.6 + R.ph * 3) * 0.1 * (1 - st.alert), -0.2, 0.2), 0)
+		-- la tête finit de suivre le regard (buste 0,5 + cou 0,35 du web : le reste ici, les yeux sur la cible) et encaisse
+		-- un léger à-coup du recul
+		setR(R.headR, p * 0.15 - R.rec * 0.03, clamp(sin(t * 0.6 + R.ph * 3) * 0.1 * (1 - st.alert), -0.2, 0.2), 0)
 		R.spineP = V(0, 0.07 + sin(t * 2 + R.ph) * 0.004, 0)
 		-- pose de l'arme
 		local rl = if st.reloadMax > 0 and st.reload > 0 then 1 - st.reload / st.reloadMax else -1

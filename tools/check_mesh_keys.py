@@ -96,6 +96,21 @@ for web, glow, cls in outfits:
     add_soldier('ohead:%d' % web, os.path.join(SM, 'Head_%d.lua' % web), hcls, 'tenue %d' % web)
     for t in tones:
         want.append(('i:s:pal:o%d:%s' % (web, t.lower()), 'palette tenue %d' % web))
+    for m in ('rgh', 'mtl'):
+        want.append(('i:s:%s:o%d' % (m, web), 'matière tenue %d' % web))
+
+# cartes de matière des soldats réalistes (SurfaceAppearance de SoldierModels) : relief et rugosité du corps, palettes
+for k in ('t', 'ct', 'ffa'):
+    for m in ('nrm:', 'rgh:', 'rgh:g:', 'mtl:g:'):
+        want.append(('i:s:' + m + k, 'matière soldat ' + k))
+
+# gants et manches de la vue subjective (HandModels / HandMeshes.lua) : h:glove:<R|L>:<matière>/<nv>/<nt>, h:sleeve:<u|f>/<nv>/<nt>
+htxt = read(os.path.join(SH, 'HandMeshes.lua'))
+for side in ('R', 'L'):
+    for m, nv, nt in re.findall(r'\t\t(fab|palm|pad|strap) = \{ nv = (\d+), nt = (\d+)', htxt):
+        want.append(('h:glove:%s:%s/%s/%s' % (side, m, nv, nt), 'gant ' + side))
+for m, nv, nt in re.findall(r'\t\t(u|f) = \{ nv = (\d+), nt = (\d+)', htxt):
+    want.append(('h:sleeve:%s/%s/%s' % (m, nv, nt), 'manche'))
 
 missing = [(k, o) for k, o in want if k not in known]
 print('clés demandées : %d ; présentes dans MeshAssets : %d ; manquantes : %d' % (len(want), len(want) - len(missing), len(missing)))

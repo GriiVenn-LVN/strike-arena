@@ -151,6 +151,9 @@ local function ragdoll(char: Model)
 				bs.LimitsEnabled = true; bs.UpperAngle = lim[1]
 				bs.TwistLimitsEnabled = true; bs.TwistLowerAngle = -lim[2]; bs.TwistUpperAngle = lim[2]
 			end
+			-- un peu de frottement aux articulations (tonus qui s'éteint) : le corps s'affaisse au lieu de gigoter comme un
+			-- pantin, sans se figer (≈ 5 % du couple de son propre poids)
+			pcall(function() bs.MaxFrictionTorque = p1:GetMass() * workspace.Gravity * 0.05 end)
 			bs.Parent = p1
 			m:Destroy()
 		end

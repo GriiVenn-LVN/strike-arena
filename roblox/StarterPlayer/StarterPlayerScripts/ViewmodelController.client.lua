@@ -26,6 +26,7 @@ local S = require(ReplicatedStorage.Shared.ClientState)
 local A = require(ReplicatedStorage.Shared.Attachments)
 local ReticleGui = require(ReplicatedStorage.Shared.ReticleGui)
 local ShotFx = require(ReplicatedStorage.Shared.ShotFx)          -- douilles éjectées (effets de tir du web)
+local HandModels = require(ReplicatedStorage.Shared.HandModels)  -- gants modelés et manches exportés du web
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -84,7 +85,8 @@ arms.cR.Material = Enum.Material.Fabric; arms.cL.Material = Enum.Material.Fabric
 -- ---------- gants tactiques modelés (src/55b_hands.js) ----------
 -- paume arrondie, quatre doigts en trois phalanges enroulés autour de la poignée, pouce opposé,
 -- coque des jointures, sangle de poignet ; la main gauche est le reflet de la droite.
-type GPiece = { p: BasePart, at: CFrame, mat: string }
+-- mirrored : maillage déjà reflété (gants exportés du web, HandModels), sinon pièce symétrique de la main droite
+type GPiece = { p: BasePart, at: CFrame, mat: string, mirrored: boolean? }
 local function newGlove(): { GPiece }
 	local list: { GPiece } = {}
 	local function add(p: BasePart, at: CFrame, mat: string)
@@ -197,7 +199,7 @@ local function setLeftHold(vert: boolean)
 	if leftVert == vert then return end
 	leftVert = vert
 	local inner = if vert then LEFT_VERT else LEFT_FLAT
-	for i, g in ipairs(gloveL) do leftAt[i] = mirror(inner * g.at) end
+	for i, g in ipairs(gloveL) do leftAt[i] = if g.mirrored then mirror(inner) * g.at else mirror(inner * g.at) end
 end
 setLeftHold(false)
 local function leftWrist(): Vector3
@@ -227,6 +229,35 @@ local function placeGloves(rootR: CFrame, rootL: CFrame?, hiddenCF: CFrame)
 	for i in ipairs(gloveL) do n += 1; gCFs[n] = if rootL then rootL * leftAt[i] else hiddenCF end
 	workspace:BulkMoveTo(gParts, gCFs, Enum.BulkMoveMode.FireCFrameChanged)
 end
+-- gants et manches exportés du web (HandModels) : dès que MeshUploader les a envoyés, ils remplacent les ~200 pièces
+-- arrondies ci-dessus par 8 maillages (4 matières × 2 mains) et les manches cylindriques par les cônes du soldat
+local MANCHE_U, MANCHE_F = 0.063 * 2 * 1.15, 0.054 * 2 * 1.15   -- diamètre en haut des cônes (×1,15 de place() du web)
+local sleeveMesh = false
+task.spawn(function()
+	local b = HandModels.build()
+	if not b then return end
+	for _, g in ipairs(gloveR) do g.p:Destroy() end
+	for _, g in ipairs(gloveL) do g.p:Destroy() end
+	table.clear(gloveR); table.clear(gloveL); table.clear(gParts); table.clear(gCFs)
+	for _, g in ipairs(b.R) do g.p.Parent = rig; table.insert(gloveR, { p = g.p :: BasePart, at = g.at, mat = g.mat, mirrored = nil } :: GPiece) end
+	for _, g in ipairs(b.L) do g.p.Parent = rig; table.insert(gloveL, { p = g.p :: BasePart, at = g.at, mat = g.mat, mirrored = true } :: GPiece) end
+	for _, g in ipairs(gloveR) do table.insert(gParts, g.p) end
+	for _, g in ipairs(gloveL) do table.insert(gParts, g.p) end
+	local was = leftVert
+	leftVert = nil; setLeftHold(was == true)
+	gloveLook = ""
+	if b.u and b.f then
+		local A = arms :: any
+		for _, k in ipairs({ "uR", "uL", "fR", "fL" }) do
+			local src = if string.sub(k, 1, 1) == "u" then b.u else b.f
+			local mp = (src :: MeshPart):Clone()
+			mp.Name = A[k].Name; mp.Color = A[k].Color; mp.CFrame = A[k].CFrame; mp.Parent = rig
+			A[k]:Destroy(); A[k] = mp
+		end
+		b.u:Destroy(); b.f:Destroy()
+		sleeveMesh = true
+	end
+end)
 local flash = part("Flash", Vector3.new(0.12, 0.12, 0.12), Color3.fromRGB(255, 214, 140), Enum.Material.Neon)
 flash.Shape = Enum.PartType.Ball
 local flashLight = Instance.new("PointLight"); flashLight.Color = Color3.fromRGB(255, 200, 120); flashLight.Range = 12; flashLight.Brightness = 0; flashLight.Parent = flash
@@ -472,8 +503,8 @@ local function placeArm(up: BasePart, fore: BasePart, cuff: BasePart, hand: Vect
 	pole = (pole - dir * pole:Dot(dir)).Unit
 	local el = sh + dir * a + pole * h
 	local function w(v: Vector3): Vector3 return camCF:PointToWorldSpace(v) end
-	seg(up, w(sh), w(el), ARM_U)
-	seg(fore, w(el), w(hand), ARM_F)
+	seg(up, w(sh), w(el), if sleeveMesh then MANCHE_U else ARM_U)
+	seg(fore, w(el), w(hand), if sleeveMesh then MANCHE_F else ARM_F)
 	cuff.CFrame = CFrame.lookAt(w(el:Lerp(hand, 0.9)), w(hand)) * CFrame.Angles(0, math.rad(90), 0)   -- axe X du cylindre le long de l'avant-bras
 end
 
