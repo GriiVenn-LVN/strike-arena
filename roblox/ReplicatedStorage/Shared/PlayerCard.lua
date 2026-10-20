@@ -46,7 +46,7 @@ PlayerCard.EMBLEMS = {
 	{ id = "aigle", n = "Aigle", ic = "🦅", need = { lvl = 12 } },
 	{ id = "dragon", n = "Dragon", ic = "🐉", need = { lvl = 25 } },
 	{ id = "lame", n = "Lame", ic = "🔪", need = { medal = "knife", n = 10 } },
-	{ id = "sang", n = "Premier sang", ic = "🩸", need = { medal = "first", n = 10 } },
+	{ id = "sang", n = "Premier sang", ic = "🔴", need = { medal = "first", n = 10 } },
 	{ id = "main", n = "Équipier", ic = "🤝", need = { medal = "assist", n = 25 } },
 	{ id = "bouclier", n = "Sauveur", ic = "🛡️", need = { medal = "save", n = 10 } },
 	{ id = "eclair", n = "Furie", ic = "⚡", need = { medal = "fury", n = 1 } },
