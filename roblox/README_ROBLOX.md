@@ -35,6 +35,13 @@ Pour les mises à jour suivantes : synchronise avec Rojo (section 1) ou rouvre u
 - **Vrais sons du web** : les 40 sons synthétisés du jeu web sont rendus dans un seul fichier, `strike-arena-sons.ogg`
   (`node tools/render_sounds.js <dossier>`, positions dans `SoundSheet.lua`). Importe-le sur create.roblox.com (*Créations → Audio*),
   puis mets son numéro dans `ModeConfig.SOUND_SHEET`. En attendant, les sons fournis avec Roblox servent de remplacement.
+- **Sons réalistes (deuxième planche)** : `roblox/assets/strike-arena-sons-2.ogg` (91 sons, 66 s, refait par
+  `node tools/render_sounds_real.js`, positions dans `SoundSheet2.lua`) : tirs en couches (détonation, culasse, queue
+  dehors / dedans, tir lointain grave et retardé), claquement des balles qui frôlent, douilles selon le sol, pas selon le
+  matériau avec tissu et équipement, glissade, réception, escalade, recharge en étapes (`Sfx.reloadStep`), impacts
+  (métal, bois, béton, chair, terre), touché confirmé, sifflement d'oreille. Importe-la comme la première
+  (*Créations → Audio*) et mets son numéro dans `ModeConfig.SOUND_SHEET_2` ; tant qu'il vaut 0, la première planche sert.
+  (MeshUploader ne peut pas l'envoyer : Roblox n'accepte pas d'audio fabriqué depuis Studio par `CreateAssetAsync`.)
 - **Robux** : tous les numéros de produits se mettent dans un seul fichier, `ReplicatedStorage/Shared/ProductIds.lua` (nom et prix en commentaire).
 
 ## 0 ter. Soldats du web : apparence, animations, ragdoll
@@ -74,7 +81,9 @@ ServerScriptService/MapBuilder.lua       construit une carte : collision exacte 
 StarterPlayerScripts/MapDetailController.client.lua  maillages détaillés, textures du web, halos, ciel / brouillard / lumière de la carte
 ServerScriptService/Modes/rounds.lua    modes à manches (Compétitif, Désamorçage rapide, Duel) : achat → manche → fin, bombe, économie, mi-temps ; koth / dom / ctf : zone, drapeaux ; HUD : ModeHud.client.lua
 ServerScriptService/Main.server.lua      point d'entrée + RemoteFunctions (profil, daily, défis, danses, skins)
-StarterPlayerScripts/CinematicController.client.lua   cinématique d'arrivée en hélicoptère (caméra scriptée, barres de cinéma)
+StarterPlayerScripts/CinematicController.client.lua   arrivée en hélicoptère / camion / blindé des modes en équipe (src/65_cine.js, src/65b_car.js)
+ServerScriptService/ArrivalService.lua                 lance l'arrivée pendant « PRÉPAREZ-VOUS » et attend la fin des scènes
+ReplicatedStorage/Shared/VehicleModels.lua             hélicoptère en pièces, blindé et camion (VehicleMeshes, tools/export_vehicles_lua.py)
 StarterPlayerScripts/EmoteController.client.lua       danses (touche T) via Animator
 StarterPlayerScripts/WeaponController.client.lua  tir à la première personne : clic gauche/droit, R, 1-2-3, molette, manette, tactile, recul, traceurs, sons
 StarterPlayerScripts/HudController.client.lua     HUD : score, vie/bouclier, munitions, marqueur de touche, chiffres de dégâts, direction des dégâts, fil, séries, Tab, fin
@@ -174,7 +183,7 @@ Tout se règle dans `ReplicatedStorage/Shared/CommunityConfig.lua` (sauf les cod
 | Particules GPU, impacts, douilles | `ParticleEmitter` / `Beam` / `Trail` ; décalques via `Decal` sur `result.Instance` |
 | Modèles d'armes procéduraux | `Tool` + `Handle` (MeshPart) ; skins = `SurfaceAppearance` (PBR) |
 | Soldats animés | R15 + animations de tir/recharge ; danses = `Animation` (Animation Editor) |
-| Cinématique hélicoptère | `CinematicController.client.lua` (Camera Scriptable + TweenService) |
+| Arrivée hélicoptère / véhicule | `CinematicController.client.lua` + `ArrivalService.lua` + `VehicleModels.lua` (maillages « v:… » envoyés par MeshUploader, sinon en pièces) |
 | Récompense quotidienne, défis, XP | `RewardService.lua` + DataStore |
 | Caisses 3D | `LootService` (serveur) + `ViewportFrame` côté client pour l'animation |
 | Touches personnalisables | `ContextActionService` + `profile.binds` (sauvegardé dans le DataStore) |

@@ -49,7 +49,7 @@ function ProgressService.claimTier(player: Player, tier: number, premium: boolea
 	local profile = DataService.get(player); if not profile then return nil end
 	ensure(profile)
 	local claimed = if premium then profile.bp.claimedPremium else profile.bp.claimedFree
-	if tier < 1 or tier > bpTier(profile) or table.find(claimed, tier) then return nil end
+	if tier ~= math.floor(tier) or tier < 1 or tier > bpTier(profile) or table.find(claimed, tier) then return nil end   -- palier entier seulement (1,5 ferait un palier fantôme)
 	if premium and not profile.bp.premium then return nil end
 	local r = X.bpReward(tier, premium)
 	if r.coins then profile.coins += r.coins end
@@ -252,15 +252,49 @@ end
 local function remote(name: string, fn: (Player, ...any) -> any)
 	local r = Instance.new("RemoteFunction"); r.Name = name; r.Parent = ReplicatedStorage; r.OnServerInvoke = fn
 end
+local RateLimit = require(script.Parent.RateLimit)
 remote("BP_Claim", function(p, tier: any, premium: any)
-	if typeof(tier) ~= "number" or typeof(premium) ~= "boolean" then return nil end
+	if typeof(tier) ~= "number" or typeof(premium) ~= "boolean" or not RateLimit.ok(p, "BP_Claim", 0.15) then return nil end
 	return ProgressService.claimTier(p, tier, premium)
 end)
 remote("BP_BuyPremium", function(p) return ProgressService.buyPremiumWithCoins(p) end)
+-- fenêtre du passe de combat (PassUI) : paliers gratuits et Premium, avec l'objet exact de chaque palier Premium
+-- (même tirage que claimTier) pour l'aperçu 3D ; « tout récupérer » d'un coup. Cadence limitée.
+remote("BP_State", function(p)
+	if not RateLimit.ok(p, "BP_State", 0.25) then return nil end
+	local profile = DataService.get(p); if not profile then return nil end
+	ensure(profile)
+	local tiers = {}
+	for t = 1, X.SEASON.tiers do
+		local free, prem = X.bpReward(t, false), X.bpReward(t, true)
+		local item = if prem.item then seededItem(t, prem.rarity) else nil
+		table.insert(tiers, { free = free, prem = prem, item = item })
+	end
+	return { name = X.SEASON.name, tier = bpTier(profile), max = X.SEASON.tiers, xp = profile.bp.xp, xpPerTier = X.SEASON.xpPerTier,
+		premium = profile.bp.premium, claimedFree = profile.bp.claimedFree, claimedPremium = profile.bp.claimedPremium,
+		premiumCoins = X.SEASON.premiumCoins, premiumRobux = X.SEASON.premiumRobux, coins = profile.coins, tiers = tiers }
+end)
+remote("BP_ClaimAll", function(p)
+	if not RateLimit.ok(p, "BP_ClaimAll", 1) then return nil end
+	local profile = DataService.get(p); if not profile then return nil end
+	ensure(profile)
+	local got = {}
+	for t = 1, bpTier(profile) do
+		for _, prem in ipairs({ false, true }) do
+			local list = if prem then profile.bp.claimedPremium else profile.bp.claimedFree
+			if not table.find(list, t) and (not prem or profile.bp.premium) then
+				local r = ProgressService.claimTier(p, t, prem)
+				if r then r.tier = t; r.premium = prem; table.insert(got, r) end
+			end
+		end
+	end
+	if #got > 0 then task.spawn(DataService.save, p) end
+	return got
+end)
 remote("EventStatus", function(p) return ProgressService.eventStatus(p) end)
 remote("PumpkinCollected", function(p, id: any)
 	-- la citrouille existe côté serveur (Part nommée "Pumpkin") : on vérifie la distance avant de créditer
-	if typeof(id) ~= "Instance" or id.Name ~= "Pumpkin" or not id:IsDescendantOf(workspace) then return nil end
+	if typeof(id) ~= "Instance" or not id:IsA("BasePart") or id.Name ~= "Pumpkin" or not id:IsDescendantOf(workspace) then return nil end
 	local root = p.Character and p.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
 	if not root or ((id :: BasePart).Position - root.Position).Magnitude > 12 then return nil end
 	id:Destroy()

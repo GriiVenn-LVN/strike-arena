@@ -43,6 +43,8 @@ RunService.Heartbeat:Connect(function(dt: number)
 	pitchT += dt
 	if pitchT < 0.1 or not pitchRemote then return end
 	pitchT = 0
+	-- kill-cam, arrivée, spectateur, mode photo : la caméra n'est pas notre regard
+	if S.kc ~= nil or camera.CameraType ~= Enum.CameraType.Custom then return end
 	local p = math.asin(math.clamp(camera.CFrame.LookVector.Y, -1, 1))
 	if math.abs(p - lastPitch) > 0.01 then lastPitch = p; (pitchRemote :: UnreliableRemoteEvent):FireServer(p) end
 end)
@@ -151,7 +153,7 @@ local chevron = make("TextLabel", { AnchorPoint = Vector2.new(0.5, 0), Position 
 -- ---------- rediffusion ----------
 type Ghost = { model: Model, map: { [BasePart]: BasePart }, alpha: { [BasePart]: number }, gun: Model?, gunKey: string?, hand: BasePart?, src: Model, skin: number?, camo: string? }
 local KC = {
-	on = false, rt = 0, prev = 0, t0 = 0, t1 = 0, tk = 0, hold = 0, wait = 0, blood = false, zoom = 1,
+	on = false, setup = false, rt = 0, prev = 0, t0 = 0, t1 = 0, tk = 0, hold = 0, wait = 0, blood = false, zoom = 1,
 	killer = nil :: Model?, victim = nil :: Model?, ghosts = {} :: { [Model]: Ghost }, hidden = {} :: { BasePart },
 	guis = {} :: { ScreenGui }, info = nil :: any, highlight = nil :: Highlight?, rpShots = {} :: { Shot },
 	skin = nil :: number?, camo = nil :: string?, savedType = Enum.CameraType.Custom, savedFov = BASE_FOV,
@@ -258,8 +260,12 @@ local function stop()
 	KC.ghosts = {}
 	hideLive(false)
 	hideHud(false)
-	camera.CameraType = KC.savedType
-	camera.FieldOfView = KC.savedFov
+	-- la caméra n'a été prise qu'à la fin de la petite pause (finishSetup) : avant, rien à rendre
+	if KC.setup then
+		KC.setup = false
+		camera.CameraType = if KC.savedType == Enum.CameraType.Scriptable then Enum.CameraType.Custom else KC.savedType
+		camera.FieldOfView = KC.savedFov
+	end
 	if holdRemote then holdRemote:FireServer(false) end
 end
 
@@ -300,7 +306,7 @@ local function finishSetup()
 	KC.rpShots = table.clone(shots)
 	for _, g in pairs(KC.ghosts) do g.model.Parent = workspace end
 	hideLive(true); hideHud(true)
-	KC.savedType = camera.CameraType; KC.savedFov = camera.FieldOfView
+	KC.savedType = camera.CameraType; KC.savedFov = camera.FieldOfView; KC.setup = true
 	camera.CameraType = Enum.CameraType.Scriptable
 	gui.Enabled = true
 	local vg = KC.victim and KC.ghosts[KC.victim]
@@ -442,8 +448,8 @@ deathRemote.OnClientEvent:Connect(function(info: any)
 	begin(info)
 end)
 
-UserInputService.InputBegan:Connect(function(input: InputObject)
-	if not KC.on or KC.wait > 0 then return end
+UserInputService.InputBegan:Connect(function(input: InputObject, processed: boolean)
+	if processed or not KC.on or KC.wait > 0 then return end   -- pas quand on tape dans le chat
 	if input.KeyCode == Enum.KeyCode.Space or input.KeyCode == Enum.KeyCode.ButtonA or input.UserInputType == Enum.UserInputType.MouseButton1
 		or input.UserInputType == Enum.UserInputType.Touch then
 		stop()

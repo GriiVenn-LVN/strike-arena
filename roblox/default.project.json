@@ -6,6 +6,14 @@
       "$className": "Workspace",
       "$properties": { "StreamingEnabled": false, "AvatarJointUpgrade_Serialized": { "Enum": 2 } }
     },
+    "Lighting": {
+      "$className": "Lighting",
+      "$properties": { "Technology": "Future", "GlobalShadows": true, "EnvironmentDiffuseScale": 1, "EnvironmentSpecularScale": 1 }
+    },
+    "MaterialService": {
+      "$className": "MaterialService",
+      "$properties": { "Use2022Materials": true }
+    },
     "Players": {
       "$className": "Players",
       "$properties": { "CharacterAutoLoads": false }
@@ -20,7 +28,8 @@
     },
     "StarterPlayer": {
       "$className": "StarterPlayer",
-      "StarterPlayerScripts": { "$path": "StarterPlayer/StarterPlayerScripts" }
+      "StarterPlayerScripts": { "$path": "StarterPlayer/StarterPlayerScripts" },
+      "StarterCharacterScripts": { "$path": "StarterPlayer/StarterCharacterScripts" }
     },
     "ServerStorage": {
       "$className": "ServerStorage",

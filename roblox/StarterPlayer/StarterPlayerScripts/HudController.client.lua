@@ -612,6 +612,7 @@ local function setVeil(list: { Frame }, alpha: number)
 	for _, f in ipairs(list) do f.BackgroundTransparency = 1 - clamp(alpha, 0, 1) end
 end
 local hurtAlpha = 0
+local lowPhase = 0
 
 -- direction des tirs reçus : l'arc suit la position du tireur quand on se retourne
 type Dir = { holder: Frame, arc: Frame, chev: TextLabel, from: Vector3, att: Instance?, t: number, k: number }
@@ -750,20 +751,25 @@ local deathTitle = label(deathFrame, { AnchorPoint = Vector2.new(0.5, 0), Positi
 	ZIndex = 6, RichText = true, TextStrokeTransparency = 0.5, Text = "" })
 local respawnNum = label(deathFrame, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0.36), Size = UDim2.fromOffset(300, 70), TextSize = 64, Font = FONT,
 	ZIndex = 6, TextStrokeTransparency = 0.6, Text = "" })
-label(deathFrame, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0.36, 74), Size = UDim2.fromOffset(700, 20), TextSize = 14, Font = FONT, ZIndex = 6,
+local respawnHint = label(deathFrame, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0.36, 74), Size = UDim2.fromOffset(700, 20), TextSize = 14, Font = FONT, ZIndex = 6,
 	TextColor3 = C.gold, TextStrokeTransparency = 0.6, Text = spaced("RÉAPPARITION — B : CHOISIR UNE ARME", 1) })
+local deathToken = 0
 deathRemote.OnClientEvent:Connect(function(d: any)
 	deathFrame.Visible = true; deathFrame.BackgroundTransparency = 1
 	tween(deathFrame, 0.4, { BackgroundTransparency = 0.6 })
 	deathTitle.Text = spaced("ÉLIMINÉ PAR", 1) .. '  <font color="#ffd75e">' .. tostring(d.killer) .. "</font>   " .. '<font color="#8da0bd">' .. tostring(d.weapon)
 		.. (if d.headshot then " · tête" else "") .. "</font>"
-	local left = d.respawn
+	-- pas de réapparition (manches, Élimination) : respawn est absent ; une nouvelle mort relance le compte à rebours
+	local left = if typeof(d.respawn) == "number" then math.ceil(d.respawn) else 0
+	respawnHint.Visible = left > 0
+	deathToken += 1
+	local my = deathToken
 	task.spawn(function()
-		while left > 0 and deathFrame.Visible do
+		while left > 0 and deathFrame.Visible and my == deathToken do
 			respawnNum.Text = tostring(left)
 			task.wait(1); left -= 1
 		end
-		respawnNum.Text = ""
+		if my == deathToken then respawnNum.Text = "" end
 	end)
 end)
 
@@ -841,7 +847,8 @@ local function showBoard(on: boolean)
 		board.Visible = false
 	end
 end
-UserInputService.InputBegan:Connect(function(input)
+UserInputService.InputBegan:Connect(function(input, processed)
+	if processed then return end   -- Tab dans le chat
 	if input.KeyCode == Enum.KeyCode.Tab or input.KeyCode == Enum.KeyCode.ButtonSelect then showBoard(true) end
 end)
 UserInputService.InputEnded:Connect(function(input)
@@ -872,6 +879,20 @@ local endLeave = make("TextButton", { AnchorPoint = Vector2.new(0.5, 1), Positio
 	AutoButtonColor = true, Modal = true, ZIndex = 32 }, endFrame)
 corner(endLeave, 4)
 make("UIStroke", { Color = C.red, Thickness = 1.5, Transparency = 0.2, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, endLeave)
+-- petits écrans (téléphone à l'horizontale : 844 × 390) : tout l'écran de fin rétrécit et les bandeaux du bas (bouton,
+-- compte à rebours, vote de la carte de MapVoteController) se resserrent ; sinon cartes, bouton et vote se chevauchaient
+local endScales: { UIScale } = {}
+for _, o in ipairs({ endScore, endCards, endNext, endLeave } :: { GuiObject }) do table.insert(endScales, make("UIScale", { Scale = 1 }, o)) end
+local function endLayout(): number
+	local cam = workspace.CurrentCamera
+	local vp = if cam then cam.ViewportSize else Vector2.new(1600, 900)
+	local k = math.clamp(math.min(vp.X / 1400, vp.Y / 800), 0.5, 1)
+	for _, sc in ipairs(endScales) do sc.Scale = k end
+	endLeave.Position = UDim2.new(0.5, 0, 1, -76 * k)
+	endNext.Position = UDim2.new(0.5, 0, 1, -40 * k)
+	return k
+end
+
 endLeave.Activated:Connect(function()
 	endLeave.Text = spaced("RETOUR AU SALON…", 1)
 	local ok = pcall(function() leaveFn:InvokeServer() end)
@@ -879,6 +900,7 @@ endLeave.Activated:Connect(function()
 	if ok then endFrame.Visible = false end
 end)
 
+local endToken = 0
 local function card(title: string, lines: { string }, accent: Color3, delay: number)
 	local f = make("Frame", { Size = UDim2.fromOffset(240, 150), BackgroundColor3 = C.panel2, BackgroundTransparency = 1, ZIndex = 31 }, endCards)
 	corner(f, 4)
@@ -902,8 +924,9 @@ endRemote.OnClientEvent:Connect(function(r: any)
 	tween(endFrame, 0.5, { BackgroundTransparency = 0.25 })
 	endTitle.Text = spaced(if r.draw then "ÉGALITÉ" elseif r.won then "VICTOIRE" else "DÉFAITE", 2)
 	endTitle.TextColor3 = if r.draw then C.text elseif r.won then C.gold else C.red
-	endTitleScale.Scale = 2.2; endTitle.TextTransparency = 1
-	tween(endTitleScale, 0.5, { Scale = 1 }, Enum.EasingStyle.Back); tween(endTitle, 0.3, { TextTransparency = 0 })
+	local k = endLayout()
+	endTitleScale.Scale = 2.2 * k; endTitle.TextTransparency = 1
+	tween(endTitleScale, 0.5, { Scale = k }, Enum.EasingStyle.Back); tween(endTitle, 0.3, { TextTransparency = 0 })
 	local t1, t2 = lastState and lastState.teams[1] or "", lastState and lastState.teams[2] or ""
 	if r.team then
 		endScore.Text = string.format("%s  %d  —  %d  %s", t1, r.score[t1] or 0, r.score[t2] or 0, t2)
@@ -917,16 +940,18 @@ endRemote.OnClientEvent:Connect(function(r: any)
 	if r.mvp then
 		card("Meilleur joueur", { (if r.mvp.bot then "[BOT] " else "") .. r.mvp.name, r.mvp.k .. " éliminations", r.mvp.score .. " points" }, C.gold, 0.7)
 	end
-	if r.rewards then
+	if r.rewards and not r.recap then   -- avec le bilan détaillé (RewardScreen, à droite), pas de 3e carte
 		local lines = { "+" .. r.rewards.xp .. " XP", "+" .. r.rewards.coins .. " pièces" }
 		local ups = r.rewards.levelUps
 		if typeof(ups) == "table" and #ups > 0 then table.insert(lines, "Niveau supérieur !") end
 		if r.progress and (r.progress.tiersGained or 0) > 0 then table.insert(lines, "+" .. r.progress.tiersGained .. " palier(s) du passe") end
 		card("Récompenses", lines, C.green, 0.9)
 	end
+	endToken += 1
+	local my = endToken
 	task.spawn(function()
 		local left = r.next or 15
-		while left > 0 and endFrame.Visible do
+		while left > 0 and endFrame.Visible and my == endToken do
 			endNext.Text = "Prochaine partie dans " .. left .. " s — même mode"
 			task.wait(1); left -= 1
 		end
@@ -1043,7 +1068,8 @@ local ghostHp, ghostT = 100, 0
 player.CharacterAdded:Connect(function(char)
 	deathFrame.Visible = false
 	ghostHp = 100
-	local hum = char:WaitForChild("Humanoid") :: Humanoid
+	local hum = char:WaitForChild("Humanoid", 10) :: Humanoid?
+	if not hum then return end
 	local last = hum.Health
 	hum.HealthChanged:Connect(function(hp)
 		if hp < last then ghostT = os.clock() + 0.45 end
@@ -1058,6 +1084,8 @@ RunService.RenderStepped:Connect(function(dt: number)
 	local maxHp = if hum then hum.MaxHealth else 100
 	local frac = hp / maxHp
 	local t = os.clock()
+	-- spectateur (après la kill-cam, sans réapparition) : le voile rouge de l'écran de mort ne reste pas sur la vue
+	if deathFrame.Visible and S.spectate ~= nil then deathFrame.Visible = false end
 	-- vie : chiffre (rouge et qui pulse sous 30), jauge, traînée blanche qui rattrape la vie restante
 	hpText.Text = tostring(math.ceil(hp))
 	hpText.TextColor3 = if hp > 0 and hp < 30 then (if t % 0.8 < 0.4 then rgb(0xff5050) else rgb(0xff8080)) else C.text
@@ -1073,7 +1101,10 @@ RunService.RenderStepped:Connect(function(dt: number)
 	-- voiles rouges
 	hurtAlpha = math.max(0, hurtAlpha - dt / 0.7)
 	setVeil(hurtVeil, hurtAlpha * 0.85)
-	setVeil(lowVeil, if frac < 0.3 and hp > 0 then 0.35 + 0.25 * math.sin(t * 5.7) else 0)
+	-- sous 30 PV, le bord bat plus vite et plus fort quand la santé baisse (src/8I_lowhp.js : période 1,1 s -> 0,7 s)
+	local lowK = clamp(1 - hp / 30, 0, 1)
+	lowPhase += dt * 2 * math.pi / (1.1 - 0.4 * lowK)
+	setVeil(lowVeil, if hp > 0 and hp < 30 then (0.35 + 0.25 * math.sin(lowPhase)) * (0.85 + 0.35 * lowK) else 0)
 	local prot = char and char:GetAttribute("ProtectedUntil")
 	protectLabel.Text = if typeof(prot) == "number" and prot > workspace:GetServerTimeNow() then "◇ Protection d'apparition" else ""
 
@@ -1117,7 +1148,8 @@ RunService.RenderStepped:Connect(function(dt: number)
 		relBar.Visible = reloading
 		if reloading then
 			local started = player:GetAttribute("ReloadStart") :: number? or t
-			relFill.Size = UDim2.fromScale(clamp((t - started) / math.max(w.reload, 0.1), 0, 1), 1)
+			local dur = player:GetAttribute("ReloadDur")          -- durée réelle (accessoires, atouts) : WeaponController
+			relFill.Size = UDim2.fromScale(clamp((t - started) / math.max(if typeof(dur) == "number" and dur > 0 then dur else w.reload, 0.1), 0, 1), 1)
 		end
 	else
 		relBar.Visible = false

@@ -2,10 +2,12 @@
 -- ReplicatedStorage/Shared/MapAmbience (ModuleScript, client)
 -- Ambiance de la carte où se trouve le joueur, comme sur le web (applyTheme / buildSky de src/40_gfx.js, thèmes de
 -- src/41_gfx_themes.js, 42_haunt.js, 8W_halloween.js, poussière de src/50_fx.js), avec ce que Roblox fait nativement :
---   • lumière : style réaliste (ombres nettes et douces), soleil placé dans la direction du thème (sunPos), lumière
---     du ciel et du sol (hémisphère du web), reflets du ciel (env du thème), exposition, brouillard du thème ;
+--   • lumière : éclairage Future (Lighting.Technology dans default.project.json : pas réglable par script), style
+--     réaliste (ombres nettes et douces), soleil placé dans la direction du thème (sunPos), lumière du ciel et du sol
+--     (hémisphère du web), reflets du ciel assez forts pour les matériaux PBR (env du thème), exposition, brouillard du
+--     thème, rendu aussi par une Atmosphere (brume, halo du soleil, horizon fondu) ;
 --   • ciel : dégradé du web (MapDress.skyImages), soleil, lune des cartes hantées, halo de la lune, étoiles, nuages ;
---   • post-traitement du web : bloom (plus fort de nuit), saturation ×1,1, contraste ×1,06, rayons du soleil le jour,
+--   • post-traitement du web : bloom (plus fort de nuit), saturation ×1,1, contraste, teinte légère du thème, rayons du soleil le jour,
 --     flou très léger au loin (hors de la zone de jeu) ;
 --   • particules autour de la caméra : poussière qui flotte (toutes les cartes), neige (Station), feuilles (Temple).
 -- Rien de neuf à envoyer sur Roblox : les images viennent de MapDress (déjà dans MeshAssets).
@@ -57,7 +59,7 @@ end
 local function low(): boolean return not Lighting.GlobalShadows end
 
 -- ---------- état de la carte habillée ----------
-type State = { key: string, origin: Vector3, center: Vector3, night: boolean, holder: Folder, sky: Sky?, clouds: Clouds?,
+type State = { key: string, origin: Vector3, center: Vector3, night: boolean, holder: Folder, sky: Sky?, clouds: Clouds?, atmo: Atmosphere?,
 	emit: Part?, emitters: { ParticleEmitter }, stars: Part?, conn: RBXScriptConnection? }
 local cur: State? = nil
 
@@ -266,6 +268,7 @@ local function clearMap()
 	if not st then return end
 	if st.conn then st.conn:Disconnect() end
 	if st.sky then st.sky:Destroy() end
+	if st.atmo then st.atmo:Destroy() end
 	st.holder:Destroy()
 end
 
@@ -314,8 +317,9 @@ function MapAmbience.apply(f: Instance)
 		L.ColorShift_Top = sunC
 		L.ColorShift_Bottom = hemiG
 		L.ExposureCompensation = math.clamp(math.log(th.exp or 1, 2), -1, 1)
-		L.EnvironmentDiffuseScale = math.clamp(ex.env * 1.1, 0.1, 1)
-		L.EnvironmentSpecularScale = math.clamp(ex.env * 1.3, 0.15, 1)
+		-- reflets du ciel : les matériaux PBR (métal, béton, bois…) en ont besoin pour paraître réels
+		L.EnvironmentDiffuseScale = math.clamp(ex.env * 1.1 + 0.3, 0.35, 1)
+		L.EnvironmentSpecularScale = math.clamp(ex.env * 1.3 + 0.4, 0.45, 1)
 		L.FogColor = c3(th.fog); L.FogStart = (th.fogN or 50) * U; L.FogEnd = (th.fogF or 200) * U
 	end)
 	pcall(placeSun, id, sunDir)
@@ -348,6 +352,24 @@ function MapAmbience.apply(f: Instance)
 	sky.Parent = Lighting
 	st.sky = sky
 	pcall(setClouds, st, th)                           -- métro : cov = 0, pas de nuages
+
+	-- atmosphère : brume de la couleur du brouillard du web, plus dense sur les cartes courtes (asile : 78 m) que sur les
+	-- grandes (village : 210 m) ; halo autour du soleil le jour, horizon fondu dans le ciel. Plafond 0,36 : au-delà (0,44
+	-- dans l'asile, avec un voile de 1,6), la brume quasi noire de nuit cachait le bout des couloirs et les zombies à 25 m,
+	-- alors que le brouillard linéaire du web laisse encore voir à mi-carte.
+	pcall(function()
+		local a = Instance.new("Atmosphere")
+		a.Name = "MapAtmosphere"
+		local far = th.fogF or 200
+		a.Density = math.clamp(0.04 + 0.26 * 120 / far, 0.18, 0.36)
+		a.Offset = if themeName == "metro" then 0 else 0.12
+		a.Color = c3(th.fog)
+		a.Decay = scale(c3(th.hemiG), 0.85)
+		a.Glare = if night or themeName == "metro" then 0 else 0.35
+		a.Haze = if base == "haunt" then 1.2 elseif night then 1 else 0.9
+		a.Parent = Lighting
+		st.atmo = a
+	end)
 	if themeName ~= "metro" then
 		if night then
 			pcall(buildHalo, st, sunDir, ex.halo or c3(th.sunC), if ex.halo then 33 else 29, if ex.halo then 0.45 else 0.35)
@@ -360,9 +382,15 @@ function MapAmbience.apply(f: Instance)
 	bloom.Intensity = if dark then 0.75 else 0.35
 	bloom.Size = if dark then 32 else 26
 	bloom.Threshold = if dark then 0.95 else 1.35
-	rays.Intensity = if night or themeName == "metro" then 0 else 0.05
-	rays.Spread = 0.7
-	grade.Saturation = 0.1; grade.Contrast = 0.06; grade.Brightness = 0; grade.TintColor = Color3.new(1, 1, 1)
+	rays.Intensity = if night or themeName == "metro" then 0 else 0.08
+	rays.Spread = 0.65
+	-- teinte légère par thème : chaude au soleil du désert, froide sur la neige et la nuit, verdâtre dans l'asile
+	local TINT: { [string]: Color3 } = {
+		sand = Color3.new(1, 0.98, 0.94), jungle = Color3.new(0.98, 1, 0.95), snow = Color3.new(0.95, 0.98, 1),
+		night = Color3.new(0.93, 0.96, 1), metro = Color3.new(0.97, 0.98, 1), haunt = Color3.new(0.94, 1, 0.95),
+		halloween = Color3.new(1, 0.95, 0.9),
+	}
+	grade.Saturation = 0.1; grade.Contrast = 0.08; grade.Brightness = 0; grade.TintColor = TINT[themeName] or Color3.new(1, 1, 1)
 	grade.Enabled = true
 	-- flou léger seulement au-delà de la zone de jeu (relief et silhouettes lointaines)
 	depth.FocusDistance = sz * 0.75; depth.InFocusRadius = sz * 0.75; depth.FarIntensity = 0.12; depth.NearIntensity = 0

@@ -145,7 +145,7 @@ render = function()
 		local status = if isSel then "✔ ÉQUIPÉE" elseif have then "Choisir" else ("🔒 " .. Catalog.weaponPrice(key) .. " 🪙 · Boutique")
 		make("TextLabel", { Size = UDim2.new(1, -24, 0, 18), Position = UDim2.new(0, 12, 1, -24), Text = status, TextSize = 13,
 			TextXAlignment = Enum.TextXAlignment.Right, TextColor3 = if isSel then C.accent elseif have then C.green else C.gold, ZIndex = 53 }, card)
-		card.MouseButton1Click:Connect(function() if have and not isSel then choose(key) end end)
+		card.Activated:Connect(function() if have and not isSel then choose(key) end end)
 	end
 	for _, b in ipairs(tabs:GetChildren()) do
 		if b:IsA("TextButton") then b.BackgroundColor3 = if b.Name == state.tab then C.accent else C.panel end
@@ -155,7 +155,7 @@ end
 for _, t in ipairs({ { "primary", "Arme principale" }, { "secondary", "Pistolet" }, { "arms", "Armurier" }, { "sights", "Viseurs" } }) do
 	local b = make("TextButton", { Name = t[1], Size = UDim2.fromOffset(180, 40), BackgroundColor3 = C.panel, Text = t[2], TextSize = 16, ZIndex = 52 }, tabs)
 	corner(b)
-	b.MouseButton1Click:Connect(function() state.tab = t[1]; render() end)
+	b.Activated:Connect(function() state.tab = t[1]; render() end)
 end
 
 local function setOpen(on: boolean)
@@ -172,8 +172,8 @@ local function setOpen(on: boolean)
 		render()
 	end
 end
-openBtn.MouseButton1Click:Connect(function() setOpen(not win.Visible) end)
-close.MouseButton1Click:Connect(function() setOpen(false) end)
+openBtn.Activated:Connect(function() setOpen(not win.Visible) end)
+close.Activated:Connect(function() setOpen(false) end)
 ContextActionService:BindAction("Loadout", function(_, st)
 	if player:GetAttribute("Zone") == "match" then return Enum.ContextActionResult.Pass end   -- en partie, B = boutique (BuyMenu)
 	if st == Enum.UserInputState.Begin then setOpen(not win.Visible) end
@@ -193,3 +193,5 @@ player:GetAttributeChangedSignal("Zone"):Connect(refreshOpenBtn)
 refreshOpenBtn()
 gui.DisplayOrder = 30   -- au-dessus du menu (19)
 require(ReplicatedStorage.Shared.ClientState).panels.loadout = function() setOpen(not win.Visible) end
+-- B / Échap / Retour arrière ferment la fenêtre (avant le menu) ; à la manette, la sélection arrive sur la croix
+require(script.Parent:WaitForChild("Menu"):WaitForChild("Kit")).overlay(win, function() setOpen(false) end, function() return close end)

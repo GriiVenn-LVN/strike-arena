@@ -8,11 +8,16 @@
 -- Aussi : sortie d'arme amortie avec figure des skins Épiques et plus (55c_inspect.js), main droite qui arme la culasse
 -- à vide, chargeur vide qui tombe dans la vue, crosse masquée en visée, et la caméra du web (90_main.js placeCamera) :
 -- balancement de tête, roulis en pas de côté et en glissade, plongeon à l'atterrissage, champ élargi en sprint.
+-- Façon Call of Duty en plus : escalade avec la main gauche (ou les deux mains sur un rebord haut) posée sur le rebord,
+-- arme baissée et caméra qui plonge vers l'avant ; recharge tactique (chargeur encore entamé rangé par la main gauche)
+-- ou à vide (chargeur lâché qui tombe, puis armement) ; bras gauche qui balance en sprint tactique ; arme qui vibre en
+-- glissade. Le balancement de tête et le plongeon d'atterrissage suivent le réglage « Secousses de l'écran ».
 -- Les distances sont en mètres comme sur le web (1 m = 1 stud ici : tout est relatif à la caméra).
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Debris = game:GetService("Debris")
+local HttpService = game:GetService("HttpService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local WeaponModels = require(ReplicatedStorage.Shared.WeaponModels)
@@ -20,6 +25,7 @@ local SkinPaint = require(ReplicatedStorage.Shared.SkinPaint)
 local S = require(ReplicatedStorage.Shared.ClientState)
 local A = require(ReplicatedStorage.Shared.Attachments)
 local ReticleGui = require(ReplicatedStorage.Shared.ReticleGui)
+local ShotFx = require(ReplicatedStorage.Shared.ShotFx)          -- douilles éjectées (effets de tir du web)
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -28,6 +34,8 @@ local VM_SCALE = 1.12                                   -- le web agrandit les m
 local FOV_K = math.tan(math.rad(35)) / math.tan(math.rad(30))   -- le web dessine l'arme à 60° de champ, Roblox est à 70°
 local STUDS_PER_M = Config.STUDS_PER_METER
 local NO_MAG_SHOW = { p90 = true, m249 = true }         -- trop gros pour être montrés en inspection (comme sur le web)
+-- temps de visée selon la famille d'arme (façon Call of Duty : pistolet vif, mitrailleuse et précision lourds)
+local ADS_CAT: { [string]: number } = { pistol = 0.8, smg = 0.88, rifle = 1, shotgun = 1.05, sniper = 1.25, lmg = 1.32 }
 
 local function clamp(x: number, a: number, b: number): number return math.max(a, math.min(b, x)) end
 local function lerp(a: number, b: number, t: number): number return a + (b - a) * t end
@@ -35,6 +43,18 @@ local function smooth01(x: number): number x = clamp(x, 0, 1); return x * x * (3
 
 local Sfx = require(ReplicatedStorage.Shared.Sfx)
 local function sfx(name: string, vol: number?) Sfx.play(name, nil, vol) end
+
+-- réglage d'accessibilité « Secousses de l'écran » (attribut Access, AccessibilityController) : 0 = tête immobile
+local shakeK = 1
+local function readShake()
+	shakeK = 1
+	local raw = player:GetAttribute("Access")
+	if typeof(raw) ~= "string" then return end
+	local ok, data = pcall(HttpService.JSONDecode, HttpService, raw)
+	if ok and typeof(data) == "table" and typeof(data.shake) == "number" then shakeK = clamp(data.shake, 0, 1) end
+end
+player:GetAttributeChangedSignal("Access"):Connect(readShake)
+readShake()
 
 -- ---------- rig : dossier sous la caméra ----------
 local rig = Instance.new("Folder"); rig.Name = "Viewmodel"; rig.Parent = camera
@@ -211,7 +231,7 @@ local VM = {
 	key = nil :: string?, model = nil :: Model?, magParts = {} :: { BasePart }, magC = Vector3.zero, magDir = Vector3.new(0.18, -1, 0).Unit,
 	left = Vector3.zero, twoHand = true, sightY = 0.06, muzzle = Vector3.zero, hasMag = false, hasBolt = false, pistol = false,
 	kick = 0, kv = 0, sx = 0, sy = 0, sxv = 0, syv = 0, land = 0, lv = 0, strafe = 0, bph = 0, ads = 0,
-	spr = 0, tac = 0, sld = 0, mnt = 0,
+	spr = 0, tac = 0, sld = 0, mnt = 0, mhi = 0,
 	drawT = 0, drawMax = 0.35, flashT = 0, swingT = 0, boltT = 0, pumpT = 0,
 	relKey = 0, relSnd = 0, relDrop = false, relEmpty = false, inspSnd = 0,
 	sig = "", att = {} :: { string }, mods = A.neutral(), noFlash = false,
@@ -219,7 +239,9 @@ local VM = {
 	relShells = 3, boltC = Vector3.zero, boltX = 0, stock = {} :: { BasePart },
 	drawQ = 0, drawFl = false, drawK = "long", drawRack = false, glintK = 0, glintX = 0,
 	-- caméra (placeCamera du web) : ressort d'atterrissage, phase du balancement, tangage déjà ajouté, champ posé
-	camL = 0, camLv = 0, camAir = 0, camGround = true, camPit = 0, bobT = 0, fovSet = -1, fovBase = 70,
+	camL = 0, camLv = 0, camAir = 0, camGround = true, camPit = 0, fovSet = -1, fovBase = 70,
+	-- visée linéaire avant la courbe adoucie, traînée de la souris filtrée (inertie), calage sur les pas entendus
+	adsL = 0, stx = 0, sty = 0, lastStep = 0, phErr = 0, stepK = 0,
 }
 -- chargeurs vides qui tombent : copies ancrées, déplacées dans le repère de la caméra (vmDropsUpdate du web)
 type Drop = { parts: { BasePart }, rel: { CFrame }, pos: Vector3, r0: CFrame, ang: Vector3, v: Vector3, s: Vector3, t: number }
@@ -328,17 +350,10 @@ S.onShot:Connect(function(key: string)
 	VM.flashT = 0.05
 	if w.cat == "sniper" and not w.auto then VM.boltT = 0.8; task.delay(0.38, sfx, "bolt", 0.6) end
 	if w.cat == "shotgun" and not w.auto then VM.pumpT = 0.6; task.delay(0.3, sfx, "pump", 0.6) end
-	-- douille éjectée à droite
-	if VM.model and w.cat ~= "shotgun" then
+	-- douille éjectée à droite : vraie douille du décor qui rebondit (ShotFx), partie de la fenêtre d'éjection
+	if VM.model and (w.cat ~= "shotgun" or w.auto) then
 		local grip = VM.model.PrimaryPart :: BasePart
-		local shell = Instance.new("Part"); shell.Size = Vector3.new(0.012, 0.012, 0.035)   -- en mètres, comme tout le viewmodel
-		shell.Color = Color3.fromRGB(200, 160, 70); shell.Material = Enum.Material.Metal
-		shell.CanCollide = false; shell.CanQuery = false; shell.CanTouch = false; shell.CastShadow = false
-		shell.CFrame = grip.CFrame * CFrame.new(0.03, 0.04, -0.05)
-		shell.Parent = workspace
-		shell.AssemblyLinearVelocity = grip.CFrame:VectorToWorldSpace(Vector3.new(5 + math.random() * 2, 4 + math.random() * 2, 1))
-		shell.AssemblyAngularVelocity = Vector3.new(math.random() * 20, math.random() * 20, math.random() * 20)
-		Debris:AddItem(shell, 1.2)
+		ShotFx.ownShell((grip.CFrame * CFrame.new(0.03, 0.04, -0.05)).Position)
 	end
 end)
 S.onReload:Connect(function(_key: string, empty: boolean)
@@ -440,7 +455,13 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 	local kc = S.kc                         -- kill-cam : l'arme du tueur, dans ses mains (KillcamController)
 	local key = if kc then kc.key else S.weapon
 	local alive = if kc then key ~= nil else hum ~= nil and hum.Health > 0 and key ~= nil and camera.CameraType == Enum.CameraType.Custom
-	if not alive or not key then setVisible(false); scopeGui.Enabled = false; S.muzzle = nil; return end
+	if not alive or not key then
+		setVisible(false); scopeGui.Enabled = false; S.muzzle = nil
+		-- la caméra a été reprise (kill-cam, arrivée, spectateur, photo) : le tangage ajouté par nous n'y est plus,
+		-- il ne faut pas le retirer au retour (la vue partait de travers)
+		if kc or camera.CameraType ~= Enum.CameraType.Custom then VM.camPit = 0 end
+		return
+	end
 	if not kc and os.clock() < S.drinkHideUntil then setVisible(false); scopeGui.Enabled = false; S.muzzle = nil; return end   -- boisson d'atout : arme rangée
 	if key ~= VM.key then
 		if building ~= sigOf(key) then task.spawn(setGun, key) end
@@ -453,8 +474,12 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 	local t = os.clock()
 
 	-- visée (lissée), poids des postures de déplacement
-	-- vitesse de visée du web : ×7 à la lunette, ×12 sinon, multipliée par les accessoires (mods.ads)
-	VM.ads += ((if S.aiming and not w.melee then 1 else 0) - VM.ads) * math.min(1, dt * (if A.sightOv(key, VM.att) then 7 else 12) * VM.mods.ads)
+	-- façon Call of Duty : la visée avance à vitesse constante (≈ 0,2 s, 0,34 s à la lunette, selon la famille d'arme
+	-- et les accessoires : mods.ads), puis passe par une courbe douce aux deux bouts ; on quitte la visée un peu plus vite
+	local adsDur = (if A.sightOv(key, VM.att) then 0.34 else 0.2) * (ADS_CAT[w.cat] or 1) / math.max(0.25, VM.mods.ads)
+	local aimOn = S.aiming and not w.melee
+	VM.adsL = clamp(VM.adsL + (if aimOn then dt else -dt * 1.25) / adsDur, 0, 1)
+	VM.ads = smooth01(VM.adsL)
 	S.adsT = VM.ads
 	local ads = VM.ads
 	-- mvWeights du web : le sprint ne compte qu'au-dessus de 80 % de la course, chaque posture a sa vitesse de transition
@@ -462,6 +487,10 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 	local running = S.speed / STUDS_PER_M > 5.2 * 0.8
 	VM.spr = follow(VM.spr, S.sprint and not S.tactical and running, 9); VM.tac = follow(VM.tac, S.tactical and running, 9)
 	VM.sld = follow(VM.sld, S.slide, 12); VM.mnt = follow(VM.mnt, S.mantle, 14)
+	VM.mhi = follow(VM.mhi, S.mantle and S.mantleHigh, 14)
+	-- avancement de l'escalade 0..1 (MovementController), -1 hors escalade
+	local mA = if S.mantle and S.mantleDur > 0 then clamp((t - S.mantleT) / S.mantleDur, 0, 1) else -1
+	local mBump = if mA >= 0 then math.sin(mA * math.pi) else 0
 
 	-- ressorts : recul, traînée de la souris, atterrissage, pas de côté
 	local sd = math.min(dt, 0.033)
@@ -471,6 +500,17 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 	local spdMs = S.speed / STUDS_PER_M
 	local spd = clamp(spdMs / 5.2, 0, 1.3)
 	VM.bph += dt * spdMs * 1.7
+	-- pas entendu (AmbienceController) : le creux du balancement (pied posé) est recalé dessus en douceur,
+	-- et l'arme comme la tête marquent un petit à-coup du pied qui se pose
+	if S.stepAt ~= VM.lastStep then
+		VM.lastStep = S.stepAt
+		if S.grounded and t - S.stepAt < 0.1 then
+			VM.phErr = ((math.pi * 0.75 - VM.bph) + math.pi * 0.5) % math.pi - math.pi * 0.5
+			VM.stepK = 1
+		end
+	end
+	do local c = VM.phErr * math.min(1, dt * 9); VM.bph += c; VM.phErr -= c end
+	VM.stepK *= math.exp(-dt * 13)
 	-- direction du regard sans le plongeon d'atterrissage ajouté par nous (sinon l'arme traînerait derrière)
 	local look = (camera.CFrame * CFrame.Angles(-VM.camPit, 0, 0)).LookVector
 	local yaw0 = math.atan2(-VM.lastLook.X, -VM.lastLook.Z); local yaw1 = math.atan2(-look.X, -look.Z)
@@ -479,8 +519,11 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 	VM.lastLook = look
 	local id = 1 / math.max(dt, 1e-3)
 	local tx, ty = clamp(dyaw * id * 0.016, -0.07, 0.07), clamp(-dp * id * 0.016, -0.055, 0.055)
-	VM.sxv += ((tx - VM.sx) * 150 - VM.sxv * 17) * sd; VM.sx += VM.sxv * sd
-	VM.syv += ((ty - VM.sy) * 150 - VM.syv * 17) * sd; VM.sy += VM.syv * sd
+	-- inertie : la cible de la traînée est filtrée (l'arme part un peu après la souris), le ressort est un peu plus mou
+	local lp = math.min(1, dt * 14)
+	VM.stx += (tx - VM.stx) * lp; VM.sty += (ty - VM.sty) * lp
+	VM.sxv += ((VM.stx - VM.sx) * 120 - VM.sxv * 16) * sd; VM.sx += VM.sxv * sd
+	VM.syv += ((VM.sty - VM.sy) * 120 - VM.syv * 16) * sd; VM.sy += VM.syv * sd
 	local vyMs = S.vy / STUDS_PER_M
 	if S.grounded and not VM.prevGround and VM.airVy < -2 then VM.lv -= math.min(2.2, -VM.airVy * 0.22); sfx("land", 0.6) end
 	VM.airVy = if S.grounded then 0 else vyMs; VM.prevGround = S.grounded
@@ -496,8 +539,8 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 	-- plonge à l'atterrissage puis revient ; le champ s'élargit en sprint / sprint tactique / glissade.
 	-- La caméra Roblox repart chaque image de sa direction : le roulis et la position sont reposés à chaque fois,
 	-- le tangage n'est ajouté que par différence (comme le recul de WeaponController).
+	if kc then VM.camPit = 0 end            -- la kill-cam pose la caméra elle-même
 	if not kc then
-		VM.bobT += dt * spdMs * 1.6
 		if not S.grounded then VM.camAir = vyMs end
 		if S.grounded and not VM.camGround and VM.camAir < -2.5 then VM.camLv -= math.min(1.6, -VM.camAir * 0.16) end
 		VM.camGround = S.grounded; if S.grounded then VM.camAir = 0 end
@@ -505,10 +548,17 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 		local roll = -clamp(lat / 5.2, -1, 1) * 0.012 * spdMs / 5 + VM.sld * 0.055
 		local bobX, bobY = 0, 0
 		if S.grounded then
-			local a = clamp(spdMs / 5, 0, 1.3)
-			bobY = math.sin(VM.bobT * 2) * 0.016 * a; bobX = math.sin(VM.bobT) * 0.011 * a; roll += math.sin(VM.bobT) * 0.0035 * a
+			-- même phase que l'arme (calée sur les pas) : la tête est au plus bas quand le pied se pose
+			local ph = VM.bph
+			local a = clamp(spdMs / 5, 0, 1.3) * shakeK
+			bobY = math.sin(ph * 2) * 0.016 * a - VM.stepK * 0.005 * shakeK; bobX = math.sin(ph) * 0.011 * a
+			roll += math.sin(ph) * (0.0035 + VM.tac * 0.006) * a                 -- sprint tactique : la tête roule davantage
 		end
-		local pit = VM.camL * 0.35
+		-- escalade : la tête plonge vers le rebord et roule un peu du côté de la main posée
+		roll += mBump * 0.035 * (0.4 + 0.6 * shakeK)
+		local land = VM.camL * (0.35 + 0.65 * shakeK)
+		bobY += land - VM.camL                                 -- plongeon d'atterrissage réduit avec les secousses
+		local pit = land * 0.35 - mBump * (0.07 + VM.mhi * 0.05)
 		local cf = camera.CFrame
 		local flatR = Vector3.new(cf.RightVector.X, 0, cf.RightVector.Z)
 		flatR = if flatR.Magnitude > 1e-3 then flatR.Unit else Vector3.xAxis
@@ -519,7 +569,8 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 		local fov = camera.FieldOfView
 		if math.abs(fov - VM.fovSet) < 1e-4 then fov = VM.fovBase end
 		VM.fovBase = fov
-		VM.fovSet = fov * (1 + VM.spr * 0.06 + VM.tac * 0.1 + VM.sld * 0.07)
+		-- (en partant du champ choisi dans les Réglages, et rien en visée : le zoom de l'arme reste exact)
+		VM.fovSet = fov * (1 + (VM.spr * 0.06 + VM.tac * 0.1 + VM.sld * 0.07) * (1 - ads))
 		camera.FieldOfView = VM.fovSet
 	end
 
@@ -541,6 +592,10 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 	ry += VM.sx * 1.6 * sw; rx += VM.sy * 1.2 * sw; rz += br - VM.sx * 1.2 * sw - VM.strafe * 0.06 * (1 - ads * 0.7)
 	if not S.grounded then local a = clamp(-vyMs * 0.005, -0.035, 0.03); py += a * (1 - ads * 0.6); rx -= a * 1.5 end
 	py += VM.land * 0.1; rx += VM.land * 0.35
+	-- pied qui se pose (pas entendu) : l'arme plonge à peine et revient
+	local stk = VM.stepK * (1 - ads * 0.85) * clamp(spd, 0, 1)
+	py -= stk * 0.006; rx -= stk * 0.012; rz += stk * 0.006 * (if math.sin(VM.bph) > 0 then 1 else -1)
+	px -= VM.strafe * 0.008 * (1 - ads)                    -- pas de côté : l'arme glisse un peu à l'opposé
 	-- recul
 	local kk = VM.kick
 	pz += kk * 0.055; rx += kk * 0.09; rz += math.sin(t * 47) * math.max(0, kk) * 0.012; py += kk * 0.01
@@ -618,13 +673,21 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 		local s, T, L, Mn = VM.spr * (1 - ads), VM.tac * (1 - ads), VM.sld, VM.mnt
 		local sb = math.sin(VM.bph * 0.9)
 		px += -s * 0.045 + s * sb * 0.014; py += -s * 0.05 + s * math.abs(sb) * 0.012; rx -= s * 0.3; ry += s * 0.62; rz += s * 0.38
+		rz += s * sb * 0.05; rx += s * math.abs(sb) * 0.03                      -- l'arme ballotte au rythme des foulées
 		px += T * (0.1 + sb * 0.01); py += T * (-0.015 + math.abs(sb) * 0.015); rx += T * 0.8; rz -= T * 0.6; ry -= T * 0.12
-		rz += L * 0.32; py -= L * 0.03; px -= L * 0.02; py -= Mn * 0.22; rx -= Mn * 0.7
+		rz += L * 0.32; py -= L * 0.03; px -= L * 0.02
+		-- glissade : l'arme vibre sur le sol, puis se redresse en fin de glissade
+		rz += L * math.sin(t * 31) * 0.006; py += L * math.sin(t * 27 + 1) * 0.0035; rx += L * math.sin(t * 23) * 0.004
+		-- escalade : arme baissée sur la droite (rebord bas) ou sortie de la vue (rebord haut, les deux mains se hissent)
+		py -= Mn * 0.22; rx -= Mn * 0.7; px += Mn * 0.03
+		py -= VM.mhi * 0.42; rz -= VM.mhi * 0.5; px += VM.mhi * 0.06
 	end
 	-- rechargement en phases
 	local rl = -1
 	local leftOff = 0
-	local reloadDur = w.reload * VM.mods.rel
+	-- durée réelle envoyée par le serveur (accessoires et atouts) : sinon, avec Speed Cola, la recharge finissait
+	-- avant l'animation et le son « chargeur dedans » ne venait jamais
+	local reloadDur = if S.reloadDur > 0 then S.reloadDur else w.reload * VM.mods.rel
 	if S.reloading and reloadDur > 0 then
 		rl = clamp((t - S.reloadStart) / reloadDur, 0, 1)
 		local tilt = smooth01(rl / 0.16) * (1 - smooth01((rl - 0.84) / 0.16))
@@ -636,12 +699,13 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 		ry -= tilt * 0.1 - mw * 0.22
 		px -= tilt * 0.02 + mw * 0.07; py -= tilt * 0.055 - mw * 0.05 - slap * 0.014; pz += rack * 0.028 - tilt * 0.02
 		leftOff = if VM.hasMag then tilt else 0
-		local function snd(i: number, at: number, name: string)
-			if VM.relSnd < i and rl >= at then VM.relSnd = i; sfx(name, 0.8) end
+		-- étapes de recharge (Sfx.reloadStep : "out" / "in" / "bolt" / "shell"), calées sur la durée de recharge
+		local function snd(i: number, at: number, step: string)
+			if VM.relSnd < i and rl >= at then VM.relSnd = i; Sfx.reloadStep(w.cat, step, nil, 0.8) end
 		end
 		if VM.hasMag then
-			snd(1, 0.28, "magout"); snd(2, 0.71, "magin")
-			if VM.relEmpty and VM.hasBolt then snd(3, if VM.pistol then 0.84 else 0.85, "rack") end
+			snd(1, 0.28, "out"); snd(2, 0.71, "in")
+			if VM.relEmpty and VM.hasBolt then snd(3, if VM.pistol then 0.84 else 0.85, "bolt") end
 		elseif w.cat == "shotgun" then
 			local n = VM.relShells
 			local aa = clamp((rl - 0.15) / 0.65, 0, 0.999)
@@ -649,9 +713,9 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 			local ph2 = aa * n % 1
 			if rl > 0.15 and rl < 0.8 then
 				leftOff = math.sin(ph2 * math.pi) * 0.6
-				if VM.relSnd <= i and ph2 > 0.55 then VM.relSnd = i + 1; sfx("shellin", 0.7) end
+				if VM.relSnd <= i and ph2 > 0.55 then VM.relSnd = i + 1; Sfx.reloadStep(w.cat, "shell", nil, 0.7) end
 			end
-			if VM.relEmpty and VM.hasBolt then snd(99, 0.85, "pump") end   -- à vide : on pompe à la fin
+			if VM.relEmpty and VM.hasBolt then snd(99, 0.85, "bolt") end   -- à vide : on pompe à la fin
 		end
 	end
 
@@ -672,7 +736,9 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 		if rl >= 0 then
 			if rl < 0.26 then out = 0
 			elseif rl < 0.36 then out = smooth01((rl - 0.26) / 0.1)
-			elseif rl < 0.46 then out = 1 + smooth01((rl - 0.36) / 0.1) * 1.4; magVisible = false
+			elseif rl < 0.46 then
+				-- à vide le chargeur est lâché (il tombe dans la vue) ; recharge tactique : la main gauche l'emporte vers la poche
+				out = 1 + smooth01((rl - 0.36) / 0.1) * 1.4; magVisible = not VM.relEmpty and rl < 0.42
 			elseif rl < 0.58 then out = 2.4 - smooth01((rl - 0.46) / 0.12) * 1.25; tw = 1 - smooth01((rl - 0.5) / 0.08)
 			elseif rl < 0.72 then out = 1.15 * (1 - smooth01((rl - 0.58) / 0.14)) end
 		end
@@ -700,7 +766,7 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 			magPos = VM.magC + off
 		end
 		pieces.mag = center * CFrame.new(-VM.magC)
-		if rl >= 0.36 and not VM.relDrop then VM.relDrop = true; dropMag(gunCF, pieces.mag) end
+		if rl >= 0.36 and not VM.relDrop and VM.relEmpty then VM.relDrop = true; dropMag(gunCF, pieces.mag) end
 	end
 	if VM.hasBolt then
 		local pull = 0
@@ -751,15 +817,43 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 	if ins and ins.lh > 0 then leftLocal = leftLocal:Lerp(magPos - Vector3.new(0, 0.02, 0), ins.lh) end
 	local leftL = gunCF:PointToWorldSpace(leftLocal)
 	local handRot = gunCF.Rotation
-	arms.hR.CFrame = camCF * (CFrame.new(rightL) * handRot)
+	local rotR, rotL = handRot, handRot
+	-- sprint tactique : la main gauche lâche le garde-main et balance au rythme de la course (arme tenue haute)
+	local pump = if VM.twoHand and rl < 0 and not ins then VM.tac * (1 - ads) * (1 - VM.mnt) else 0
+	if pump > 0.001 then
+		local sb = math.sin(VM.bph * 0.9)
+		local swing = Vector3.new(-0.2 + sb * 0.02, -0.3 + sb * 0.07, -0.34 - sb * 0.1) / FOV_K
+		leftL = leftL:Lerp(swing, smooth01(pump))
+		rotL = handRot:Lerp(CFrame.Angles(0.5 + sb * 0.4, 0.3, 0.2), smooth01(pump))
+	end
+	-- escalade : la main gauche (et la droite sur un rebord haut) vient se poser à plat sur le rebord ; le corps monte,
+	-- le rebord descend donc dans la vue sous la paume, qui pousse jusqu'à la fin du geste
+	local plant = false
+	if mA >= 0 and VM.twoHand then
+		local reach = smooth01(mA / 0.2) * (1 - smooth01((mA - 0.8) / 0.2))
+		local push = smooth01((mA - 0.12) / 0.6)
+		local ly, lz = lerp(0.03, -0.34, push), lerp(-0.5, -0.3, push)
+		local palmL = CFrame.Angles(-0.25, 0.15, 0) * CFrame.Angles(0, 0, -math.pi / 2)    -- paume vers le bas, doigts vers l'avant
+		local palmR = CFrame.Angles(-0.25, -0.15, 0) * CFrame.Angles(0, 0, math.pi / 2)
+		leftL = leftL:Lerp(Vector3.new(-0.15, ly, lz), reach)
+		rotL = rotL:Lerp(palmL, reach)
+		plant = reach > 0.5
+		local rk = reach * VM.mhi
+		if rk > 0.001 then
+			rightL = rightL:Lerp(Vector3.new(0.13, ly + 0.01, lz - 0.02), rk)
+			rotR = handRot:Lerp(palmR, rk)
+		end
+	end
+	arms.hR.CFrame = camCF * (CFrame.new(rightL) * rotR)
 	-- poignée verticale : la main gauche se referme autour, paume tournée vers l'arrière
-	setLeftHold(model:GetAttribute("LeftV") == true and rl < 0 and not (ins and ins.lh > 0.3))
-	arms.hL.CFrame = camCF * (CFrame.new(leftL) * handRot)
+	-- (même tenue pour la main posée sur un rebord : c'est le reflet de la main droite)
+	setLeftHold(plant or (model:GetAttribute("LeftV") == true and rl < 0 and not (ins and ins.lh > 0.3)))
+	arms.hL.CFrame = camCF * (CFrame.new(leftL) * rotL)
 	local hidden = camCF * CFrame.new(0, -3, 0)
 	placeGloves(arms.hR.CFrame, if VM.twoHand then arms.hL.CFrame else nil, hidden)
-	placeArm(arms.uR, arms.fR, arms.cR, rightL + handRot:VectorToWorldSpace(WRIST), 1, ads, camCF)
+	placeArm(arms.uR, arms.fR, arms.cR, rightL + rotR:VectorToWorldSpace(WRIST), 1, ads, camCF)
 	if VM.twoHand then
-		placeArm(arms.uL, arms.fL, arms.cL, leftL + handRot:VectorToWorldSpace(leftWrist()), -1, ads, camCF)
+		placeArm(arms.uL, arms.fL, arms.cL, leftL + rotL:VectorToWorldSpace(leftWrist()), -1, ads, camCF)
 	else
 		arms.uL.CFrame = hidden; arms.fL.CFrame = hidden; arms.cL.CFrame = hidden; arms.hL.CFrame = hidden
 	end

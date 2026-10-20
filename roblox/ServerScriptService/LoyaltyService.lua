@@ -50,6 +50,7 @@ local function apply(profile: any, r: any)
 	if r.boost then y.boost += r.boost end
 	if r.title then addTitle(y, r.title) end
 end
+LoyaltyService.give = apply   -- { coins, box, n, boost, title } : utilisé aussi par le pack de départ (ShopService)
 
 -- Attributs lus par les clients (chat, futur HUD) : Vip, VipColor, LoyaltyTier
 local function publish(player: Player, profile: any)
@@ -130,8 +131,8 @@ end)
 
 -- ---------- bonus de fin de partie (appelé par RewardService.finishMatch) ----------
 -- Retourne l'XP et les pièces en plus, et les lignes à afficher.
-function LoyaltyService.matchBonus(player: Player, baseXp: number, baseCoins: number, won: boolean)
-	local profile = DataService.get(player); if not profile then return 0, 0, {} end
+function LoyaltyService.matchBonus(player: Player, baseXp: number, baseCoins: number, won: boolean): (number, number, { string }, boolean)
+	local profile = DataService.get(player); if not profile then return 0, 0, {}, false end
 	local y = ensure(profile)
 	local xp, coins, lines = 0, 0, {}
 	if y.lastDay ~= today() then y.lastDay = today(); y.days += 1 end   -- un jour de jeu de plus
@@ -149,12 +150,13 @@ function LoyaltyService.matchBonus(player: Player, baseXp: number, baseCoins: nu
 		local v = math.floor(baseXp * L.BOOST_MULT + 0.5); xp += v; y.boost -= 1
 		table.insert(lines, string.format("⚡ Boost +%d XP (%d restante(s))", v, y.boost))
 	end
+	local firstWin = false
 	if won and y.win ~= today() then
-		y.win = today(); xp += L.FIRST_WIN.xp; coins += L.FIRST_WIN.coins
+		y.win = today(); xp += L.FIRST_WIN.xp; coins += L.FIRST_WIN.coins; firstWin = true
 		table.insert(lines, string.format("🏆 Première victoire du jour +%d XP, +%d pièces", L.FIRST_WIN.xp, L.FIRST_WIN.coins))
 	end
 	publish(player, profile)
-	return xp, coins, lines
+	return xp, coins, lines, firstWin
 end
 
 -- ---------- série protégée (Premium) : un jour manqué par semaine ne casse pas la série ----------

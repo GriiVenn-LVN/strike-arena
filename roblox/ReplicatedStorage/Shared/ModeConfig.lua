@@ -48,6 +48,10 @@ ModeConfig.BOT = {
 -- les sons rbxasset:// fournis avec Roblox (champ id) servent de remplacement.
 -- sheet = nom du son dans la planche (ReplicatedStorage/Shared/SoundSheet.lua).
 ModeConfig.SOUND_SHEET = 99180356518561
+-- Deuxième planche, réaliste (tirs en couches, pas selon le sol, recharge, impacts…) : roblox/assets/strike-arena-sons-2.ogg,
+-- faite par tools/render_sounds_real.js, positions dans SoundSheet2.lua. Importe-la de la même façon et colle son numéro
+-- ici ; tant qu'il vaut 0, Shared/Sfx garde la première planche.
+ModeConfig.SOUND_SHEET_2 = 0
 ModeConfig.SOUNDS = {
 	fire = {
 		pistol = { sheet = "pistol", id = "rbxasset://sounds/snap.wav", volume = 0.6, pitch = 1.25 },

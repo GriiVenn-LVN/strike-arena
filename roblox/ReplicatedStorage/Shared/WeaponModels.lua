@@ -42,21 +42,26 @@ end
 -- ---------- une pièce en EditableMesh ----------
 -- chaque pièce est construite une seule fois (taille 1) puis copiée et agrandie : bien moins de mémoire
 -- (Roblox limite fortement la mémoire des EditableMesh côté joueur)
-local pieceCache: { [string]: { mp: MeshPart, center: Vector3 } } = {}
-local buildPiece: (g: any, id: string) -> (MeshPart?, Vector3)
+-- La taille finale vient de la boîte englobante des sommets (size), pas de mp.Size : si Roblox a arrondi ou borné
+-- la taille du MeshPart à sa création (axe très fin), la pièce n'est plus écrasée ni étirée sur cet axe.
+local MIN_SIZE = 0.001                 -- plus petite taille de pièce acceptée par Roblox, par axe
+local pieceCache: { [string]: { mp: MeshPart, center: Vector3, size: Vector3 } } = {}
+local buildPiece: (g: any, id: string) -> (MeshPart?, Vector3, Vector3)
 local function meshPiece(g: any, id: string, scale: number): (MeshPart?, Vector3)
 	local c = pieceCache[id]
 	if not c then
-		local mp0, center0 = buildPiece(g, id)
+		local mp0, center0, size0 = buildPiece(g, id)
 		if not mp0 then return nil, Vector3.zero end
-		c = { mp = mp0, center = center0 }
+		-- faces visibles des deux côtés (pièces fines à une seule face, normales mal orientées dans le modèle d'origine)
+		pcall(function() (mp0 :: any).DoubleSided = true end)
+		c = { mp = mp0, center = center0, size = size0 }
 		pieceCache[id] = c
 	end
 	local mp = c.mp:Clone()
-	mp.Size = c.mp.Size * scale
+	mp.Size = (c.size * scale):Max(Vector3.one * MIN_SIZE)
 	return mp, c.center * scale
 end
-buildPiece = function(g: any, id: string): (MeshPart?, Vector3)
+buildPiece = function(g: any, id: string): (MeshPart?, Vector3, Vector3)
 	local raw = decode(g.data)
 	local k = 1 / WeaponModels.Q
 	local uvK = UV_SCALE                           -- studs -> mètres -> répétitions de la peinture
@@ -98,8 +103,8 @@ buildPiece = function(g: any, id: string): (MeshPart?, Vector3)
 			em:SetFaceUVs(face, uvs)
 		end
 		return em
-	end)
-	return mp, center
+	end, MeshStore.PRECISE)
+	return mp, center, hi - lo
 end
 
 -- ---------- silhouette en blocs (si EditableMesh est refusé) ----------
@@ -134,11 +139,14 @@ local function knife(model: Model, grip: BasePart, scale: number)
 		local p = plain(name, size, color, mat); p:SetAttribute("Piece", "body"); p:SetAttribute("Role", role); p:SetAttribute("Offset", at)
 		p.CFrame = grip.CFrame * at; p.Parent = model
 	end
-	add("Handle", Vector3.new(0.03, 0.035, 0.12) * scale, CFrame.new(0, 0, 0.03 * scale), Color3.fromRGB(30, 31, 34), Enum.Material.SmoothPlastic, "acc")
+	-- web (buildKnife) : seule la lame prend le skin ; poignée noire (M.blk) et garde sombre (M.dark) restent nues
+	add("Handle", Vector3.new(0.03, 0.035, 0.12) * scale, CFrame.new(0, 0, 0.03 * scale), Color3.fromRGB(30, 31, 34), Enum.Material.SmoothPlastic, "grip")
 	add("Guard", Vector3.new(0.035, 0.06, 0.012) * scale, CFrame.new(0, 0, -0.035 * scale), Color3.fromRGB(80, 82, 88), Enum.Material.Metal, "steel")
 	add("Blade", Vector3.new(0.006, 0.035, 0.16) * scale, CFrame.new(0, 0.004 * scale, -0.12 * scale), Color3.fromRGB(200, 205, 212), Enum.Material.Metal, "body")   -- le skin couvre aussi la lame
-	local tip = plain("Tip", Vector3.new(0.006, 0.035, 0.03) * scale, Color3.fromRGB(200, 205, 212), Enum.Material.Metal)
-	local mesh = Instance.new("SpecialMesh"); mesh.MeshType = Enum.MeshType.Wedge; mesh.Parent = tip
+	-- pointe en WedgePart (même forme que l'ancien SpecialMesh « Wedge ») : elle accepte les Texture du skin
+	local tip = Instance.new("WedgePart"); tip.Name = "Tip"; tip.Size = Vector3.new(0.006, 0.035, 0.03) * scale
+	tip.Color = Color3.fromRGB(200, 205, 212); tip.Material = Enum.Material.Metal
+	tip.CanCollide = false; tip.CanQuery = false; tip.CanTouch = false; tip.Massless = true; tip.CastShadow = false; tip.Anchored = true
 	local at = CFrame.new(0, 0.004 * scale, -0.215 * scale) * CFrame.Angles(0, math.rad(180), 0)
 	tip:SetAttribute("Piece", "body"); tip:SetAttribute("Role", "body"); tip:SetAttribute("Offset", at); tip.CFrame = grip.CFrame * at; tip.Parent = model
 end
@@ -159,13 +167,18 @@ local function make(key: string, scale: number): Model
 	else
 		local ok = false
 		local folder = ReplicatedStorage.Shared:FindFirstChild("WeaponMeshes")
-		local src = folder and folder:FindFirstChild(key)
+		-- armes spéciales des zombies (look = arme de base) : même maillage et même clé MeshAssets que l'arme de base.
+		-- Avec leur propre clé (« w:winter#1/… »), jamais envoyée par MeshUploader (en mode Edit elles n'existent pas),
+		-- chaque pièce retombait sur un EditableMesh côté joueur et saturait sa mémoire de maillages.
+		local wa = w :: any
+		local meshKey = if wa and type(wa.look) == "string" and folder and folder:FindFirstChild(wa.look) then wa.look :: string else key
+		local src = folder and folder:FindFirstChild(meshKey)
 		if src and (WeaponModels.meshApi or MeshStore.count() > 0) then
 			local err
 			ok, err = pcall(function()
 				local groups = require(src :: ModuleScript) :: any
 				for gi, g in ipairs(groups) do
-					local mp, center = meshPiece(g, key .. "#" .. gi, scale)
+					local mp, center = meshPiece(g, meshKey .. "#" .. gi, scale)
 					if mp then
 						local look = LOOK[g.role]
 						mp.Name = g.part .. "_" .. g.role
@@ -190,12 +203,20 @@ local function make(key: string, scale: number): Model
 			end
 		end
 		if not ok and inf then blockGun(model, grip, key, scale) end
+		-- armes spéciales : teinte propre (web : col) sur la carcasse, pour ne pas ressembler à l'arme de base
+		local wc = (w :: any) and (w :: any).color
+		if wc and typeof(wc) == "Color3" and (w :: any).cat == "wonder" then
+			for _, c in ipairs(model:GetChildren()) do
+				if c:IsA("BasePart") and c ~= grip and c:GetAttribute("Role") == "body" then c.Color = wc end
+			end
+		end
 	end
 	local muzzle = Instance.new("Attachment"); muzzle.Name = "Muzzle"; muzzle.Position = Vector3.new(0, sightY * 0.6, muzzleZ); muzzle.Parent = grip
 	local left = Instance.new("Attachment"); left.Name = "LeftHand"
 	left.Position = if inf then Vector3.new(inf.left[1], inf.left[2], inf.left[3]) * scale else Vector3.new()
 	left.Parent = grip
 	model:SetAttribute("SightY", sightY)
+	model:SetAttribute("Scale", scale)          -- SkinPaint : taille de la peinture sur les pièces simples (Texture)
 	return model
 end
 

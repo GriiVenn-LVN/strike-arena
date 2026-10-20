@@ -179,6 +179,7 @@ if tracerRemote then
 	end)
 end
 S.onShot:Connect(function()
+	if S.kc then return end                  -- tirs du tueur rejoués par la kill-cam : pas le recul de notre corps
 	local c = player.Character
 	local d = c and active[c]
 	if d then d.fire = 1; d.lastShot = os.clock() end
@@ -256,7 +257,9 @@ local function update(d: D, dt: number, t: number)
 	local w = key and Config.WEAPONS[key]
 	if w and w.reload > 0 then
 		if d.own then
-			if S.reloading then reloadMax = w.reload; reload = math.max(0, w.reload - (os.clock() - S.reloadStart)) end
+			-- durée réelle (accessoires, atouts) envoyée par le serveur, comme le viewmodel
+			local dur = if S.reloadDur > 0 then S.reloadDur else w.reload
+			if S.reloading then reloadMax = dur; reload = math.max(0, dur - (os.clock() - S.reloadStart)) end
 		else
 			local r0 = char:GetAttribute("ReloadT")
 			if typeof(r0) == "number" then reloadMax = w.reload; reload = math.max(0, w.reload - (workspace:GetServerTimeNow() - r0)) end

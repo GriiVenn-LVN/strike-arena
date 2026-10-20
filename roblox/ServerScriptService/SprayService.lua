@@ -83,7 +83,7 @@ local function build(id: string, pos: Vector3, normal: Vector3, parent: Instance
 end
 
 sprayEv.OnServerEvent:Connect(function(p: Player, dir: any)
-	if typeof(dir) ~= "Vector3" or dir.Magnitude < 0.5 or dir.Magnitude > 1.5 or dir.X ~= dir.X then return end
+	if typeof(dir) ~= "Vector3" or not (dir.Magnitude >= 0.5 and dir.Magnitude <= 1.5) then return end   -- refuse aussi NaN
 	dir = dir.Unit
 	local now = os.clock()
 	if last[p] and now - last[p] < COOLDOWN then return end

@@ -59,6 +59,7 @@ local function preview(parent: Instance, props: { [string]: any }, build: () -> 
 			a += dt * 0.6
 			local dir = if side then Vector3.new(-math.cos(a * 0.5) , 0.12, math.sin(a * 0.5) * 0.6) else Vector3.new(math.sin(a), 0.15, math.cos(a))
 			cam.CFrame = CFrame.lookAt(center + dir.Unit * dist, center)
+			vf.LightDirection = cam.CFrame:VectorToWorldSpace(Vector3.new(0.35, -0.6, -1))   -- lumière qui suit la caméra : camo toujours éclairé
 		end)
 	end)
 	return vf

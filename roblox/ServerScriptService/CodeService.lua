@@ -87,6 +87,8 @@ function CodeService.claimGroup(player: Player)
 	profile.social = profile.social or {}
 	if profile.social.group then return { ok = false, msg = "Récompense déjà récupérée", claimed = true } end
 	if not inGroup(player, G.id) then return { ok = false, msg = "Rejoins d'abord le groupe, puis réessaie" } end
+	-- inGroup attend Roblox : deux demandes envoyées en même temps passeraient toutes les deux le premier test
+	if profile.social.group then return { ok = false, msg = "Récompense déjà récupérée", claimed = true } end
 	profile.social.group = os.time()
 	local lines = CodeService.grant(profile, G.reward)
 	task.spawn(DataService.save, player)

@@ -9,6 +9,9 @@ local TweenService = game:GetService("TweenService")
 local TextChatService = game:GetService("TextChatService")
 local MarketplaceService = game:GetService("MarketplaceService")
 local L = require(ReplicatedStorage.Shared.LoyaltyConfig)
+local Catalog = require(ReplicatedStorage.Shared.ShopCatalog)
+-- présentation commune avec le menu, le passe et la boutique (fond dégradé bleu nuit, croix, B / Échap pour fermer)
+local K = require(script.Parent:WaitForChild("Menu"):WaitForChild("Kit"))
 
 local player = Players.LocalPlayer
 local loyGet = ReplicatedStorage:WaitForChild("Loy_Get") :: RemoteFunction
@@ -27,6 +30,7 @@ local gui = Instance.new("ScreenGui"); gui.Name = "LoyaltyUI"; gui.ResetOnSpawn 
 
 local function make(className: string, props: { [string]: any }, parent: Instance?): any
 	local o: any = Instance.new(className)
+	if o:IsA("GuiObject") then o.BorderSizePixel = 0 end   -- pas de liseré gris d'origine (style du menu)
 	if className == "TextLabel" or className == "TextButton" then
 		o.Font = Enum.Font.GothamBold
 		o.TextColor3 = Color3.new(1, 1, 1)
@@ -50,9 +54,19 @@ local function rewardText(r: any): string
 end
 
 -- Petit rebond « tape-à-l'œil » sur un objet
+-- (un seul UIScale par objet, réutilisé : avant, chaque ouverture en ajoutait un). Les fenêtres (780 × 520) rétrécissent
+-- pour tenir dans l'écran : sur un téléphone à l'horizontale, le haut et la croix de fermeture sortaient de l'écran.
 local function pop(o: GuiObject)
-	local s = make("UIScale", { Scale = 0.3 }, o)
-	TweenService:Create(s, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+	local s = o:FindFirstChild("Pop") :: UIScale?
+	if not s then s = make("UIScale", { Name = "Pop" }, o) end
+	local k = 1
+	if o.Parent == gui then
+		local area = gui.AbsoluteSize
+		if area.X > 0 and area.Y > 0 then k = math.min(1, (area.X - 16) / o.Size.X.Offset, (area.Y - 16) / o.Size.Y.Offset) end
+	end
+	local sc = s :: UIScale
+	sc.Scale = 0.3 * k
+	TweenService:Create(sc, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = k }):Play()
 end
 local function wiggle(o: GuiObject)
 	task.spawn(function()
@@ -79,23 +93,35 @@ local vipGrad = make("UIGradient", { Color = ColorSequence.new({ ColorSequenceKe
 TweenService:Create(vipGrad, TweenInfo.new(2.5, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1), { Offset = Vector2.new(1, 0) }):Play()
 
 -- ---------- fenêtre générique ----------
-local function window(title: string, accent: Color3): (Frame, ScrollingFrame)
+-- voile sombre derrière la fenêtre ouverte (comme le passe, le calendrier et la boutique) ; un clic dessus la ferme
+local veil = make("TextButton", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = K.rgb(0x05080e), BackgroundTransparency = 0.35, Text = "",
+	AutoButtonColor = false, Modal = true, Visible = false, BorderSizePixel = 0 }, gui)
+local wins: { Frame } = {}
+local function syncVeil()
+	local any = false
+	for _, w in ipairs(wins) do if w.Visible then any = true end end
+	veil.Visible = any
+end
+veil.Activated:Connect(function() for _, w in ipairs(wins) do w.Visible = false end end)
+local function window(title: string, accent: Color3, tint: Color3): (Frame, ScrollingFrame)
 	local win = make("Frame", { Size = UDim2.fromOffset(780, 520), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5),
-		BackgroundColor3 = DARK, Visible = false }, gui)
-	corner(win, 12); stroke(win, accent, 2)
-	make("TextLabel", { Size = UDim2.new(1, -80, 0, 50), Position = UDim2.fromOffset(20, 8), BackgroundTransparency = 1, Text = title,
-		TextSize = 28, Font = Enum.Font.GothamBlack, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = accent }, win)
-	local close = make("TextButton", { Size = UDim2.fromOffset(40, 40), Position = UDim2.new(1, -55, 0, 12), BackgroundColor3 = PANEL, Text = "✕", TextSize = 20 }, win)
-	corner(close, 20)
-	close.MouseButton1Click:Connect(function() win.Visible = false end)
-	local body = make("ScrollingFrame", { Size = UDim2.new(1, -40, 1, -76), Position = UDim2.fromOffset(20, 64), BackgroundTransparency = 1,
-		ScrollBarThickness = 6, AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new() }, win)
+		BackgroundColor3 = Color3.new(1, 1, 1), Visible = false, BorderSizePixel = 0 }, gui)
+	K.corner(win, 16); K.gradient(win, tint, K.rgb(0x0b111c), 90); K.stroke(win, accent, 1.5, 0.45)
+	K.text(win, { Size = UDim2.new(1, -90, 0, 34), Position = UDim2.fromOffset(26, 16), Text = K.spaced(title, 2), TextSize = 24, Font = K.BLACK,
+		TextColor3 = accent, TextWrapped = false, TextTruncate = Enum.TextTruncate.AtEnd })
+	local close = K.btn(win, "✕", "dark", function() win.Visible = false end,
+		{ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -16, 0, 14), Size = UDim2.fromOffset(40, 40), TextSize = 18 })
+	local body = K.scroll(win, { Size = UDim2.new(1, -40, 1, -80), Position = UDim2.fromOffset(20, 66) })
 	make("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder }, body)
+	table.insert(wins, win)
+	win:GetPropertyChangedSignal("Visible"):Connect(syncVeil)
+	-- B / Échap / Retour arrière ferment la fenêtre ; à la manette, la sélection arrive sur la croix
+	K.overlay(win, function() win.Visible = false end, function() return close end)
 	return win, body
 end
 local function section(body: Instance, order: number, title: string, height: number): Frame
-	local f = make("Frame", { Size = UDim2.new(1, -8, 0, height), BackgroundColor3 = PANEL, LayoutOrder = order }, body)
-	corner(f, 8)
+	local f = make("Frame", { Size = UDim2.new(1, -8, 0, height), BackgroundColor3 = PANEL, BackgroundTransparency = 0.25, LayoutOrder = order, BorderSizePixel = 0 }, body)
+	K.corner(f, 12); K.stroke(f, Color3.new(1, 1, 1), 1, 0.92)
 	make("TextLabel", { Size = UDim2.new(1, -24, 0, 26), Position = UDim2.fromOffset(12, 6), BackgroundTransparency = 1, Text = title,
 		TextSize = 15, TextXAlignment = Enum.TextXAlignment.Left }, f)
 	return f
@@ -106,8 +132,8 @@ local function row(parent: Instance, y: number): Frame
 	return r
 end
 
-local giftWin, giftBody = window("🎁 CENTRE DES CADEAUX", Color3.fromRGB(201, 164, 255))
-local vipWin, vipBody = window("⭐ STRIKE PREMIUM", GOLD)
+local giftWin, giftBody = window("🎁 CENTRE DES CADEAUX", Color3.fromRGB(201, 164, 255), K.rgb(0x1f1436))
+local vipWin, vipBody = window("⭐ STRIKE PREMIUM", GOLD, K.rgb(0x2a1e08))
 local state: any = nil
 local renderGifts: () -> ()
 
@@ -129,7 +155,7 @@ local function giftCard(parent: Instance, icon: string, title: string, text: str
 	local ready = isPending(kind, i)
 	local f = make("TextButton", { Size = UDim2.fromOffset(112, 104), BackgroundColor3 = if ready then Color3.fromRGB(60, 40, 10) else DARK,
 		Text = "", AutoButtonColor = ready }, parent)
-	corner(f, 8); stroke(f, if ready then GOLD elseif done then GREEN else MUTED, if ready then 2 else 1)
+	corner(f, 10); stroke(f, if ready then GOLD elseif done then GREEN else MUTED, if ready then 2 else 1)
 	local ic = make("TextLabel", { Size = UDim2.new(1, 0, 0, 34), Position = UDim2.fromOffset(0, 4), BackgroundTransparency = 1, Text = icon, TextSize = 28,
 		TextTransparency = if ready or done then 0 else 0.5 }, f)
 	make("TextLabel", { Size = UDim2.new(1, 0, 0, 16), Position = UDim2.fromOffset(0, 38), BackgroundTransparency = 1, Text = title, TextSize = 13 }, f)
@@ -145,7 +171,9 @@ local function giftCard(parent: Instance, icon: string, title: string, text: str
 	end
 	if ready then
 		wiggle(ic)
-		f.MouseButton1Click:Connect(function()
+		f.AutoButtonColor = false; f.Selectable = true
+		K.juice(f, 0.05)   -- survol / manette : grossit un peu, son d'interface
+		f.Activated:Connect(function()
 			local r = loyClaim:InvokeServer(kind, i)
 			if r then pop(f) end
 			refreshState(); renderGifts()
@@ -192,7 +220,7 @@ renderGifts = function()
 		local b = make("TextButton", { Size = UDim2.fromOffset(250, 34), Position = UDim2.new(1, -262, 0, 40), BackgroundColor3 = GOLD,
 			Text = "🎁 Cadeau Premium du jour : +" .. L.VIP.daily.coins, TextSize = 14, TextColor3 = Color3.fromRGB(42, 26, 0) }, s4)
 		corner(b, 6); wiggle(b)
-		b.MouseButton1Click:Connect(function() loyClaim:InvokeServer("vip", 0); refreshState(); renderGifts() end)
+		b.Activated:Connect(function() loyClaim:InvokeServer("vip", 0); refreshState(); renderGifts() end)
 	end
 end
 
@@ -218,7 +246,7 @@ local function renderVip()
 		local b = make("TextButton", { Size = UDim2.fromOffset(130, 36), BackgroundColor3 = DARK, Text = "⭐ " .. col.name, TextSize = 14, TextColor3 = col.color }, cr)
 		corner(b, 6); stroke(b, if state.vipColor == col.id then GOLD else MUTED, if state.vipColor == col.id then 2 else 1)
 		if col.id == "rainbow" then gradient(b, Color3.fromRGB(255, 70, 85), Color3.fromRGB(74, 163, 255)) end
-		b.MouseButton1Click:Connect(function()
+		b.Activated:Connect(function()
 			if not state.vip then return end
 			vipSetColor:InvokeServer(col.id); refreshState(); renderVip()
 		end)
@@ -227,24 +255,27 @@ local function renderVip()
 	local orow = make("Frame", { Size = UDim2.new(1, -24, 0, 54), Position = UDim2.fromOffset(12, 38), BackgroundTransparency = 1 }, o)
 	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 10) }, orow)
 	for _, off in ipairs(L.VIP.offers) do
-		local b = make("TextButton", { Size = UDim2.fromOffset(330, 54), BackgroundColor3 = if off.productId > 0 then GOLD else MUTED,
+		-- numéro du produit : celui de ProductIds.lua (repris par ShopCatalog), pas la valeur par défaut de LoyaltyConfig
+		local it = Catalog.get(off.id)
+		local pid = if it then it.productId or 0 else off.productId
+		local b = make("TextButton", { Size = UDim2.fromOffset(330, 54), BackgroundColor3 = if pid > 0 then GOLD else MUTED,
 			Text = string.format("%s%s · R$ %d", if off.best then "🔥 " else "", off.name, off.robux), TextSize = 17,
-			TextColor3 = if off.productId > 0 then Color3.fromRGB(42, 26, 0) else Color3.new(1, 1, 1) }, orow)
+			TextColor3 = if pid > 0 then Color3.fromRGB(42, 26, 0) else Color3.new(1, 1, 1) }, orow)
 		corner(b, 8)
-		if off.productId > 0 then
-			b.MouseButton1Click:Connect(function() shopBuy:InvokeServer(off.id) end)   -- ShopService ouvre la fenêtre de paiement
+		if pid > 0 then
+			b.Activated:Connect(function() shopBuy:InvokeServer(off.id) end)   -- ShopService ouvre la fenêtre de paiement
 		else
-			b.Text ..= " · bientôt"
+			b.Text ..= " · bientôt disponible"
 		end
 	end
 end
 
-giftBtn.MouseButton1Click:Connect(function()
+giftBtn.Activated:Connect(function()
 	vipWin.Visible = false
 	giftWin.Visible = not giftWin.Visible
 	if giftWin.Visible then refreshState(); renderGifts(); pop(giftWin) end
 end)
-vipBtn.MouseButton1Click:Connect(function()
+vipBtn.Activated:Connect(function()
 	giftWin.Visible = false
 	vipWin.Visible = not vipWin.Visible
 	if vipWin.Visible then refreshState(); renderVip(); pop(vipWin) end

@@ -9,7 +9,6 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local ContextActionService = game:GetService("ContextActionService")
-local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
 
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -46,6 +45,7 @@ local function publish()
 	player:SetAttribute("Reserve", W.reserve)
 	player:SetAttribute("Reloading", W.reloading)
 	player:SetAttribute("ReloadStart", W.reloadStart)
+	player:SetAttribute("ReloadDur", S.reloadDur)
 	player:SetAttribute("Slot", W.slot)
 	player:SetAttribute("Loadout", table.concat(W.loadout, ","))
 	player:SetAttribute("Aiming", W.aiming)
@@ -63,28 +63,36 @@ local function fireSound(key: string): any
 end
 
 -- ---------- effets visuels ----------
-local function tracer(from: Vector3, to: Vector3, mine: boolean)
-	local len = (to - from).Magnitude
-	if len < 1 then return end
-	local p = Instance.new("Part"); p.Anchored = true; p.CanCollide = false; p.CanQuery = false; p.CanTouch = false
-	p.Material = Enum.Material.Neon; p.Color = if mine then Color3.fromRGB(255, 226, 150) else Color3.fromRGB(255, 190, 120)
-	p.Size = Vector3.new(0.06, 0.06, len); p.CFrame = CFrame.lookAt(from, to) * CFrame.new(0, 0, -len / 2)
-	p.Transparency = 0.15; p.Parent = workspace
-	TweenService:Create(p, TweenInfo.new(0.09), { Transparency = 1 }):Play()
-	Debris:AddItem(p, 0.12)
-	-- étincelle d'impact
-	local spark = Instance.new("Part"); spark.Anchored = true; spark.CanCollide = false; spark.CanQuery = false; spark.CanTouch = false
-	spark.Shape = Enum.PartType.Ball; spark.Material = Enum.Material.Neon; spark.Color = Color3.fromRGB(255, 210, 140)
-	spark.Size = Vector3.new(0.35, 0.35, 0.35); spark.Position = to; spark.Parent = workspace
-	TweenService:Create(spark, TweenInfo.new(0.18), { Size = Vector3.new(0.05, 0.05, 0.05), Transparency = 1 }):Play()
-	Debris:AddItem(spark, 0.2)
+-- balle traçante, impacts, trous de balle, sang, flamme et douilles des autres : ShotFx (effets du web)
+local ShotFx = require(ReplicatedStorage.Shared.ShotFx)
+local function tracer(from: Vector3, to: Vector3, shooter: Player?)
+	if (to - from).Magnitude < 1 then return end
+	ShotFx.tracer(from, to, ShotFx.trailColor(shooter))     -- traînée cosmétique équipée (boutique)
+	ShotFx.impact(from, to)
+	Sfx.impact(from, to)                               -- bruit d'impact selon le matériau touché
 end
 
-local function muzzleFlash(char: Model?)
+local lastFlash: { [Instance]: number } = setmetatable({}, { __mode = "k" }) :: any
+local function muzzleFlash(char: Model?, origin: Vector3, endPos: Vector3)
+	-- un seul éclair par coup (le pompe envoie une trajectoire par plomb)
+	if char then
+		if os.clock() - (lastFlash[char] or -1) < 0.03 then return end
+		lastFlash[char] = os.clock()
+	end
 	local held = char and char:FindFirstChild("HeldWeapon")
 	local key = held and held:GetAttribute("Key")
-	if held and typeof(key) == "string" and A.modsOf(A.list(key, A.decode(held:GetAttribute("Att")), nil, true)).noFlash then return end
+	local noFlash = held ~= nil and typeof(key) == "string" and A.modsOf(A.list(key, A.decode(held:GetAttribute("Att")), nil, true)).noFlash == true
 	local muzzle = held and held:FindFirstChild("Muzzle", true)
+	local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if root and math.random() < 0.5 and (root.Position - camera.CFrame.Position).Magnitude < 25 * Config.STUDS_PER_METER then
+		ShotFx.shell(origin - Vector3.new(0, 0.2 * Config.STUDS_PER_METER, 0), root.CFrame.RightVector)
+	end
+	if noFlash then return end                         -- silencieux / cache-flamme : pas de flamme
+	-- flamme en étoile et fumée (plus grosse au pompe et au fusil de précision) ; douille une fois sur deux (plus haut)
+	local w = typeof(key) == "string" and Config.WEAPONS[key] or nil
+	local at = if muzzle and muzzle:IsA("Attachment") then muzzle.WorldPosition elseif muzzle and muzzle:IsA("BasePart") then muzzle.Position else origin
+	local dir = endPos - origin
+	ShotFx.muzzle(at, dir, w ~= nil and (w.cat == "sniper" or w.cat == "shotgun"))
 	if not muzzle then return end
 	local light = Instance.new("PointLight"); light.Color = Color3.fromRGB(255, 200, 120); light.Range = 10; light.Brightness = 4
 	light.Parent = muzzle
@@ -96,6 +104,10 @@ ammoState.OnClientEvent:Connect(function(info: any)
 	local changedWeapon = info.weapon ~= W.weapon
 	if info.reloading and not W.reloading then
 		W.reloadStart = os.clock()
+		-- durée envoyée par le serveur (accessoires, atout Speed Cola…) : l'animation et ses sons finissent avec la recharge
+		local w = info.weapon and Config.WEAPONS[info.weapon]
+		S.reloadDur = if typeof(info.reloadDur) == "number" then info.reloadDur
+			elseif w then w.reload * A.modsOf(A.activeOf(player, info.weapon)).rel else 0
 		S.reloadEmpty = W.mag <= 0; S.inspectStart = -1
 		S.reload:Fire(info.weapon, S.reloadEmpty)       -- le viewmodel joue l'animation et ses sons (chargeur dehors / dedans)
 	end
@@ -108,15 +120,16 @@ end)
 
 tracerRemote.OnClientEvent:Connect(function(origin: Vector3, endPos: Vector3, shooter: Instance?)
 	if shooter and shooter == player.Character then return end -- nos propres traceurs sont déjà dessinés
-	tracer(origin, endPos, false)
+	tracer(origin, endPos, Players:GetPlayerFromCharacter(shooter :: any))
 	if shooter then
 		local key = shooter:GetAttribute("Weapon")
 		if typeof(key) == "string" and Config.WEAPONS[key] then
 			local held = shooter:FindFirstChild("HeldWeapon")
 			local m = A.modsOf(A.list(key, A.decode(held and held:GetAttribute("Att")), nil, true))
 			playSound(fireSound(key), origin, m.snd)          -- silencieux : tir à 35 % du volume
+			Sfx.bulletPass(origin, endPos, Config.WEAPONS[key].cat)   -- claquement si la balle frôle la caméra
 		end
-		muzzleFlash(shooter :: Model)
+		muzzleFlash(shooter :: Model, origin, endPos)
 	end
 end)
 
@@ -147,12 +160,17 @@ local function alive(): boolean
 	local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
 	return hum ~= nil and hum.Health > 0
 end
+-- une scène tient la caméra (kill-cam, arrivée) ou un panneau est ouvert (pause, boutique, mode photo…) :
+-- les touches de l'arme ne font rien (R, V, molette, visée)
+local function busy(): boolean
+	return S.kc ~= nil or player:GetAttribute("UiOpen") == true
+end
 
 local function tryFire()
 	local key = W.weapon
 	-- la pause entre deux parties ne bloque que les joueurs du match (pas le lobby ni les duels)
 	local blocked = not W.matchLive and player:GetAttribute("Zone") == "match"
-	if not key or not alive() or blocked or W.menu or player:GetAttribute("UiOpen") == true then return end
+	if not key or not alive() or blocked or W.menu or busy() then return end
 	-- on ne tire pas en sprintant ni pendant une escalade ; à la sortie du sprint l'arme met un instant à revenir
 	if S.sprint or S.mantle or os.clock() < S.fireBlockedUntil or os.clock() < S.drinkUntil then return end
 	local w = Config.WEAPONS[key]
@@ -176,7 +194,7 @@ local function tryFire()
 		params.FilterDescendantsInstances = { player.Character :: Instance }
 		local r = workspace:Raycast(cf.Position, cf.LookVector * 400, params)
 		local muzzle = S.muzzle or (cf.Position + cf.LookVector * 1.5 - cf.UpVector * 0.4 + cf.RightVector * 0.5)
-		tracer(muzzle, if r then r.Position else cf.Position + cf.LookVector * 400, true)
+		tracer(muzzle, if r then r.Position else cf.Position + cf.LookVector * 400, player)
 	end
 	S.inspectStart = -1
 	S.shot:Fire(key)                                   -- recul de l'arme, éclair et douille dans le viewmodel
@@ -201,19 +219,19 @@ end
 local function onAim(_: string, st: Enum.UserInputState)
 	local key = W.weapon
 	if not key or Config.WEAPONS[key].melee then return Enum.ContextActionResult.Pass end
-	W.aiming = st == Enum.UserInputState.Begin and os.clock() >= S.drinkUntil   -- pas de visée pendant la boisson d'atout
+	W.aiming = st == Enum.UserInputState.Begin and os.clock() >= S.drinkUntil and not busy() and not W.menu   -- pas de visée pendant la boisson d'atout
 	publish()
 	return Enum.ContextActionResult.Sink
 end
 local function onInspect(_: string, st: Enum.UserInputState)
 	if st ~= Enum.UserInputState.Begin then return Enum.ContextActionResult.Pass end
-	if W.weapon and not W.reloading and not W.aiming and alive() then
+	if W.weapon and not W.reloading and not W.aiming and alive() and not busy() then
 		S.inspectStart = if S.inspectStart > 0 then -1 else os.clock()     -- 2e appui : on arrête l'inspection
 	end
 	return Enum.ContextActionResult.Sink
 end
 local function onReload(_: string, st: Enum.UserInputState)
-	if st == Enum.UserInputState.Begin then reloadRemote:FireServer() end
+	if st == Enum.UserInputState.Begin and alive() and not busy() then reloadRemote:FireServer() end
 	return Enum.ContextActionResult.Sink
 end
 local function switchTo(slot: number)
@@ -223,6 +241,8 @@ local function switchTo(slot: number)
 end
 local function onSwitch(name: string, st: Enum.UserInputState, input: InputObject)
 	if st ~= Enum.UserInputState.Begin and input.UserInputType ~= Enum.UserInputType.MouseWheel then return Enum.ContextActionResult.Pass end
+	-- molette dans une liste de la boutique ou du menu (curseur libre) : on fait défiler, on ne change pas d'arme
+	if busy() or W.menu then return Enum.ContextActionResult.Pass end
 	if name == "Slot1" then switchTo(1) elseif name == "Slot2" then switchTo(2) elseif name == "Slot3" then switchTo(3)
 	elseif name == "NextWeapon" then
 		local dir = if input.UserInputType == Enum.UserInputType.MouseWheel and input.Position.Z > 0 then -1 else 1
@@ -258,6 +278,8 @@ player.CameraMode = Enum.CameraMode.LockFirstPerson
 local baseSens = UserInputService.MouseDeltaSensitivity
 
 RunService.RenderStepped:Connect(function()
+	-- visée lâchée quand un panneau s'ouvre ou qu'une boisson d'atout commence en pleine visée
+	if W.aiming and (busy() or os.clock() < S.drinkUntil) then W.aiming = false; publish() end
 	if W.firing then tryFire() end
 end)
 

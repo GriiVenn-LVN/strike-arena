@@ -28,7 +28,7 @@ local C = {
 	Attaquants = rgb(0xff7a4a), ["Défenseurs"] = rgb(0x4aa3ff),
 }
 local T, CT = "Attaquants", "Défenseurs"
-local ROUND_MODES = { bomb = true, rapid = true, duel = true }
+local ROUND_MODES = { bomb = true, rapid = true, duel = true, gunfight = true }
 local function teamColor(t: string?): Color3 return (t and (C :: any)[t]) or C.text end
 local function other(t: string?): string return if t == T then CT else T end
 
@@ -231,11 +231,24 @@ local function setUse(on: boolean)
 	local ev = remote("ModeUse") :: RemoteEvent?
 	if ev then ev:FireServer(on) end
 end
-ContextActionService:BindActionAtPriority("ModeUse", function(_, state)
-	if not inMatch or not ROUND_MODES[mode] then return Enum.ContextActionResult.Pass end
+-- Manette : « utiliser » est sur X comme dans Call of Duty (B reste « s'accroupir » / glisser). X sert aussi à recharger :
+-- on ne le prend que si le serveur propose une action ici (UseHint) ou qu'une pose est en cours (UseProg), sinon il recharge.
+local padUse = false
+ContextActionService:BindActionAtPriority("ModeUse", function(_, state, input)
+	if not inMatch or not ROUND_MODES[mode] then padUse = false; return Enum.ContextActionResult.Pass end
+	if input.KeyCode == Enum.KeyCode.ButtonX then
+		if state == Enum.UserInputState.Begin then
+			if typeof(player:GetAttribute("UseHint")) ~= "string" and typeof(player:GetAttribute("UseProg")) ~= "number" then return Enum.ContextActionResult.Pass end
+			padUse = true; setUse(true)
+		elseif state == Enum.UserInputState.End or state == Enum.UserInputState.Cancel then
+			if not padUse then return Enum.ContextActionResult.Pass end
+			padUse = false; setUse(false)
+		end
+		return Enum.ContextActionResult.Sink
+	end
 	if state == Enum.UserInputState.Begin then setUse(true) elseif state == Enum.UserInputState.End or state == Enum.UserInputState.Cancel then setUse(false) end
 	return Enum.ContextActionResult.Sink
-end, false, Enum.ContextActionPriority.High.Value, Enum.KeyCode.E, Enum.KeyCode.ButtonB)
+end, false, Enum.ContextActionPriority.High.Value, Enum.KeyCode.E, Enum.KeyCode.ButtonX)
 useTouch.InputBegan:Connect(function(i)
 	if i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseButton1 then setUse(true) end
 end)
@@ -347,7 +360,7 @@ local function drawRounds(d: any, dtSince: number)
 	local hasBomb = char ~= nil and char:GetAttribute("HasBomb") == true
 	objLine.Text = ""; objSub.Text = ""; objCall.Text = ""
 	if phase == "freeze" then
-		objLine.Text = if mode == "duel" then "Touche B : choisis ton arme" else "Touche B : boutique" .. (if d.pistol then " — pistolets uniquement" else "")
+		objLine.Text = if mode == "gunfight" then "Mêmes armes pour tous : " .. tostring(d.kit or "…") elseif mode == "duel" then "Touche B : choisis ton arme" else "Touche B : boutique" .. (if d.pistol then " — pistolets uniquement" else "")
 		objLine.TextColor3 = C.gold
 	elseif phase == "live" and d.bombMode then
 		if b.state == "planted" then
@@ -384,7 +397,10 @@ local function drawRounds(d: any, dtSince: number)
 	useWrap.Visible = typeof(prog) == "number"
 	if typeof(prog) == "number" then useFill.Size = UDim2.fromScale(prog, 1); useMsg.Text = if typeof(msg) == "string" then msg else "" end
 	useHint.Visible = typeof(hint) == "string" and not useWrap.Visible
-	useHint.Text = if typeof(hint) == "string" then hint else ""
+	-- à la manette, l'indication nomme le bouton X au lieu de la touche E
+	local lit = UserInputService:GetLastInputType()
+	local pad = lit == Enum.UserInputType.Gamepad1 or lit == Enum.UserInputType.Gamepad2
+	useHint.Text = if typeof(hint) == "string" then (if pad then (hint:gsub("Maintenez E", "Maintenez X")) else hint) else ""
 	useTouch.Visible = touch and (useWrap.Visible or useHint.Visible)
 	-- marqueurs : sites, bombe
 	if d.bombMode then

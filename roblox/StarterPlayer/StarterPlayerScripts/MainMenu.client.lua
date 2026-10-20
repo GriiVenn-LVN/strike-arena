@@ -208,6 +208,13 @@ function ctx.pending(): number
 	return n
 end
 
+-- caisses gagnées pas encore ouvertes (pastille sur « Arsenal » et sur « Caisses »)
+function ctx.boxCount(): number
+	local b = ctx.data and ctx.data.profile and ctx.data.profile.boxes
+	if typeof(b) ~= "table" then return 0 end
+	return (tonumber(b.std) or 0) + (tonumber(b.prem) or 0)
+end
+
 -- fenêtres des autres interfaces (ShopUI, LoyaltyUI, CommunityUI, LoadoutUI) : registre de ClientState
 function ctx.panel(name: string): boolean
 	local f = S.panels[name]
@@ -216,8 +223,11 @@ function ctx.panel(name: string): boolean
 	return false
 end
 
--- récompense du jour (bouton RÉCOMPENSE et carte « Cadeau du jour »)
+-- récompense du jour (bouton RÉCOMPENSE et carte « Cadeau du jour ») : ouvre le calendrier de connexion (DailyUI)
+-- s'il est chargé ; sinon récupère directement comme avant
 function ctx.claimDaily()
+	local cal = S.panels.daily
+	if cal then task.spawn(cal); return end
 	local d = ctx.data
 	if d and d.daily and not d.daily.canClaim then
 		ctx.toast("Déjà récupérée · série de " .. tostring(d.daily.streak) .. " jour(s) · reviens demain", C.dim); return
@@ -232,6 +242,12 @@ function ctx.claimDaily()
 		ctx.toast("🎁 Jour " .. tostring(res.day) .. " : " .. table.concat(parts, " · "), C.gold)
 	end
 	ctx.refresh()
+end
+
+-- passe de combat : la fenêtre du passe (PassUI) si elle est chargée, sinon l'onglet Progression du profil
+function ctx.openPass()
+	local f = S.panels.pass
+	if f then task.spawn(f) else ctx.go("profile", "Progression") end
 end
 
 -- ---------- lancer une partie ----------
@@ -296,8 +312,8 @@ local helpBar = text(body, { Name = "HelpBar", Size = UDim2.new(1, 0, 0, 22), Te
 	TextTruncate = Enum.TextTruncate.AtEnd, Text = "" })
 local pageBox = make("Frame", { Name = "Page", Position = UDim2.fromOffset(0, 30), Size = UDim2.new(1, 0, 1, -30), ClipsDescendants = true }, body)
 local footer = text(root, { Name = "Footer", AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 28, 1, -8), Size = UDim2.new(1, -56, 0, 16),
-	TextSize = 11, TextColor3 = C.mute, Font = K.MED, TextWrapped = false,
-	Text = 'P : menu (en partie : pause)  •  Tous les réglages sont sauvegardés automatiquement  •  <u>Crédits</u> : modèles d\'armes « Low-Poly » de TastyTony (CC BY 4.0)' })
+	TextSize = 11, TextColor3 = C.mute, Font = K.MED, TextWrapped = false, TextTruncate = Enum.TextTruncate.AtEnd,
+	Text = 'P : menu (en partie : pause)  •  Échap · B : retour  •  LB / RB : rubriques  •  Tous les réglages sont sauvegardés automatiquement  •  <u>Crédits</u> : modèles d\'armes « Low-Poly » de TastyTony (CC BY 4.0)' })
 local navButtons: { [string]: TextButton } = {}
 
 local function buildHeader()
@@ -331,14 +347,13 @@ local function buildHeader()
 			TextColor3 = if on then C.white else K.rgb(0xc5d1e4) })
 		K.pad(b, 16, 0)
 		local st = b:FindFirstChildOfClass("UIStroke"); if st then st:Destroy() end
-		if t.id == "home" then
-			local n = ctx.pending()
-			if n > 0 then
-				local dot = text(b, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -2, 0, 2), Size = UDim2.fromOffset(17, 17), Text = tostring(n),
-					BackgroundTransparency = 0, BackgroundColor3 = C.gold, TextColor3 = C.ink, Font = K.BLACK, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Center,
-					ZIndex = b.ZIndex + 1 })
-				K.corner(dot, 9); K.beat(dot)   -- bat comme la pastille .ndot du web
-			end
+		-- pastilles : ce qui attend sur l'Accueil (défis finis, bonus, cadeaux, nouveautés), caisses à ouvrir dans l'Arsenal
+		local n = if t.id == "home" then ctx.pending() elseif t.id == "arsenal" then ctx.boxCount() else 0
+		if n > 0 and not on then   -- comme le web : pas de pastille sur la rubrique ouverte
+			local dot = text(b, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -2, 0, 2), Size = UDim2.fromOffset(17, 17), Text = tostring(math.min(n, 99)),
+				BackgroundTransparency = 0, BackgroundColor3 = if t.id == "home" then C.gold else C.blue, TextColor3 = if t.id == "home" then C.ink else C.white,
+				Font = K.BLACK, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Center, ZIndex = b.ZIndex + 1 })
+			K.corner(dot, 9); K.beat(dot)   -- bat comme la pastille .ndot du web
 		end
 		navButtons[t.id] = b
 	end
@@ -413,6 +428,9 @@ local function buildSubRow()
 				{ LayoutOrder = i, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 32), TextSize = 13, Font = K.BLACK })
 			K.pad(b, 16, 0); K.corner(b, 16)
 			local c = b:FindFirstChildOfClass("UICorner"); if c then c.CornerRadius = UDim.new(0, 16) end
+			-- « Caisses » : nombre de caisses à ouvrir
+			local nb = if s.id == "Caisses" then ctx.boxCount() else 0
+			if nb > 0 then b.Text ..= '  <font color="' .. (if on then "#2c7fe0" else "#4aa3ff") .. '">● ' .. nb .. "</font>" end
 		end
 	end
 	-- ligne d'aide : où l'on est et à quoi sert cette page
@@ -552,10 +570,19 @@ local function tabStep(dir: number)
 end
 local function bindOpenActions(on: boolean)
 	if on then
-		ContextActionService:BindActionAtPriority("MainMenuBack", function(_, st)
+		-- « retour » : une rubrique revient à l'Accueil ; sur l'Accueil, B referme le menu (Échap et Retour arrière
+		-- n'y font rien : Échap ouvre aussi le menu de Roblox). Une fenêtre ouverte par-dessus (passe, boutique…)
+		-- se ferme d'abord : elle écoute ces touches à une priorité plus haute (Kit.overlay).
+		ContextActionService:BindActionAtPriority("MainMenuBack", function(_, st, input)
+			if K.overlayOpen() then return Enum.ContextActionResult.Pass end
+			if ctx.tab ~= "home" then
+				if st == Enum.UserInputState.Begin then ctx.go("home") end
+				return Enum.ContextActionResult.Sink
+			end
+			if input.KeyCode ~= Enum.KeyCode.ButtonB then return Enum.ContextActionResult.Pass end
 			if st == Enum.UserInputState.Begin then ctx.close() end
 			return Enum.ContextActionResult.Sink
-		end, false, 3000, Enum.KeyCode.ButtonB)
+		end, false, 3000, Enum.KeyCode.ButtonB, Enum.KeyCode.Escape, Enum.KeyCode.Backspace)
 		ContextActionService:BindActionAtPriority("MainMenuTabs", function(_, st, input)
 			if st == Enum.UserInputState.Begin then tabStep(if input.KeyCode == Enum.KeyCode.ButtonR1 then 1 else -1) end
 			return Enum.ContextActionResult.Sink
@@ -637,6 +664,8 @@ end, false, Enum.KeyCode.P, Enum.KeyCode.DPadDown)
 -- la pause ouvre le menu principal (bouton MENU PRINCIPAL) ; « settings » l'ouvre sur les Réglages
 S.panels.menu = function() setOpen(true) end
 S.panels.settings = function() ctx.open("settings", "Général") end
+-- les autres fenêtres (passe, calendrier, boutique) demandent de rafraîchir le menu après une récupération
+S.panels.menuRefresh = function() task.spawn(ctx.refresh) end
 
 -- arrivée au lobby et retour d'une partie : le menu s'ouvre ; une partie commence : il se ferme
 local lastZone = zone()

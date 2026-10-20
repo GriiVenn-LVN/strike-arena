@@ -3,7 +3,8 @@
 -- Tout ce qui sonne sans qu'une arme le demande :
 --   * réverbération du lieu : celle de la carte, plus fermée quand un plafond est au-dessus de la caméra (souk, tunnels, hangars) ;
 --   * fond sonore de la carte (vent, bourdonnement, port…) en boucle, avec des rafales, plus fort sous l'orage ;
---   * bruits de pas des joueurs et des bots selon le sol (sable, herbe, neige, pierre, bois, métal) et saut du joueur.
+--   * bruits de pas des joueurs et des bots selon le sol (sable, herbe, neige, pierre, bois, métal), plus forts en sprint,
+--     saut et escalade du joueur ; sol sous le joueur transmis à Sfx (bruit des douilles).
 -- Les pas Roblox par défaut (RbxCharacterSounds) sont coupés : ils feraient doublon avec ceux de la planche.
 -- Réglages dans ModeConfig.SOUNDS (MAPS, ACOUSTICS, AMBIENCE, STEPS).
 local Players = game:GetService("Players")
@@ -195,7 +196,9 @@ local function stepOf(w: Walker, dt: number, cam: Vector3)
 	local surface = if part:IsA("BasePart") then surfaceOf(part) else "stone"
 	w.foot = not w.foot
 	local vol = if own then (if S.sprint then 0.36 else 0.28) else 0.5
-	Sfx.step(surface, if own then nil else r.Position, vol * (if w.foot then 1 else 0.9))
+	local sprint = if own then S.sprint == true else speed > 6
+	if own then Sfx.setGround(surface); S.stepAt = os.clock() end   -- le viewmodel cale son balancement sur ce pas
+	Sfx.step(surface, if own then nil else r.Position, vol * (if w.foot then 1 else 0.9), sprint)
 end
 
 local function watchPlayer(p: Player)
@@ -212,11 +215,26 @@ local botsFolder = workspace:FindFirstChild("Bots")
 if botsFolder then watchBots(botsFolder) end
 workspace.ChildAdded:Connect(function(c: Instance) if c.Name == "Bots" and c:IsA("Folder") then watchBots(c) end end)
 
+-- sol sous le joueur à l'arrêt aussi (douilles qui tombent, Sfx.setGround)
+local function updateGround()
+	local char = player.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart")
+	if not char or not hrp or not hrp:IsA("BasePart") then return end
+	downParams.FilterDescendantsInstances = { char }
+	local r = workspace:Raycast(hrp.Position, Vector3.new(0, -8, 0), downParams)
+	if r and r.Instance:IsA("BasePart") then Sfx.setGround(surfaceOf(r.Instance)) end
+end
+
 -- ---------- boucle ----------
 local placeT = 0
+local wasMantle = false
 RunService.Heartbeat:Connect(function(dt: number)
 	placeT -= dt
-	if placeT <= 0 then placeT = 0.4; updatePlace() end
+	if placeT <= 0 then placeT = 0.4; updatePlace(); updateGround() end
+	-- escalade : les mains attrapent le rebord, le corps se hisse
+	local mantle = S.mantle == true
+	if mantle and not wasMantle then Sfx.foley("climb") end
+	wasMantle = mantle
 	updateBeds(dt)
 	local cam = workspace.CurrentCamera
 	if not cam then return end

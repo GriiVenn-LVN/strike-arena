@@ -110,7 +110,7 @@ return function(ctx: any, body: Frame, _sub: string?)
 	local fr = K.btn(row, "👥  " .. spaced("AVEC DES AMIS", 1), "alt", function() ctx.friends = true; ctx.go("play") end,
 		{ Size = UDim2.new(0.5, -5, 1, 0), Position = UDim2.new(0.5, 5, 0, 0), TextSize = 14 })
 	K.cut(q, 10, K.rgb(0x111a2b)); K.cut(fr, 10, K.rgb(0x111a2b))
-	local ch = K.btn(hero, "▸  " .. spaced("CHANGER DE MODE OU DE CARTE", 1), "ghost", function() ctx.friends = false; ctx.go("play") end,
+	local ch = K.btn(hero, "▸  " .. spaced("CHOISIR LE MODE ET LA CARTE", 1), "ghost", function() ctx.friends = false; ctx.go("play") end,
 		{ LayoutOrder = 6, Size = UDim2.new(1, 0, 0, 34), TextSize = 11, TextColor3 = C.sub })
 	K.cut(ch, 8, K.rgb(0x0f1626))
 
@@ -119,13 +119,13 @@ return function(ctx: any, body: Frame, _sub: string?)
 	local bp = profile and profile.bp
 	local tier = if bp then math.min(X.SEASON.tiers, math.floor((bp.xp or 0) / X.SEASON.xpPerTier)) else 0
 	local pc = if bp then math.floor(((bp.xp or 0) % X.SEASON.xpPerTier) / X.SEASON.xpPerTier * 100) else 0
-	local sc = K.card(mini, { Size = UDim2.new(0.5, -7, 1, 0), AutomaticSize = Enum.AutomaticSize.None }, function() ctx.go("profile", "Progression") end)
+	local sc = K.card(mini, { Size = UDim2.new(0.5, -7, 1, 0), AutomaticSize = Enum.AutomaticSize.None }, function() ctx.openPass() end)
 	K.vlist(sc, 8)
 	K.h4(sc, "★ " .. string.upper(X.SEASON.name), nil, 1)
 	text(sc, { LayoutOrder = 2, Font = K.BLACK, TextSize = 24, Size = UDim2.new(1, 0, 0, 28), TextWrapped = false,
 		Text = "Palier " .. tier .. ' <font size="13" color="#8da0bd">/ ' .. X.SEASON.tiers .. "</font>" })
 	K.bar(sc, pc / 100, { LayoutOrder = 3 })
-	text(sc, { LayoutOrder = 4, TextSize = 11, TextColor3 = C.dim, Text = pc .. " % vers le palier suivant", Size = UDim2.new(1, 0, 0, 14) })
+	text(sc, { LayoutOrder = 4, TextSize = 11, TextColor3 = C.dim, Text = pc .. " % vers le palier suivant · voir le passe ›", Size = UDim2.new(1, 0, 0, 14) })
 	local ds = d and d.daily
 	local day = if ds then ds.day else 1
 	local gc = K.card(mini, { Size = UDim2.new(0.5, -7, 1, 0), Position = UDim2.new(0.5, 7, 0, 0), AutomaticSize = Enum.AutomaticSize.None }, function() ctx.claimDaily() end)
@@ -152,8 +152,34 @@ return function(ctx: any, body: Frame, _sub: string?)
 	K.h4(wc, "🏆 DÉFIS DE LA SEMAINE", "nouveaux dans " .. weekLeft(), 0)
 	for i, m in ipairs(ctx.ch and ctx.ch.weekly or profile and profile.wmis and profile.wmis.list or {}) do mission(ctx, wc, m, i, true) end
 
-	-- ============ colonne 3 : nouveautés, puis le reste (codes, communauté) ============
-	-- (Cadeaux, Premium et Boutique : boutons de l'en-tête, visibles sur toutes les pages)
+	-- ============ colonne 3 : cadeaux et Premium, nouveautés, puis le reste (codes, communauté) ============
+	-- cadeaux de fidélité et Premium (.lmini du web, 8W_loyalty) : la carte des cadeaux brille quand il y en a à ouvrir
+	-- (les boutons CADEAUX / PREMIUM de l'en-tête restent, visibles sur toutes les pages)
+	local loy = ctx.loy
+	local lp = if loy and loy.pending then #loy.pending else 0
+	local lm = make("Frame", { LayoutOrder = 5, Size = UDim2.new(1, 0, 0, 118) }, cols[3])
+	local gcard = K.card(lm, { Size = UDim2.new(0.5, -7, 1, 0), AutomaticSize = Enum.AutomaticSize.None }, function() ctx.panel("gifts") end)
+	K.vlist(gcard, 6)
+	K.h4(gcard, "🎁 CADEAUX", nil, 1)
+	text(gcard, { LayoutOrder = 2, Font = K.BLACK, TextSize = 22, Size = UDim2.new(1, 0, 0, 26), TextWrapped = false,
+		Text = if lp > 0 then lp .. ' <font size="12" color="#8da0bd">à récupérer</font>' else '<font color="#7dff9f">✔</font>' })
+	if lp > 0 then
+		local st = gcard:FindFirstChildOfClass("UIStroke")
+		if st then st.Color = C.gold; st.Transparency = 0.35 end
+		K.btn(gcard, spaced("OUVRIR", 1), "gold", function() ctx.panel("gifts") end, { LayoutOrder = 3, Size = UDim2.fromOffset(96, 24), TextSize = 10 })
+		K.shine(gcard, 2.6, 0.18)
+	else
+		text(gcard, { LayoutOrder = 3, TextSize = 11, TextColor3 = C.dim, Size = UDim2.new(1, 0, 0, 28), Text = "Plus tu joues, plus tu gagnes" })
+	end
+	local vip = loy ~= nil and loy.vip == true
+	local vcard = K.card(lm, { Size = UDim2.new(0.5, -7, 1, 0), Position = UDim2.new(0.5, 7, 0, 0), AutomaticSize = Enum.AutomaticSize.None },
+		function() ctx.panel("vip") end)
+	K.vlist(vcard, 6)
+	local vst = vcard:FindFirstChildOfClass("UIStroke"); if vst then vst.Color = C.gold; vst.Transparency = 0.65 end
+	K.h4(vcard, "👑 PREMIUM", nil, 1)
+	text(vcard, { LayoutOrder = 2, Font = K.BLACK, TextSize = 22, Size = UDim2.new(1, 0, 0, 26), TextWrapped = false, TextColor3 = C.gold,
+		Text = if vip then "Actif" .. (if loy.vipDaysLeft then ' <font size="12" color="#8da0bd">· ' .. tostring(loy.vipDaysLeft) .. " j</font>" else "") else "Découvrir" })
+	text(vcard, { LayoutOrder = 3, TextSize = 11, TextColor3 = C.dim, Size = UDim2.new(1, 0, 0, 28), Text = "Récompenses et pseudo en couleur" })
 	local nc = K.card(cols[3], { LayoutOrder = 6 })
 	K.vlist(nc, 0)
 	K.h4(nc, "📰 NOUVEAUTÉS", nil, 0)

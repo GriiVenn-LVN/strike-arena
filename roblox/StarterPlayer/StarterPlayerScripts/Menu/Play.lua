@@ -209,6 +209,13 @@ return function(ctx: any, body: Frame, _sub: string?)
 				local b = make("TextButton", { Text = "", LayoutOrder = order, BackgroundTransparency = 0, BackgroundColor3 = if on then m.c:Lerp(C.card, 0.82) else C.card,
 					Selectable = true, Active = not guest }, tiles)
 				K.corner(b, 10); K.stroke(b, if on then m.c else C.white, 2, if on then 0 else 0.93)
+				-- couleur du mode (--c du web) : halo derrière l'icône (drop-shadow) et liseré en bas de la tuile
+				local halo = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0, 34), Size = UDim2.fromOffset(46, 46),
+					BackgroundTransparency = if on then 0.72 else 0.88, BackgroundColor3 = m.c }, b)
+				K.corner(halo, 23)
+				local band = make("Frame", { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -1), Size = UDim2.new(if on then 0.7 else 0.34, 0, 0, 3),
+					BackgroundTransparency = if on then 0 else 0.45, BackgroundColor3 = m.c }, b)
+				K.corner(band, 2)
 				text(b, { Text = m.ic, Size = UDim2.new(1, 0, 0, 40), Position = UDim2.fromOffset(0, 14), TextSize = 30, TextXAlignment = Enum.TextXAlignment.Center })
 				text(b, { Text = spaced(K.upper(modeName(id)), 1), Size = UDim2.new(1, -10, 0, 44), Position = UDim2.fromOffset(5, 58), TextSize = 11, Font = K.BLACK,
 					TextXAlignment = Enum.TextXAlignment.Center, TextYAlignment = Enum.TextYAlignment.Top, LineHeight = 1.1 })
@@ -228,8 +235,9 @@ return function(ctx: any, body: Frame, _sub: string?)
 						set({ mode = id, map = if table.find(maps, p.map) then p.map else maps[1], limit = Modes.defaultLimit(id) })
 					end)
 				end
-				b.MouseEnter:Connect(function() if not on then b.BackgroundColor3 = C.card2 end end)
-				b.MouseLeave:Connect(function() if not on then b.BackgroundColor3 = C.card end end)
+				b.MouseEnter:Connect(function() if not on then b.BackgroundColor3 = C.card2; K.tween(band, 0.16, { Size = UDim2.new(0.6, 0, 0, 3) }) end end)
+				b.MouseLeave:Connect(function() if not on then b.BackgroundColor3 = C.card; K.tween(band, 0.16, { Size = UDim2.new(0.34, 0, 0, 3) }) end end)
+				if not guest then K.juice(b, 0.05) end   -- survol / manette : la tuile grossit, son d'interface, enfoncement au clic
 			end
 		end
 	end
@@ -251,9 +259,14 @@ return function(ctx: any, body: Frame, _sub: string?)
 		local b = make("TextButton", { Text = "", LayoutOrder = i, BackgroundTransparency = 0, BackgroundColor3 = C.card, Selectable = true, Active = not guest }, mgrid)
 		K.corner(b, 10); K.stroke(b, if on then C.accent else C.white, 2, if on then 0 else 0.93)
 		local t = thumb(b, id, th); t.Position = UDim2.fromOffset(8, 8)
+		if on then   -- carte choisie : pastille « ✔ » en plus du bord rouge
+			local ok = text(b, { Text = "✔", AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -12, 0, 12), Size = UDim2.fromOffset(22, 22), BackgroundTransparency = 0,
+				BackgroundColor3 = C.accent, Font = K.BLACK, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Center, ZIndex = t.ZIndex + 2 })
+			K.corner(ok, 11)
+		end
 		text(b, { Text = spaced(K.upper(Modes.MAP[id].n), 1), Position = UDim2.fromOffset(4, th + 12), Size = UDim2.new(1, -8, 0, 36), Font = K.BLACK, TextSize = 12,
 			TextXAlignment = Enum.TextXAlignment.Center, LineHeight = 1.05 })
-		if not guest then b.Activated:Connect(function() set({ map = id }) end) end
+		if not guest then b.Activated:Connect(function() set({ map = id }) end); K.juice(b, 0.04) end
 		b.MouseEnter:Connect(function() b.BackgroundColor3 = C.card2 end)
 		b.MouseLeave:Connect(function() b.BackgroundColor3 = C.card end)
 	end

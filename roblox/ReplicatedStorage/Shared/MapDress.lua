@@ -2,7 +2,9 @@
 -- ReplicatedStorage/Shared/MapDress (ModuleScript, client + Studio)
 -- Habillage d'une carte comme sur le web (utilisé par StarterPlayerScripts/MapDetailController, et par
 -- ServerStorage/MeshUploader pour envoyer une fois sur Roblox les maillages et textures, voir MeshStore) :
---   • textures canvas du web posées sur les blocs du décor, détail fin du sol ;
+--   • textures canvas du web posées sur les blocs du décor, sauf celles remplacées par un matériau PBR haute définition
+--     de Roblox (MapScene.hdMaterial : enduit, briques, bois, béton, tôle… posé par le serveur) ; dessin du sol (sites,
+--     zones) en calque translucide sur le matériau du sol, ombres cuites du web éclaircies ;
 --   • tous les maillages non primitifs du web regroupés par matériau (peu de pièces), construits petit à petit ;
 --   • halos lumineux des lampes, images du ciel.
 local AssetService = game:GetService("AssetService")
@@ -142,6 +144,9 @@ local function faceDims(k: number, s: Vector3): (number, number)
 	return s.X, s.Y
 end
 
+-- dessin du sol du web (512 px pour 80 m : sites, zones, marquages) : translucide, le grain du matériau du sol se voit dessous
+local GROUND_DRAWING = 0.4
+
 local function addTexture(p: BasePart, face: Enum.NormalId, img: Content, color: Color3, su: number, sv: number, transp: number?): Texture
 	local t = Instance.new("Texture")
 	t.Face = face; t.TextureContent = img; t.Color3 = color
@@ -163,6 +168,9 @@ function MapDress.dressPrims(b: Build, info: any)
 		local pr = typeof(idx) == "number" and prims[idx] or nil
 		if pr and pr.kind == 0 and p:IsA("BasePart") then
 			local inst = pr.color or Color3.new(1, 1, 1)
+			local main = MapScene.faceMain(pr)
+			-- couleur du bloc posée par le serveur, sans sa petite variation (MapScene.vary)
+			local base = if main > 0 then mulC(MapScene.color(mats[main].avg), inst) else p.Color
 			for k = 1, 6 do
 				local mi = pr.mats[k]
 				local plane = bit32.band(pr.flags, 1) ~= 0
@@ -170,20 +178,31 @@ function MapDress.dressPrims(b: Build, info: any)
 					local m = mats[mi]
 					local fw, fh = faceDims(k, pr.size)
 					local tw, th = faceDims(k, pr.tile)
-					if m.tex then
+					local hd = MapScene.hdMaterial(m)
+					local col = mulC(MapScene.color(m.avg), inst)
+					if hd and hd == p.Material then
+						-- motif rendu par le matériau PBR du bloc : rien à poser, sauf une face d'une autre couleur
+						if cdiff(col, base) > 0.05 then
+							local w = white()
+							if w then addTexture(p, FACES[k], w, col, fw * U, fh * U) end
+						end
+					elseif m.tex then                            -- dessin du web (ou face d'un autre matériau que le bloc)
 						local img = texImage(m.tex)
 						if img then
 							local rep = m.rep or { 1, 1 }
-							addTexture(p, FACES[k], img, mulC(MapScene.color(m.c), inst), tw * U / rep[1], th * U / rep[2], if m.cut then (m.a or 0) else nil)
+							local tr: number? = if m.cut then (m.a or 0) else nil
+							if MapScene.isBakedShadow(m) then tr = 1 - (1 - (m.a or 0)) * 0.55
+							elseif m.det and p.Material ~= Enum.Material.SmoothPlastic then tr = GROUND_DRAWING end
+							addTexture(p, FACES[k], img, mulC(MapScene.color(m.c), inst), tw * U / rep[1], th * U / rep[2], tr)
 						end
 					else
-						local col = mulC(MapScene.color(m.avg), inst)
-						if cdiff(col, p.Color) > 0.05 then       -- dessus d'un mur, corniche… d'une autre couleur que les côtés
+						if cdiff(col, base) > 0.05 then         -- dessus d'un mur, corniche… d'une autre couleur que les côtés
 							local w = white()
 							if w then addTexture(p, FACES[k], w, col, fw * U, fh * U) end
 						end
 					end
-					if m.det then                                -- grain du sol répété tous les 3 m
+					-- grain du sol répété tous les 3 m : seulement si le sol n'a pas reçu de matériau Roblox à relief
+					if m.det and p.Material == Enum.Material.SmoothPlastic then
 						local d = detailImage(m.det.tex, m.det.str)
 						if d then addTexture(p, FACES[k], d, Color3.new(1, 1, 1), m.det.rep * U, m.det.rep * U) end
 					end
@@ -229,7 +248,8 @@ type Chunk = { P: { Vector3 }, N: { Vector3 }, UV: { Vector2 }, C: { Color3 }, T
 local function newChunk(): Chunk return { P = {}, N = {}, UV = {}, C = {}, T = {}, hasN = false, hasUV = false, hasC = false } end
 
 
-local function flush(b: Build, ch: Chunk, m: any, look: { color: Color3, img: Content?, shadow: boolean }, key: string)
+type Look = { color: Color3, img: Content?, shadow: boolean, mat: Enum.Material, cut: boolean }
+local function flush(b: Build, ch: Chunk, m: any, look: Look, key: string)
 	if #ch.T == 0 or not b.alive then return end
 	local lo, hi = Vector3.new(math.huge, math.huge, math.huge), Vector3.new(-math.huge, -math.huge, -math.huge)
 	for _, p in ipairs(ch.P) do lo = lo:Min(p); hi = hi:Max(p) end
@@ -260,12 +280,12 @@ local function flush(b: Build, ch: Chunk, m: any, look: { color: Color3, img: Co
 			return em
 		end)
 		mp.Name = "Detail"; mp.Anchored = true; mp.CanCollide = false; mp.CanQuery = false; mp.CanTouch = false; mp.Massless = true
-		mp.CastShadow = look.shadow; mp.Color = look.color; mp.Material = MapScene.material(m.rm)
+		mp.CastShadow = look.shadow; mp.Color = look.color; mp.Material = look.mat
 		if m.refl then mp.Reflectance = m.refl end
-		if m.a and not m.cut then mp.Transparency = m.a end
+		if m.a and not look.cut then mp.Transparency = m.a end
 		if look.img then
 			mp.TextureContent = look.img :: Content
-			if m.cut then        -- feuilles, toiles : découpe par la transparence de la texture
+			if look.cut then     -- feuilles, toiles : découpe par la transparence de la texture
 				local okCut = pcall(function()
 					local sa = Instance.new("SurfaceAppearance")
 					sa.AlphaMode = Enum.AlphaMode.Transparency
@@ -275,7 +295,7 @@ local function flush(b: Build, ch: Chunk, m: any, look: { color: Color3, img: Co
 				-- sans découpe, l'herbe et les toiles s'affichaient en carrés noirs : on ne les montre pas
 				if not okCut then mp:Destroy(); if em then em:Destroy() end; return end
 			end
-		elseif m.cut then
+		elseif look.cut then
 			mp:Destroy(); if em then em:Destroy() end; return
 		end
 		mp.CFrame = CFrame.new(b.origin + center)
@@ -289,14 +309,15 @@ local function flush(b: Build, ch: Chunk, m: any, look: { color: Color3, img: Co
 end
 
 -- repli sans EditableMesh : boîte englobante colorée de chaque objet
-local function fallbackPart(b: Build, g: Geo, e: { number }, color: Color3)
+local function fallbackPart(b: Build, g: Geo, e: { number }, color: Color3, m: any)
 	local x, y, z = Vector3.new(e[1], e[2], e[3]), Vector3.new(e[4], e[5], e[6]), Vector3.new(e[7], e[8], e[9])
 	local size = Vector3.new(g.ext.X * x.Magnitude, g.ext.Y * y.Magnitude, g.ext.Z * z.Magnitude) * U
 	if size.Magnitude < 0.25 or math.max(size.X, size.Y, size.Z) > 150 then return end
 	local c = g.lo + g.ext / 2
 	local wc = Vector3.new(e[10], e[11], e[12]) + x * c.X + y * c.Y + z * c.Z
 	local p = Instance.new("Part")
-	p.Anchored = true; p.CanCollide = false; p.CanQuery = false; p.CanTouch = false; p.Color = color; p.Material = Enum.Material.SmoothPlastic
+	p.Anchored = true; p.CanCollide = false; p.CanQuery = false; p.CanTouch = false; p.Color = color
+	p.Material = MapScene.hdMaterial(m) or MapScene.material(m.rm)
 	p.Size = Vector3.new(math.max(size.X, 0.05), math.max(size.Y, 0.05), math.max(size.Z, 0.05))
 	local ok = pcall(function() p.CFrame = CFrame.fromMatrix(b.origin + wc * U, x.Unit, y.Unit, z.Unit) end)
 	if not ok then p.CFrame = CFrame.new(b.origin + wc * U) end
@@ -324,7 +345,7 @@ function MapDress.buildMeshes(b: Build, info: any)
 		local groups = if #ml == 1 then { { 0, g.ni, 0 } } else g.groups
 		if not api.mesh then
 			local m0 = mats[ml[1] + 1]
-			if m0 and not m0.cut then fallbackPart(b, g, e, mulC(MapScene.color(m0.avg), inst)) end
+			if m0 and (not m0.cut or MapScene.hdMaterial(m0)) then fallbackPart(b, g, e, mulC(MapScene.color(m0.avg), inst), m0) end
 		else
 			for _, gr: { number } in ipairs(groups) do
 				local mi = ml[math.min(#ml, gr[3] + 1)]
@@ -346,8 +367,12 @@ function MapDress.buildMeshes(b: Build, info: any)
 		local bk = buckets[key]
 		local m = mats[bk.mat]
 		local rep, off = m.rep or { 1, 1 }, m.off or { 0, 0 }
-		local look = { color = mulC(MapScene.color(m.avg), bk.inst), img = nil :: Content?, shadow = bk.shadow and not m.cut }
-		if m.tex then look.img = tintedImage(b, tinted, m.tex, mulC(MapScene.color(m.c), bk.inst)) end
+		-- texture floue remplacée par un matériau PBR (MapScene.hdMaterial) : couleur moyenne de la texture + matériau Roblox
+		-- (les UV restent dans le maillage : mêmes morceaux, mêmes clés MeshStore qu'avant)
+		local hd = MapScene.hdMaterial(m)
+		local look: Look = { color = mulC(MapScene.color(m.avg), bk.inst), img = nil, shadow = bk.shadow and (hd ~= nil or not m.cut),
+			mat = hd or MapScene.material(m.rm), cut = m.cut == true and hd == nil }
+		if m.tex and not hd then look.img = tintedImage(b, tinted, m.tex, mulC(MapScene.color(m.c), bk.inst)) end
 		if m.vc then look.color = bk.inst end
 		-- clé stable de chaque morceau (MeshStore) : carte, matériau + teinte, numéro du morceau
 		local nfl = 0
@@ -425,7 +450,7 @@ function MapDress.buildMeshes(b: Build, info: any)
 			local m0 = mats[ml[1] + 1]
 			local e = table.create(12)
 			for k = 0, 11 do e[k + 1] = buffer.readf32(buf, r + 8 + k * 4) end
-			if m0 and not m0.cut then fallbackPart(b, g, e, MapScene.color(m0.avg)) end
+			if m0 and (not m0.cut or MapScene.hdMaterial(m0)) then fallbackPart(b, g, e, MapScene.color(m0.avg), m0) end
 			if i % 200 == 199 then task.wait() end
 		end
 	end

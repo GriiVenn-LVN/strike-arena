@@ -1,0 +1,4 @@
+--!strict
+-- StarterCharacterScripts/Health (Script)
+-- Remplace le script « Health » que Roblox met dans chaque personnage (1 % de vie par seconde, sans arrêt) :
+-- la régénération du jeu web est faite par ServerScriptService/RegenService (3 s sans dégâts, puis 20 PV/s).
