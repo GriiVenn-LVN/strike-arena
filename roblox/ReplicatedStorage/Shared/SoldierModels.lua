@@ -288,11 +288,14 @@ function SoldierModels.parts(look: Look.LookInfo): { Item }?
 	local items: { Item } = {}
 	for _, t in ipairs(tpls) do
 		local mp = t.part:Clone()
+		-- tissu mat (rugosité 0,88 du web) : en SmoothPlastic, le reflet du ciel (EnvironmentSpecularScale de la carte)
+		-- recouvrait les tenues sombres (CT bleu marine, gilets) d'un vernis noir brillant
 		if t.kind == "tex" then
+			mp.Material = Enum.Material.Fabric
 			if tex and tex.img then mp.TextureContent = tex.img :: Content elseif tex then mp.Color = tex.avg end
 		elseif t.kind == "pal" then
 			if pal.img then mp.TextureContent = pal.img :: Content else mp.Color = pal.col[t.col] or mp.Color end
-			if metal then mp.Reflectance = 0.12 end
+			if metal then mp.Reflectance = 0.12 else mp.Material = Enum.Material.Fabric end
 		else
 			mp.Color = pal.col[t.col] or Color3.new(1, 1, 1)
 			if t.kind == "neon" then mp.Material = Enum.Material.Neon
