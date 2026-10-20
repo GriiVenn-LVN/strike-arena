@@ -25,7 +25,8 @@ local MapDress = require(ReplicatedStorage.Shared.MapDress)
 local MapAmbience = {}
 local U = Config.STUDS_PER_METER
 
--- valeurs des thèmes du web absentes de l'export : env (intensité des reflets du ciel), lune peinte dans le ciel
+-- valeurs des thèmes du web absentes de l'export : env (intensité des reflets du ciel sur le web, pour mémoire : Roblox
+-- prend LOOK.diff / LOOK.spec), lune peinte dans le ciel
 -- (taille en degrés) et couleur de son halo
 type Extra = { env: number, moon: number?, halo: Color3? }
 local EXTRA: { [string]: Extra } = {
@@ -33,6 +34,36 @@ local EXTRA: { [string]: Extra } = {
 	jungle = { env = 0.6 }, range = { env = 0.7 },
 	haunt = { env = 0.12, moon = 8.5 },                                          -- lune de 26 m à 175 m (42_haunt.js)
 	halloween = { env = 0.14, moon = 11, halo = Color3.fromRGB(255, 150, 70) },   -- lune orange de 34 m + halo (8W_halloween.js)
+}
+
+-- ---------- rendu réaliste par thème (réglé sur la capture de Noa : sol bleu violet, ombres dures, image délavée) ----------
+-- Le web éclaire avec une lumière d'hémisphère (ciel / sol du thème) et une carte d'environnement qui contient le disque du
+-- soleil (makeEnv de 40_gfx.js) : le sol reste beige. Roblox tire sa lumière diffuse du ciel du seul skybox (dégradé du
+-- web, bleu profond au zénith, sans le soleil) : les sols, tournés vers le zénith, devenaient bleus à l'ombre et violets
+-- au soleil, les murs (tournés vers l'horizon chaud) non. On baisse donc la part du skybox (diff) et on rend la lumière
+-- d'hémisphère du web par OutdoorAmbient (amb). Le tone mapping ACES du web relève contraste et saturation : rendus par
+-- la correction colorimétrique (sat, con). Brume plus légère le jour (atmo : densité, décalage, éclat, voile).
+type Look = { diff: number, spec: number, soft: number, amb: number, sat: number, con: number, bri: number, tint: Color3,
+	bloom: { number }, rays: { number }, atmo: { number }, dof: number }
+local LOOK: { [string]: Look } = {
+	sand = { diff = 0.22, spec = 0.45, soft = 0.32, amb = 1.35, sat = 0.15, con = 0.12, bri = 0.01, tint = Color3.new(1, 0.975, 0.93),
+		bloom = { 0.28, 24, 1.4 }, rays = { 0.07, 0.55 }, atmo = { 0.16, 0.1, 0.28, 0.55 }, dof = 0.1 },
+	industrial = { diff = 0.26, spec = 0.55, soft = 0.26, amb = 1.25, sat = 0.17, con = 0.14, bri = 0, tint = Color3.new(1, 0.955, 0.9),
+		bloom = { 0.36, 28, 1.25 }, rays = { 0.12, 0.6 }, atmo = { 0.2, 0.12, 0.5, 0.8 }, dof = 0.1 },
+	snow = { diff = 0.4, spec = 0.65, soft = 0.4, amb = 1.1, sat = 0.06, con = 0.1, bri = 0, tint = Color3.new(0.96, 0.985, 1),
+		bloom = { 0.3, 24, 1.35 }, rays = { 0.06, 0.5 }, atmo = { 0.22, 0.1, 0.25, 1.2 }, dof = 0.14 },
+	night = { diff = 0.3, spec = 0.7, soft = 0.45, amb = 1, sat = 0.1, con = 0.12, bri = 0, tint = Color3.new(0.93, 0.96, 1),
+		bloom = { 0.75, 32, 0.95 }, rays = { 0, 0.5 }, atmo = { 0.3, 0.05, 0, 1 }, dof = 0.12 },
+	metro = { diff = 0.3, spec = 0.6, soft = 0.5, amb = 1, sat = 0.08, con = 0.12, bri = 0, tint = Color3.new(0.97, 0.98, 1),
+		bloom = { 0.5, 28, 1.05 }, rays = { 0, 0.5 }, atmo = { 0.3, 0, 0, 0.6 }, dof = 0.1 },
+	jungle = { diff = 0.3, spec = 0.5, soft = 0.38, amb = 1.1, sat = 0.14, con = 0.12, bri = 0, tint = Color3.new(0.98, 1, 0.95),
+		bloom = { 0.3, 24, 1.35 }, rays = { 0.12, 0.7 }, atmo = { 0.26, 0.1, 0.3, 1 }, dof = 0.14 },
+	range = { diff = 0.26, spec = 0.5, soft = 0.3, amb = 1.2, sat = 0.12, con = 0.12, bri = 0, tint = Color3.new(1, 0.99, 0.96),
+		bloom = { 0.28, 24, 1.4 }, rays = { 0.07, 0.55 }, atmo = { 0.16, 0.1, 0.25, 0.55 }, dof = 0.1 },
+	haunt = { diff = 0.12, spec = 0.25, soft = 0.5, amb = 1, sat = 0, con = 0.14, bri = 0, tint = Color3.new(0.94, 1, 0.95),
+		bloom = { 0.75, 32, 0.95 }, rays = { 0, 0.5 }, atmo = { 0.36, 0.05, 0, 1.2 }, dof = 0.12 },
+	halloween = { diff = 0.14, spec = 0.3, soft = 0.5, amb = 1, sat = 0.06, con = 0.14, bri = 0, tint = Color3.new(1, 0.95, 0.9),
+		bloom = { 0.75, 32, 0.95 }, rays = { 0, 0.5 }, atmo = { 0.34, 0.05, 0, 1 }, dof = 0.12 },
 }
 
 -- ---------- éclairage du lobby (remis en sortant de la carte) ----------
@@ -293,6 +324,7 @@ function MapAmbience.apply(f: Instance)
 	local themeName: string = (md and md.theme) or "sand"
 	local base: string = (md and md.base) or th.base or "sand"
 	local ex = EXTRA[themeName] or EXTRA.sand
+	local look = LOOK[themeName] or LOOK.sand
 	local o = f:GetAttribute("Origin")
 	local size = f:GetAttribute("MapSize")
 	local origin = if typeof(o) == "Vector3" then o else Vector3.zero
@@ -309,17 +341,19 @@ function MapAmbience.apply(f: Instance)
 	local sunDir = Vector3.new(sp[1], sp[2], sp[3]).Unit
 	pcall(function()
 		L.LightingStyle = Enum.LightingStyle.Realistic       -- ombres nettes du soleil et des lampes (rendu « Future »)
-		L.ShadowSoftness = if night then 0.35 else 0.18      -- ombres douces (PCF du web)
+		L.ShadowSoftness = look.soft                         -- pénombre des ombres (PCF doux du web)
 		local hemiS, hemiG, sunC = c3(th.hemiS), c3(th.hemiG), c3(th.sunC)
-		L.OutdoorAmbient = scale(hemiS:Lerp(hemiG, 0.4), math.clamp(th.hemiI * 1.3, 0.2, 1.2))
+		-- lumière d'hémisphère du web (moitié ciel, moitié sol) : éclaire les ombres sans les bleuir
+		L.OutdoorAmbient = scale(hemiS:Lerp(hemiG, 0.5), math.clamp(th.hemiI * 1.3 * look.amb, 0.2, 1.2))
 		L.Ambient = scale(hemiG, math.clamp(th.hemiI * 0.8, 0.1, 0.8))
 		L.Brightness = math.clamp(th.sunI, 0.15, 3.2)
 		L.ColorShift_Top = sunC
 		L.ColorShift_Bottom = hemiG
 		L.ExposureCompensation = math.clamp(math.log(th.exp or 1, 2), -1, 1)
-		-- reflets du ciel : les matériaux PBR (métal, béton, bois…) en ont besoin pour paraître réels
-		L.EnvironmentDiffuseScale = math.clamp(ex.env * 1.1 + 0.3, 0.35, 1)
-		L.EnvironmentSpecularScale = math.clamp(ex.env * 1.3 + 0.4, 0.45, 1)
+		-- lumière et reflets du skybox : un peu de diffus (sinon le zénith bleu teinte les sols), reflets assez forts pour
+		-- les matériaux PBR (métal, béton mouillé, vitres)
+		L.EnvironmentDiffuseScale = look.diff
+		L.EnvironmentSpecularScale = look.spec
 		L.FogColor = c3(th.fog); L.FogStart = (th.fogN or 50) * U; L.FogEnd = (th.fogF or 200) * U
 	end)
 	pcall(placeSun, id, sunDir)
@@ -360,13 +394,12 @@ function MapAmbience.apply(f: Instance)
 	pcall(function()
 		local a = Instance.new("Atmosphere")
 		a.Name = "MapAtmosphere"
-		local far = th.fogF or 200
-		a.Density = math.clamp(0.04 + 0.26 * 120 / far, 0.18, 0.36)
-		a.Offset = if themeName == "metro" then 0 else 0.12
+		a.Density = look.atmo[1]
+		a.Offset = look.atmo[2]
 		a.Color = c3(th.fog)
 		a.Decay = scale(c3(th.hemiG), 0.85)
-		a.Glare = if night or themeName == "metro" then 0 else 0.35
-		a.Haze = if base == "haunt" then 1.2 elseif night then 1 else 0.9
+		a.Glare = if night then 0 else look.atmo[3]
+		a.Haze = look.atmo[4]
 		a.Parent = Lighting
 		st.atmo = a
 	end)
@@ -378,22 +411,16 @@ function MapAmbience.apply(f: Instance)
 	end
 
 	-- post-traitement du web (postEnd de 40_gfx.js) : bloom 0,32 / 0,75 sur les cartes de nuit et hantées, saturation, contraste
-	local dark = themeName == "night" or base == "haunt"
-	bloom.Intensity = if dark then 0.75 else 0.35
-	bloom.Size = if dark then 32 else 26
-	bloom.Threshold = if dark then 0.95 else 1.35
-	rays.Intensity = if night or themeName == "metro" then 0 else 0.08
-	rays.Spread = 0.65
-	-- teinte légère par thème : chaude au soleil du désert, froide sur la neige et la nuit, verdâtre dans l'asile
-	local TINT: { [string]: Color3 } = {
-		sand = Color3.new(1, 0.98, 0.94), jungle = Color3.new(0.98, 1, 0.95), snow = Color3.new(0.95, 0.98, 1),
-		night = Color3.new(0.93, 0.96, 1), metro = Color3.new(0.97, 0.98, 1), haunt = Color3.new(0.94, 1, 0.95),
-		halloween = Color3.new(1, 0.95, 0.9),
-	}
-	grade.Saturation = 0.1; grade.Contrast = 0.08; grade.Brightness = 0; grade.TintColor = TINT[themeName] or Color3.new(1, 1, 1)
+	bloom.Intensity = look.bloom[1]
+	bloom.Size = look.bloom[2]
+	bloom.Threshold = look.bloom[3]
+	rays.Intensity = if night then 0 else look.rays[1]
+	rays.Spread = look.rays[2]
+	-- teinte légère par thème : chaude au soleil du désert et au couchant, froide sur la neige et la nuit, verdâtre dans l'asile
+	grade.Saturation = look.sat; grade.Contrast = look.con; grade.Brightness = look.bri; grade.TintColor = look.tint
 	grade.Enabled = true
 	-- flou léger seulement au-delà de la zone de jeu (relief et silhouettes lointaines)
-	depth.FocusDistance = sz * 0.75; depth.InFocusRadius = sz * 0.75; depth.FarIntensity = 0.12; depth.NearIntensity = 0
+	depth.FocusDistance = sz * 0.75; depth.InFocusRadius = sz * 0.75; depth.FarIntensity = look.dof; depth.NearIntensity = 0
 
 	pcall(buildParticles, st, id, themeName, base)
 	applyQuality()

@@ -148,6 +148,8 @@ local function run()
 		local VehicleModels = require(Shared.VehicleModels) :: any
 		VehicleModels.prebuildAll()
 	end)
+	-- cartes : maillages, textures du web (réduites, et HD 512 px de ServerStorage/MapTexturesHQ : clés « i:m:t2: » et
+	-- « i:m:tt2: »), décalcomanies d'usure (« i:m:fx: »), ciel
 	step("cartes", function()
 		local MapScene = require(Shared.MapScene) :: any
 		local MapDress = require(Shared.MapDress) :: any

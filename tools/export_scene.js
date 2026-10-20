@@ -6,6 +6,8 @@
 //   NODE_PATH=$(npm root -g) node tools/export_scene.js <dossier>
 //   -> <dossier>/<carte>.json, <dossier>/tex/<id>.png, <dossier>/maps.json
 //   puis : python3 tools/scene_to_lua.py <dossier>
+// Les textures sont aussi relevées en haute définition (512 px, ou la taille d'origine du web si plus petite) :
+// <dossier>/texhd/<id>.png, rangées sous le numéro <id> de la version réduite (tools/tex_hd_to_lua.py -> MapScenes/_TexHD).
 const fs = require('fs'), path = require('path');
 let chromium;
 try { ({ chromium } = require('playwright')); } catch (e) {
@@ -16,6 +18,7 @@ const ORDER = ['village', 'warehouse', 'station', 'harbor', 'metro', 'jungle', '
 
 (async () => {
   fs.mkdirSync(path.join(OUT, 'tex'), { recursive: true });
+  fs.mkdirSync(path.join(OUT, 'texhd'), { recursive: true });
   const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
   const page = await browser.newPage();
   page.on('pageerror', e => console.log('page:', e.message));
@@ -32,7 +35,7 @@ const ORDER = ['village', 'warehouse', 'station', 'harbor', 'metro', 'jungle', '
   await page.evaluate(() => {
     window.__SCN.EVENT.from = '9999'; window.__SCN.EVENT.to = '0000';
     try { window.__dbg.cfg.gfx = 2; } catch (e) {}
-    window.__SX = { texIds: new Map(), texOut: {}, n: 0 };
+    window.__SX = { texIds: new Map(), texOut: {}, hdOut: {}, n: 0 };
   });
   const index = [];
   for (const id of ORDER) {
@@ -60,6 +63,13 @@ const ORDER = ['village', 'warehouse', 'station', 'harbor', 'metro', 'jungle', '
         const tid = 't' + (hsh >>> 0).toString(36) + '_' + w + 'x' + h;
         const kind = (keyOf.get(tex) || '').replace(/[0-9.,#].*$/, '') || 'misc';
         if (!SX.texOut[tid]) SX.texOut[tid] = { png: data, w, h, kind, srgb: tex.encoding === T.sRGBEncoding };
+        // version haute définition (512 px au plus, jamais plus grande que l'original) sous le même numéro
+        const kh = Math.min(1, 512 / Math.max(w0, h0)), wh = Math.max(4, Math.round(w0 * kh)), hh = Math.max(4, Math.round(h0 * kh));
+        if (!SX.hdOut[tid] && wh * hh > w * h) {
+          const c2 = document.createElement('canvas'); c2.width = wh; c2.height = hh; const x2 = c2.getContext('2d');
+          x2.imageSmoothingEnabled = true; x2.imageSmoothingQuality = 'high';
+          try { x2.drawImage(im, 0, 0, wh, hh); SX.hdOut[tid] = { png: c2.toDataURL('image/png'), w: wh, h: hh, kind }; } catch (e) {}
+        }
         SX.texIds.set(ck, tid); return tid;
       };
       // ---------- matériaux ----------
@@ -199,6 +209,10 @@ const ORDER = ['village', 'warehouse', 'station', 'harbor', 'metro', 'jungle', '
     delete t.png;
   }
   fs.writeFileSync(path.join(OUT, 'textures.json'), JSON.stringify(tex));
+  const hd = await page.evaluate(() => { const o = window.__SX.hdOut; window.__SX.hdOut = {}; return o; });
+  for (const tid in hd) { fs.writeFileSync(path.join(OUT, 'texhd', tid + '.png'), Buffer.from(hd[tid].png.split(',')[1], 'base64')); delete hd[tid].png; }
+  fs.writeFileSync(path.join(OUT, 'textures_hd.json'), JSON.stringify(hd));
+  console.log(Object.keys(hd).length + ' textures HD');
   fs.writeFileSync(path.join(OUT, 'maps.json'), JSON.stringify(index, null, 1));
   console.log(Object.keys(tex).length + ' textures');
   fs.unlinkSync(tmp);
