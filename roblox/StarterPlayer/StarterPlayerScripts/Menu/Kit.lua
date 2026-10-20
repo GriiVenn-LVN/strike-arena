@@ -167,6 +167,52 @@ function K.juice(b: GuiButton, grow: number?, shine: boolean?)
 		end
 	end)
 end
+-- ---------- fenêtres par-dessus le menu (passe, calendrier, boutique, cadeaux, Premium) ----------
+-- « Retour » partout : B (manette), Échap ou Retour arrière ferme la fenêtre du dessus avant le menu (qui écoute B à
+-- une priorité plus basse) ; à la manette, la sélection entre dans la fenêtre à l'ouverture et revient où elle était
+-- à la fermeture. o = la ScreenGui (propriété Enabled) ou le cadre (Visible) qui montre la fenêtre ; first = le bouton
+-- sélectionné à l'ouverture (manette).
+local overlays: { { o: Instance, close: () -> (), prev: GuiObject? } } = {}
+local function overlayBack(_: string, st: Enum.UserInputState): Enum.ContextActionResult
+	local top = overlays[#overlays]
+	if not top then return Enum.ContextActionResult.Pass end
+	if st == Enum.UserInputState.Begin then task.spawn(top.close) end
+	return Enum.ContextActionResult.Sink
+end
+function K.overlay(o: Instance, close: () -> (), first: (() -> GuiObject?)?)
+	local CAS = game:GetService("ContextActionService")
+	local GuiService = game:GetService("GuiService")
+	local UIS = game:GetService("UserInputService")
+	local prop = if o:IsA("ScreenGui") then "Enabled" else "Visible"
+	local function sync()
+		local idx: number? = nil
+		for i, e in ipairs(overlays) do if e.o == o then idx = i end end
+		local shown = (o :: any)[prop] == true
+		if shown and not idx then
+			table.insert(overlays, { o = o, close = close, prev = GuiService.SelectedObject })
+			CAS:BindActionAtPriority("MenuOverlayBack", overlayBack, false, 3100, Enum.KeyCode.ButtonB, Enum.KeyCode.Escape, Enum.KeyCode.Backspace)
+			if first and UIS.GamepadEnabled then
+				task.defer(function()
+					local f = first()
+					if f and (o :: any)[prop] == true then GuiService.SelectedObject = f end
+				end)
+			end
+		elseif not shown and idx then
+			local e = table.remove(overlays, idx)
+			local sel = GuiService.SelectedObject
+			if sel and sel:IsDescendantOf(o) then
+				local prev = e and e.prev
+				GuiService.SelectedObject = if prev and prev.Parent and prev.Visible then prev else nil
+			end
+			if #overlays == 0 then CAS:UnbindAction("MenuOverlayBack") end
+		end
+	end
+	o:GetPropertyChangedSignal(prop):Connect(sync)
+	sync()
+end
+-- une fenêtre est ouverte par-dessus le menu (le menu ne répond pas à « retour » pendant ce temps)
+function K.overlayOpen(): boolean return #overlays > 0 end
+
 -- apparition en cascade (lcIn du web : chaque carte arrive avec un léger décalage) : les cartes de la page grossissent
 -- de 0,94 à 1 l'une après l'autre, de haut en bas puis de gauche à droite
 function K.cascade(root: Instance, max: number?)

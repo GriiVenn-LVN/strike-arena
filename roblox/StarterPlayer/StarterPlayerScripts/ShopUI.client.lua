@@ -190,6 +190,7 @@ local function card(it: any, parent: Instance, order: number, size: UDim2?): Fra
 	K.corner(f, 12); K.gradient(f, rc:Lerp(K.rgb(0x0b111c), 0.72), K.rgb(0x0b111c), 90)
 	K.stroke(f, if selected == it then C.white else rc, if selected == it then 2 else 1, if selected == it then 0.1 else 0.55)
 	f.Activated:Connect(function() select(it) end)
+	K.juice(f :: any, 0.03)   -- survol / manette : la carte grossit un peu, son d'interface (comme les cartes du menu)
 	make("Frame", { Size = UDim2.new(1, 0, 0, 4), BackgroundTransparency = 0, BackgroundColor3 = rc }, f)
 	text(f, { Position = UDim2.fromOffset(10, 12), Size = UDim2.new(1, -20, 0, 40), TextSize = 34, TextXAlignment = Enum.TextXAlignment.Left, Text = iconFor(it) })
 	text(f, { Position = UDim2.fromOffset(12, 56), Size = UDim2.new(1, -24, 0, 34), Font = K.BOLD, TextSize = 13, TextYAlignment = Enum.TextYAlignment.Top,
@@ -228,6 +229,7 @@ local function renderFeatured()
 			Text = "", AutoButtonColor = false }, body)
 		K.corner(b, 14); K.gradient(b, K.rgb(0x5a3a08), K.rgb(0x1a1206), 0); K.stroke(b, C.gold, 2, 0.2)
 		b.Activated:Connect(function() select(st) end)
+		K.juice(b :: any, 0.015)
 		text(b, { Position = UDim2.fromOffset(20, 14), Size = UDim2.fromOffset(120, 120), TextSize = 86, TextXAlignment = Enum.TextXAlignment.Center, Text = "🎁" })
 		text(b, { Position = UDim2.fromOffset(150, 16), Size = UDim2.new(1, -360, 0, 26), Font = K.BLACK, TextSize = 22, TextColor3 = C.gold, TextWrapped = false,
 			Text = spaced("PACK DE DÉPART", 2) })
@@ -282,12 +284,14 @@ local function renderFeatured()
 	K.btn(pass, "VOIR LE PASSE", "purple", function() local f = S.panels.pass; if f then close(); f() end end,
 		{ AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 16, 1, -12), Size = UDim2.fromOffset(150, 32), TextSize = 12 })
 	pass.Activated:Connect(function() local it = Catalog.get("pass_premium"); if it then select(it) end end)
+	K.juice(pass :: any, 0.02)
 	for _, g in ipairs(Catalog.GAMEPASSES) do
 		local it = Catalog.get(g.id)
 		if it then
 			local gp = make("TextButton", { Size = UDim2.new(0.5, -5, 1, 0), BackgroundTransparency = 0, BackgroundColor3 = C.white, Text = "", AutoButtonColor = false }, promo)
 			K.corner(gp, 14); K.gradient(gp, K.rgb(0x0a4a5a), K.rgb(0x0b111c), 0); K.stroke(gp, C.blue, 1.5, 0.3)
 			gp.Activated:Connect(function() select(it) end)
+			K.juice(gp :: any, 0.02)
 			text(gp, { Position = UDim2.fromOffset(16, 14), Size = UDim2.new(1, -32, 0, 22), Font = K.BLACK, TextSize = 16, TextWrapped = false, Text = "⚡ " .. spaced(K.upper(it.name), 1) })
 			text(gp, { Position = UDim2.fromOffset(16, 40), Size = UDim2.new(1, -32, 0, 34), TextSize = 12, TextColor3 = C.sub, Text = it.desc })
 			local label, kind, cb = actionFor(it)
@@ -312,6 +316,7 @@ local function renderCoins()
 			K.gradient(f, if tagName then K.rgb(0x4a3108) else K.rgb(0x1a2438), K.rgb(0x0b111c), 90)
 			K.stroke(f, if tagName then C.gold elseif selected == it then C.white else C.white, if tagName then 2 else 1, if tagName then 0.15 else 0.85)
 			f.Activated:Connect(function() select(it) end)
+			K.juice(f :: any, 0.03)
 			-- plus le lot est gros, plus la pile de pièces est haute
 			text(f, { Position = UDim2.fromOffset(0, 26), Size = UDim2.new(1, 0, 0, 70), TextSize = 30 + n * 8, TextXAlignment = Enum.TextXAlignment.Center,
 				Text = string.rep("🪙", math.min(n, 3)) })
@@ -460,6 +465,9 @@ end)
 MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(p: Player, _passId: number, purchased: boolean)
 	if p == player and purchased and win.Visible then task.wait(1); refresh() end
 end)
+
+-- B / Échap / Retour arrière ferment la boutique (avant le menu) ; à la manette, la sélection arrive sur l'onglet en cours
+K.overlay(win, close, function() return tabButtons[currentTab] end)
 
 -- ---------- menu principal (MainMenu) : bouton « BOUTIQUE » du menu ----------
 S.panels.shop = function()

@@ -221,7 +221,8 @@ local function open()
 	winScale.Scale = target * 0.9; K.tween(winScale, 0.25, { Scale = target }, Enum.EasingStyle.Back)
 end
 veil.Activated:Connect(function() gui.Enabled = false end)
-local _ = closeB
+-- B / Échap / Retour arrière ferment le passe (avant le menu) ; à la manette, la sélection arrive sur la croix
+K.overlay(gui, function() gui.Enabled = false end, function() return closeB end)
 local _t = titleL
 S.panels.pass = function()
 	if gui.Enabled then gui.Enabled = false else open() end

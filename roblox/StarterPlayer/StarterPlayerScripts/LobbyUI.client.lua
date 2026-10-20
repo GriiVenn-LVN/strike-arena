@@ -23,7 +23,7 @@ end
 local function button(text: string, y: number, cb: () -> ()): TextButton
 	local b = Instance.new("TextButton"); b.Size = UDim2.fromOffset(260, 36); b.Position = UDim2.fromOffset(20, y)
 	b.BackgroundColor3 = Color3.fromRGB(255, 70, 85); b.TextColor3 = Color3.new(1, 1, 1); b.Font = Enum.Font.GothamBlack; b.TextSize = 16
-	b.Text = text; b.Parent = gui; b.MouseButton1Click:Connect(cb)
+	b.Text = text; b.Parent = gui; b.Activated:Connect(cb)
 	return b
 end
 
