@@ -37,7 +37,8 @@ local function spaced(s: string): string
 end
 
 -- ---------- médaille en partie ----------
-local pop = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.25), Size = UDim2.fromOffset(320, 110), BackgroundTransparency = 1 }, gui)
+-- web : top 21 % ; ici sous les lignes du mode (ModeHud, jusqu'à ~252 px) comme la bannière du HUD
+local pop = make("Frame", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 262), Size = UDim2.fromOffset(320, 110), BackgroundTransparency = 1 }, gui)
 local popScale = make("UIScale", { Scale = 0.6 }, pop)
 local popIcon = make("TextLabel", { Size = UDim2.new(1, 0, 0, 56), BackgroundTransparency = 1, TextSize = 46, Font = Enum.Font.GothamBold, Text = "", TextTransparency = 1, TextColor3 = Color3.new(1, 1, 1) }, pop)
 local popName = make("TextLabel", { Position = UDim2.fromOffset(0, 58), Size = UDim2.new(1, 0, 0, 22), BackgroundTransparency = 1, TextSize = 17, Font = Enum.Font.GothamBlack,
@@ -48,6 +49,16 @@ local queue: { string } = {}
 local showing = false
 local function showNext()
 	if showing or #queue == 0 then return end
+	-- même emplacement que la grande bannière du HUD (séries, annonces) : on attend qu'elle soit partie,
+	-- jamais deux titres l'un sur l'autre
+	local hud = (gui.Parent :: Instance):FindFirstChild("MatchHud")
+	local busy = hud and hud:GetAttribute("BanUntil")
+	if typeof(busy) == "number" and busy > os.clock() then
+		showing = true
+		task.delay(busy - os.clock(), function() showing = false; showNext() end)
+		return
+	end
+	pop.Position = UDim2.new(0.5, 0, 0, math.max(workspace.CurrentCamera.ViewportSize.Y * 0.2, 262))
 	showing = true
 	local id = table.remove(queue, 1) :: string
 	local m = Medals.LIST[id]

@@ -17,7 +17,6 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local StarterGui = game:GetService("StarterGui")
 local Debris = game:GetService("Debris")
-local AssetService = game:GetService("AssetService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local ModeConfig = require(ReplicatedStorage.Shared.ModeConfig)
@@ -81,7 +80,10 @@ local function titleLabel(parent: Instance, props: { [string]: any }): TextLabel
 	local l = label(parent, props)
 	l.FontFace = TITLE
 	l.TextStrokeTransparency = 1
-	make("UIStroke", { Thickness = 1, Transparency = 0.8, Color = Color3.new(0, 0, 0) }, l)
+	if props.TextTransparency == nil then l.TextTransparency = 0 end
+	-- un UIStroke ne suit PAS TextTransparency : il restait affiché (lettres creuses « fantômes » de la
+	-- dernière bannière, superposées aux suivantes) ; on le fait suivre à la main ci-dessous
+	local edge = make("UIStroke", { Thickness = 1, Transparency = 0.8, Color = Color3.new(0, 0, 0) }, l)
 	-- frère placé dessous (en mode Sibling un enfant passerait par-dessus le texte)
 	local sh = l:Clone()
 	for _, c in ipairs(sh:GetChildren()) do c:Destroy() end
@@ -90,8 +92,12 @@ local function titleLabel(parent: Instance, props: { [string]: any }): TextLabel
 	sh.Parent = parent
 	local function sync()
 		sh.Text = (string.gsub(l.Text, 'color="#%x+"', 'color="#000000"'))
-		sh.TextTransparency = 0.45 + 0.55 * l.TextTransparency
-		sh.Position = l.Position + UDim2.fromOffset(0, 3); sh.Size = l.Size; sh.Visible = l.Visible
+		local tt = l.TextTransparency
+		sh.TextTransparency = 0.45 + 0.55 * tt
+		edge.Transparency = 0.8 + 0.2 * tt; edge.Enabled = tt < 0.99
+		sh.Position = l.Position + UDim2.fromOffset(0, 3); sh.Size = l.Size
+		-- texte invisible : on cache aussi le cadre et son ombre (rien ne traîne à l'écran)
+		sh.Visible = l.Visible and tt < 0.99
 	end
 	for _, prop in ipairs({ "Text", "TextTransparency", "Position", "Size", "Visible" }) do
 		l:GetPropertyChangedSignal(prop):Connect(sync)
@@ -217,42 +223,91 @@ player:GetAttributeChangedSignal("MenuOpen"):Connect(function() menuHint.Visible
 -- ==========================================================================================
 -- Radar (haut gauche) : la carte tourne avec le regard, comme drawRadar() du web
 -- ==========================================================================================
-local RADAR = 184                 -- taille à l'écran
-local RIMG = 128                  -- résolution de l'image de la carte
+local RADAR = 184                 -- taille à l'écran (11,5rem du web)
 local RANGE = 31 * U              -- rayon couvert (31 m comme le web)
 local radarWrap = make("Frame", { Position = UDim2.fromOffset(13, 13), Size = UDim2.fromOffset(RADAR, RADAR + 24), BackgroundTransparency = 1 }, gui)
-local radar = make("Frame", { Name = "Radar", Size = UDim2.fromOffset(RADAR, RADAR), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.5, ClipsDescendants = true }, radarWrap)
+-- CanvasGroup arrondi : seul moyen de découper un disque (ClipsDescendants ne coupe qu'un rectangle).
+-- Plus d'EditableImage : refusée dans Studio/en jeu, elle affichait le damier rose et bleu « texture manquante ».
+local radar = make("CanvasGroup", { Name = "Radar", Size = UDim2.fromOffset(RADAR, RADAR), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.5 }, radarWrap)
 make("UICorner", { CornerRadius = UDim.new(1, 0) }, radar)
-make("UIStroke", { Color = rgb(0x36476a), Thickness = 2 }, radar)
-local radarImg = make("ImageLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ResampleMode = Enum.ResamplerMode.Default }, radar)
-make("UICorner", { CornerRadius = UDim.new(1, 0) }, radarImg)
-local dotsLayer = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1 }, radar)
+-- bord (#36476a, 2 px) au-dessus du groupe, sinon le découpage le mangerait
+local radarRim = make("Frame", { Size = UDim2.fromOffset(RADAR, RADAR), BackgroundTransparency = 1, ZIndex = 6 }, radarWrap)
+make("UICorner", { CornerRadius = UDim.new(1, 0) }, radarRim)
+make("UIStroke", { Color = rgb(0x36476a), Thickness = 2 }, radarRim)
+-- pivot de taille nulle au centre : il tourne avec le regard et emporte le plan de la carte
+local radarPivot = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(0, 0), BackgroundTransparency = 1, ZIndex = 1 }, radar)
+-- cône de vision (web : secteur blanc à 10 %, ±40°) : carré tourné de 45°, pointe sur le joueur
+local radarCone = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, -25), Size = UDim2.fromOffset(35, 35), Rotation = 45,
+	BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.88, ZIndex = 2 }, radar)
+make("UIGradient", { Rotation = -135, Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 0.7) }) }, radarCone)
+local dotsLayer = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ZIndex = 3 }, radar)
 local selfArrow = label(radar, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(16, 16), Text = "▲", TextSize = 15,
 	TextColor3 = Color3.new(1, 1, 1), ZIndex = 5 })
 local locLabel = label(radarWrap, { Position = UDim2.fromOffset(0, RADAR + 6), Size = UDim2.new(1, 0, 0, 14), TextSize = 11, Font = FONT, TextColor3 = C.gold,
 	TextStrokeTransparency = 0.6, Text = "" })
 
-type RadarMap = { id: string, grid: any, colors: buffer, img: EditableImage?, buf: buffer, sites: { any } }
+type RadarMap = { id: string, layer: Frame, sites: { any } }
 local rmap: RadarMap? = nil
+-- plan de la carte vu de dessus (buildRadarMap() du web) en cadres : cases de même teinte fusionnées
+-- en rectangles (quelques centaines de cadres), construit une fois par carte puis seulement déplacé/tourné
 local function buildRadar(id: string)
 	if rmap and rmap.id == id then return end
 	if not MapData[id] then return end
+	if rmap then rmap.layer:Destroy(); rmap = nil end
 	local g = MapData.buildGrid(id)
 	local N, TY = MapData.N, MapData.TY
-	local colors = buffer.create(N * N * 4)
+	local cpx = Config.CELL * U * (RADAR / 2) / RANGE       -- pixels d'écran par case
+	-- sol : rgba(70,85,110,.55) sur le fond noir à 50 %
+	local layer = make("Frame", { Name = "Plan", Size = UDim2.fromOffset(N * cpx, N * cpx), BackgroundColor3 = rgb(0x46556e), BackgroundTransparency = 0.45, ZIndex = 1 }, radarPivot)
+	-- teinte d'une case : 0 = sol nu, sinon index dans STY
+	local STY = {
+		{ c = Color3.new(0, 0, 0), t = 0.75 },          -- 1 : sol couvert (web : rgba(0,0,0,.25))
+		{ c = rgb(0xcaa85a), t = 0 },                    -- 2 : rampe
+		{ c = rgb(0x6d8fb5), t = 0 },                    -- 3 : plateforme
+		{ c = rgb(0x566175), t = 0 },                    -- 4 : muret, tonneau, caisse
+		{ c = rgb(0x05080d), t = 0 },                    -- 5 : mur, maison…
+	}
+	local kind = table.create(N * N, 0)
 	for i = 0, N * N - 1 do
-		local t, r, gg, b, a = g.type[i], 70, 85, 110, 140      -- sol : rgba(70,85,110,.55) sur le fond noir à 50 %
-		if g.ramp[i] ~= 0 then r, gg, b, a = 0xca, 0xa8, 0x5a, 220
-		elseif t == TY.PLAT then r, gg, b, a = 0x6d, 0x8f, 0xb5, 220
-		elseif t == TY.LOW or t == TY.BARREL or t == TY.CRATE then r, gg, b, a = 0x56, 0x61, 0x75, 230
-		elseif t ~= 0 then r, gg, b, a = 5, 8, 13, 240
-		elseif g.ceil[i] < 90 then r, gg, b, a = 50, 60, 80, 150 end
-		buffer.writeu8(colors, i * 4, r); buffer.writeu8(colors, i * 4 + 1, gg); buffer.writeu8(colors, i * 4 + 2, b); buffer.writeu8(colors, i * 4 + 3, a)
+		local t = g.type[i]
+		kind[i + 1] = if g.ramp[i] ~= 0 then 2
+			elseif t == TY.PLAT then 3
+			elseif t == TY.LOW or t == TY.BARREL or t == TY.CRATE then 4
+			elseif t ~= 0 then 5
+			elseif g.ceil[i] < 90 then 1 else 0
 	end
-	local img: EditableImage? = nil
-	local ok, res = pcall(function() return AssetService:CreateEditableImage({ Size = Vector2.new(RIMG, RIMG) }) end)
-	if ok then img = res; radarImg.ImageContent = Content.fromObject(res) end
-	rmap = { id = id, grid = g, colors = colors, img = img, buf = buffer.create(RIMG * RIMG * 4), sites = MapData[id].sites or {} }
+	-- fusion gloutonne : on étend chaque rectangle vers la droite puis vers le bas
+	local used = table.create(N * N, false)
+	for z = 0, N - 1 do
+		for x = 0, N - 1 do
+			local k = kind[z * N + x + 1]
+			if k ~= 0 and not used[z * N + x + 1] then
+				local w = 1
+				while x + w < N and kind[z * N + x + w + 1] == k and not used[z * N + x + w + 1] do w += 1 end
+				local h = 1
+				while z + h < N do
+					local ok = true
+					for xx = x, x + w - 1 do
+						local j = (z + h) * N + xx + 1
+						if kind[j] ~= k or used[j] then ok = false; break end
+					end
+					if not ok then break end
+					h += 1
+				end
+				for zz = z, z + h - 1 do for xx = x, x + w - 1 do used[zz * N + xx + 1] = true end end
+				local s = STY[k]
+				make("Frame", { Position = UDim2.fromOffset(x * cpx, z * cpx), Size = UDim2.fromOffset(w * cpx, h * cpx), BackgroundColor3 = s.c,
+					BackgroundTransparency = s.t, ZIndex = 1 }, layer)
+			end
+		end
+	end
+	-- lettres des sites (or à 70 %, comme le web : elles tournent avec la carte)
+	local sites = MapData[id].sites or {}
+	for _, s in ipairs(sites) do
+		label(layer, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(s.cx * cpx, s.cz * cpx), Size = UDim2.fromOffset(40, 40), Text = s.n,
+			TextSize = 32, Font = Enum.Font.ArialBold, TextColor3 = C.gold, TextTransparency = 0.3, ZIndex = 2 })
+	end
+	rmap = { id = id, layer = layer, sites = sites }
 end
 
 -- nom du lieu (locName() du web, Village et Entrepôt)
@@ -334,9 +389,7 @@ local function soldierList(): { { model: Model, team: string?, alive: boolean } 
 	return out
 end
 
-local radarAcc = 0
-local function drawRadar(dt: number)
-	radarAcc += dt
+local function drawRadar(_dt: number)
 	local m = rmap
 	local char = player.Character
 	local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
@@ -350,44 +403,10 @@ local function drawRadar(dt: number)
 	local right = Vector3.new(-fwd.Z, 0, fwd.X)
 	local half = RADAR / 2
 	local pps = half / RANGE                    -- pixels d'écran par stud
-	-- carte (image recalculée ~15 fois par seconde)
-	if m.img and radarAcc >= 1 / 15 then
-		radarAcc = 0
-		local N = MapData.N
-		local cs = Config.CELL * U
-		local buf, colors = m.buf, m.colors
-		local k = RANGE / (RIMG / 2)            -- studs par pixel de l'image
-		local c0 = RIMG / 2 - 0.5
-		for py = 0, RIMG - 1 do
-			local dy = py - c0
-			-- monde = pos + right * dx * k - fwd * dy * k
-			local wx0 = pos.X - O.X - fwd.X * dy * k - right.X * c0 * k
-			local wz0 = pos.Z - O.Z - fwd.Z * dy * k - right.Z * c0 * k
-			local sx, sz = right.X * k, right.Z * k
-			for px = 0, RIMG - 1 do
-				local o = (py * RIMG + px) * 4
-				local dx = px - c0
-				local r2 = dx * dx + dy * dy
-				if r2 > c0 * c0 then
-					buffer.writeu32(buf, o, 0)
-				else
-					local cx, cz = (wx0 + sx * px) // cs, (wz0 + sz * px) // cs
-					if cx < 0 or cz < 0 or cx >= N or cz >= N then
-						buffer.writeu32(buf, o, 0)
-					else
-						buffer.writeu32(buf, o, buffer.readu32(colors, (cz * N + cx) * 4))
-						-- cône de vision
-						if dy < 0 and r2 < 1400 and math.abs(dx) < -dy * 0.85 then
-							buffer.writeu8(buf, o, math.min(255, buffer.readu8(buf, o) + 26))
-							buffer.writeu8(buf, o + 1, math.min(255, buffer.readu8(buf, o + 1) + 26))
-							buffer.writeu8(buf, o + 2, math.min(255, buffer.readu8(buf, o + 2) + 26))
-						end
-					end
-				end
-			end
-		end
-		(m.img :: EditableImage):WritePixelsBuffer(Vector2.zero, Vector2.new(RIMG, RIMG), buf)
-	end
+	-- carte : le plan est placé sous le joueur puis tourné pour que le regard pointe vers le haut
+	local lp = pos - O
+	m.layer.Position = UDim2.fromOffset(-lp.X * pps, -lp.Z * pps)
+	radarPivot.Rotation = -90 - math.deg(math.atan2(fwd.Z, fwd.X))
 	-- coéquipiers, ennemis repérés, objets
 	local n = 0
 	local mine = myTeam()
@@ -703,43 +722,80 @@ damagedRemote.OnClientEvent:Connect(function(fromPos: Vector3, dmg: number, _hea
 end)
 
 -- ==========================================================================================
--- Bannière d'élimination (#killmsg) et séries (#banner)
+-- Bannière d'élimination (#killmsg) et grande bannière unique (#banner : séries, annonces du mode)
 -- ==========================================================================================
+-- fondu qui annule le précédent sur le même objet : sinon un fondu de sortie encore en cours
+-- recouvrait la bannière suivante (texte qui disparaît trop tôt ou reste à moitié visible)
+local liveFade: { [Instance]: Tween } = {}
+local function fade(o: Instance, t: number, props: { [string]: any }): Tween
+	local old = liveFade[o]
+	if old then old:Cancel() end
+	local tw = tween(o, t, props)
+	liveFade[o] = tw
+	return tw
+end
+-- modes à manches (web : G.mode === 'bomb') : pas de série d'éliminations affichée
+local ROUND_MODES = { bomb = true, rapid = true, duel = true, gunfight = true }
+local function roundMode(): boolean
+	local md = player:GetAttribute("MatchMode")
+	return typeof(md) == "string" and ROUND_MODES[md] == true
+end
+
 local killMsg = label(gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0.58), Size = UDim2.fromOffset(700, 26), TextSize = 18, Font = FONT,
 	RichText = true, TextTransparency = 1, TextStrokeTransparency = 1, Text = "" })
 local killScale = make("UIScale", { Scale = 1 }, killMsg)
--- une seule bannière à la fois comme le #banner du web : la nouvelle chasse l'ancienne
-local slotHide: { [string]: () -> () } = {}
-local function takeSlot(who: string)
-	for k, f in pairs(slotHide) do if k ~= who then f() end end
+
+-- une seule grande bannière à la fois, comme uiBanner() du web : la nouvelle remplace l'ancienne
+-- (même cadre, mêmes fondus annulés), jamais deux textes l'un sur l'autre
+local banTitle = titleLabel(gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 262), Size = UDim2.fromOffset(900, 60), TextSize = 56,
+	TextColor3 = C.text, Text = "", TextTransparency = 1, ZIndex = 8 })
+local banSub = label(gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 324), Size = UDim2.fromOffset(900, 22), TextSize = 18, Font = Enum.Font.GothamBold,
+	Text = "", TextTransparency = 1, TextStrokeTransparency = 1, ZIndex = 8 })
+local banScale = make("UIScale", { Scale = 1 }, banTitle)
+local banToken = 0
+-- web : top 20 % ; jamais plus haut que 262 px, sous les lignes du mode (ModeHud : objectifs jusqu'à ~252 px)
+local function showBanner(title: string, sub: string?, color: Color3?, subColor: Color3?, secs: number?)
+	banToken += 1
+	local my = banToken
+	local y = math.max(camera.ViewportSize.Y * 0.2, 262)
+	-- MedalController attend la fin de la bannière avant d'afficher sa médaille au même endroit
+	gui:SetAttribute("BanUntil", os.clock() + (secs or 2) + 0.2)
+	banTitle.Position = UDim2.new(0.5, 0, 0, y); banSub.Position = UDim2.new(0.5, 0, 0, y + 62)
+	banTitle.Text = spaced(title, 2); banTitle.TextColor3 = color or C.text
+	banSub.Text = sub or ""; banSub.TextColor3 = subColor or color or C.text
+	-- apparition vive (web : opacité + échelle 1,3 → 1 en 0,35 s)
+	banTitle.TextTransparency = 0.5; fade(banTitle, 0.12, { TextTransparency = 0 })
+	banSub.TextTransparency = 0.5; banSub.TextStrokeTransparency = 1; fade(banSub, 0.12, { TextTransparency = 0, TextStrokeTransparency = 0.5 })
+	banScale.Scale = 1.3; tween(banScale, 0.25, { Scale = 1 }, Enum.EasingStyle.Back)
+	-- durée du web (2 s par défaut), puis sortie courte ; le texte est vidé pour que rien ne traîne
+	task.delay(secs or 2, function()
+		if my ~= banToken then return end
+		fade(banTitle, 0.15, { TextTransparency = 1 }); fade(banSub, 0.15, { TextTransparency = 1, TextStrokeTransparency = 1 })
+		task.delay(0.2, function()
+			if my ~= banToken then return end
+			banTitle.Text = ""; banSub.Text = ""
+		end)
+	end)
 end
-local streakLabel = titleLabel(gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0.2), Size = UDim2.fromOffset(900, 64), TextSize = 58,
-	TextColor3 = C.text, TextTransparency = 1, Text = "", RichText = true })
-local streakScale = make("UIScale", { Scale = 1 }, streakLabel)
+
 local bannerToken = 0
-local streakToken = 0
-slotHide.streak = function() streakToken += 1; streakLabel.TextTransparency = 1 end
 bannerRemote.OnClientEvent:Connect(function(b: any)
 	bannerToken += 1
 	local my = bannerToken
-	killMsg.Text = spaced((if b.headshot then "TIR À LA TÊTE" else "ÉLIMINATION") .. "  +" .. b.points, 1) .. '   <font color="#ffd75e">' .. tostring(b.victim) .. "</font>"
-		.. (if b.streak >= 2 then '   <font color="#8da0bd">' .. b.streak .. " d'affilée</font>" else "")
-	killMsg.TextTransparency = 0; killMsg.TextStrokeTransparency = 0.5
+	local rounds = roundMode()
+	local streak = if typeof(b.streak) == "number" then b.streak else 0
+	killMsg.Text = spaced((if b.headshot then "TIR À LA TÊTE" else "ÉLIMINATION") .. "  +" .. tostring(b.points), 1) .. '   <font color="#ffd75e">' .. tostring(b.victim) .. "</font>"
+		.. (if streak >= 2 and not rounds then '   <font color="#8da0bd">' .. streak .. " d'affilée</font>" else "")
+	fade(killMsg, 0.1, { TextTransparency = 0, TextStrokeTransparency = 0.5 })
 	killScale.Scale = 1.3
-	tween(killScale, 0.22, { Scale = 1 }, Enum.EasingStyle.Back)
+	tween(killScale, 0.2, { Scale = 1 }, Enum.EasingStyle.Back)
 	task.delay(1.8, function()
 		if my ~= bannerToken then return end
-		tween(killMsg, 0.3, { TextTransparency = 1, TextStrokeTransparency = 1 })
+		fade(killMsg, 0.2, { TextTransparency = 1, TextStrokeTransparency = 1 })
 	end)
-	if b.streakName then
-		takeSlot("streak")
-		streakToken += 1
-		local st = streakToken
-		streakLabel.Text = spaced(upper(b.streakName), 2) .. '\n<font size="19" color="#ffd75e">' .. spaced(b.streak .. " ÉLIMINATIONS D'AFFILÉE", 1) .. "</font>"
-		streakLabel.TextTransparency = 0; streakScale.Scale = 1.3
-		tween(streakScale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
+	if typeof(b.streakName) == "string" and not rounds then
+		showBanner(upper(b.streakName), spaced(streak .. " ÉLIMINATIONS D'AFFILÉE", 1), C.text, C.gold)
 		playSound(ModeConfig.SOUNDS.streak)
-		task.delay(2.2, function() if st == streakToken then tween(streakLabel, 0.5, { TextTransparency = 1 }) end end)
 	end
 end)
 
@@ -967,32 +1023,20 @@ local modeLine = label(gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim
 	Font = FONT, TextColor3 = C.gold, Text = "", TextStrokeTransparency = 0.5 })
 local modeSub = label(gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 124), Size = UDim2.fromOffset(700, 16), TextSize = 12,
 	Font = Enum.Font.GothamBold, TextColor3 = rgb(0xdfe6f2), Text = "", TextStrokeTransparency = 0.5 })
--- grande bannière du mode (uiBanner du web : « NOUVELLE ARME », « TU ES LE MASTODONTE »…)
-local annTitle = titleLabel(gui, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.2, 30), Size = UDim2.fromOffset(900, 60), TextSize = 54,
-	Text = "", TextTransparency = 1, ZIndex = 8 })
-local annSub = label(gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0.2, 62), Size = UDim2.fromOffset(900, 22), TextSize = 17, Font = Enum.Font.GothamBold,
-	Text = "", TextTransparency = 1, TextStrokeTransparency = 1, ZIndex = 8 })
-local annScale = make("UIScale", { Scale = 1 }, annTitle)
-local annToken = 0
-slotHide.ann = function() annToken += 1; annTitle.TextTransparency = 1; annSub.TextTransparency = 1; annSub.TextStrokeTransparency = 1 end
+-- grande bannière du mode (uiBanner du web : « NOUVELLE ARME », « TU ES LE MASTODONTE », « MI-TEMPS »…) :
+-- même cadre que les séries (showBanner), la dernière arrivée remplace l'autre
 local annRemote = ReplicatedStorage:WaitForChild("MatchAnnounce", 20) :: RemoteEvent?
 if annRemote then
 	annRemote.OnClientEvent:Connect(function(title: string, sub: string?, color: Color3?)
-		takeSlot("ann")
-		annToken += 1
-		local my = annToken
-		annTitle.Text = spaced(title, 2); annTitle.TextColor3 = color or C.gold; annTitle.TextTransparency = 0
-		annSub.Text = sub or ""; annSub.TextTransparency = 0; annSub.TextStrokeTransparency = 0.5
-		annScale.Scale = 1.35; tween(annScale, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
+		-- web : 2 s, un peu plus quand une ligne d'explication suit (MI-TEMPS : 3,6 s)
+		local long = typeof(sub) == "string" and #sub > 40
+		showBanner(tostring(title), sub, color or C.gold, rgb(0xdfe6f2), if long then 3.2 else 2)
 		playSound(ModeConfig.SOUNDS.streak)
-		task.delay(2.2, function()
-			if my ~= annToken then return end
-			tween(annTitle, 0.4, { TextTransparency = 1 }); tween(annSub, 0.4, { TextTransparency = 1, TextStrokeTransparency = 1 })
-		end)
 	end)
 end
 -- petit message de mode au centre (« ÉLIMINATION CONFIRMÉE +1 », « +150 »…)
-local popLabel = label(gui, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.6), Size = UDim2.fromOffset(600, 26), TextSize = 20, Font = FONT,
+-- sous la bannière d'élimination (58 %) : elle ne monte plus dessus
+local popLabel = label(gui, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.66), Size = UDim2.fromOffset(600, 26), TextSize = 20, Font = FONT,
 	Text = "", TextTransparency = 1, TextStrokeTransparency = 1 })
 local popToken = 0
 local popRemote = ReplicatedStorage:WaitForChild("ModePop", 20) :: RemoteEvent?
@@ -1001,10 +1045,11 @@ if popRemote then
 		popToken += 1
 		local my = popToken
 		popLabel.Text = spaced(text, 1); popLabel.TextColor3 = color or C.gold
-		popLabel.TextTransparency = 0; popLabel.TextStrokeTransparency = 0.5; popLabel.Position = UDim2.fromScale(0.5, 0.6)
-		tween(popLabel, 1.1, { Position = UDim2.fromScale(0.5, 0.57) })
+		popLabel.Position = UDim2.fromScale(0.5, 0.66)
+		fade(popLabel, 0.08, { TextTransparency = 0, TextStrokeTransparency = 0.5 })
+		tween(popLabel, 1.1, { Position = UDim2.fromScale(0.5, 0.64) })
 		if sound then pcall(function() Sfx.play(sound) end) end
-		task.delay(1, function() if my == popToken then tween(popLabel, 0.3, { TextTransparency = 1, TextStrokeTransparency = 1 }) end end)
+		task.delay(1, function() if my == popToken then fade(popLabel, 0.2, { TextTransparency = 1, TextStrokeTransparency = 1 }) end end)
 	end)
 end
 player:GetAttributeChangedSignal("ModeLine"):Connect(function()

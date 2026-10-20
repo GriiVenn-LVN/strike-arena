@@ -212,7 +212,8 @@ buyClose.MouseButton1Click:Connect(function() setBuy(false) end)
 buyTouch.MouseButton1Click:Connect(function() setBuy(not buyOpen) end)
 
 local function roundPhase(): string? return if ROUND_MODES[mode] and data and data.kind == "rounds" then data.phase else nil end
-local toastLabel = label(gui, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.62), Size = UDim2.fromOffset(600, 24), TextSize = 17, TextColor3 = C.bad, Text = "" })
+-- 77 % : sous la bannière d'élimination (58 %), les messages du mode (64-66 %) et la barre de pose (68-72 %)
+local toastLabel = label(gui, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.77), Size = UDim2.fromOffset(600, 24), TextSize = 17, TextColor3 = C.bad, Text = "" })
 local toastToken = 0
 local function toast(text: string)
 	toastToken += 1
