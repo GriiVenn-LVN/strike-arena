@@ -28,7 +28,8 @@
     },
     "StarterPlayer": {
       "$className": "StarterPlayer",
-      "StarterPlayerScripts": { "$path": "StarterPlayer/StarterPlayerScripts" }
+      "StarterPlayerScripts": { "$path": "StarterPlayer/StarterPlayerScripts" },
+      "StarterCharacterScripts": { "$path": "StarterPlayer/StarterCharacterScripts" }
     },
     "ServerStorage": {
       "$className": "ServerStorage",

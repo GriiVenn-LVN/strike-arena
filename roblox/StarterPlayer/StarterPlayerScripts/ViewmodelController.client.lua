@@ -25,6 +25,7 @@ local SkinPaint = require(ReplicatedStorage.Shared.SkinPaint)
 local S = require(ReplicatedStorage.Shared.ClientState)
 local A = require(ReplicatedStorage.Shared.Attachments)
 local ReticleGui = require(ReplicatedStorage.Shared.ReticleGui)
+local ShotFx = require(ReplicatedStorage.Shared.ShotFx)          -- douilles éjectées (effets de tir du web)
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -349,17 +350,10 @@ S.onShot:Connect(function(key: string)
 	VM.flashT = 0.05
 	if w.cat == "sniper" and not w.auto then VM.boltT = 0.8; task.delay(0.38, sfx, "bolt", 0.6) end
 	if w.cat == "shotgun" and not w.auto then VM.pumpT = 0.6; task.delay(0.3, sfx, "pump", 0.6) end
-	-- douille éjectée à droite
-	if VM.model and w.cat ~= "shotgun" then
+	-- douille éjectée à droite : vraie douille du décor qui rebondit (ShotFx), partie de la fenêtre d'éjection
+	if VM.model and (w.cat ~= "shotgun" or w.auto) then
 		local grip = VM.model.PrimaryPart :: BasePart
-		local shell = Instance.new("Part"); shell.Size = Vector3.new(0.012, 0.012, 0.035)   -- en mètres, comme tout le viewmodel
-		shell.Color = Color3.fromRGB(200, 160, 70); shell.Material = Enum.Material.Metal
-		shell.CanCollide = false; shell.CanQuery = false; shell.CanTouch = false; shell.CastShadow = false
-		shell.CFrame = grip.CFrame * CFrame.new(0.03, 0.04, -0.05)
-		shell.Parent = workspace
-		shell.AssemblyLinearVelocity = grip.CFrame:VectorToWorldSpace(Vector3.new(5 + math.random() * 2, 4 + math.random() * 2, 1))
-		shell.AssemblyAngularVelocity = Vector3.new(math.random() * 20, math.random() * 20, math.random() * 20)
-		Debris:AddItem(shell, 1.2)
+		ShotFx.ownShell((grip.CFrame * CFrame.new(0.03, 0.04, -0.05)).Position)
 	end
 end)
 S.onReload:Connect(function(_key: string, empty: boolean)

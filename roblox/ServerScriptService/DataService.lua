@@ -113,6 +113,9 @@ function DataService.syncSkins(player: Player)
 		player:SetAttribute("Skin_" .. key, if typeof(sk) == "number" and sk > 1 then sk else nil)
 		player:SetAttribute("Camo_" .. key, if typeof(camos[key]) == "string" then camos[key] else nil)
 	end
+	-- traînée des balles équipée (boutique) : les clients colorent nos balles traçantes (ShotFx)
+	local trail = data.equipped and data.equipped.trail
+	player:SetAttribute("Trail", if typeof(trail) == "string" and trail ~= "" then trail else nil)
 end
 
 -- Sauvegarde : une seule écriture à la fois par joueur, au plus une toutes les WRITE_GAP secondes (limite Roblox par clé) ;
