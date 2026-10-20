@@ -4,6 +4,7 @@
 -- palette, cartes « lcard », boutons rouges en dégradé, pastilles, jauges, curseurs, lettres espacées (letter-spacing).
 local TweenService = game:GetService("TweenService")
 local MenuConfig = require(game:GetService("ReplicatedStorage").Shared.MenuConfig)
+local Icons = require(game:GetService("ReplicatedStorage").Shared.Icons)
 
 local K = {}
 
@@ -94,6 +95,8 @@ end
 -- every = nil : un seul passage (survol) ; sinon recommence toutes les « every » secondes
 function K.shine(o: GuiObject, every: number?, strength: number?)
 	if o:FindFirstChildWhichIsA("UIGridStyleLayout") then return end   -- le cadre du reflet prendrait une place dans la liste
+	-- taille automatique : la bande qui sort à droite agrandissait le bouton à chaque passage (onglet JOUER étiré sur toute la barre)
+	if o.AutomaticSize ~= Enum.AutomaticSize.None then return end
 	local holder = o:FindFirstChild("Shine")
 	local band: Frame
 	if holder and holder:FindFirstChild("Band") then
@@ -241,9 +244,12 @@ function K.cascade(root: Instance, max: number?)
 	end
 end
 
--- lettres espacées (letter-spacing du web), comme HudController
+-- lettres espacées (letter-spacing du web), comme HudController. Entre deux lettres : espaces insécables (U+00A0, même
+-- largeur qu'une espace) ; seules les vraies espaces entre les mots restent sécables : un titre trop long passe à la
+-- ligne entre deux mots, plus au milieu d'un mot (« DÉSAMORÇA GE »).
+local NBSP = utf8.char(0xA0)
 function K.spaced(s: string, n: number?): string
-	local gap = string.rep(" ", n or 1)
+	local gap = string.rep(NBSP, n or 1)
 	local out = {}
 	for _, cp in utf8.codes(s) do table.insert(out, utf8.char(cp)) end
 	return table.concat(out, gap)
@@ -255,6 +261,14 @@ function K.upper(s: string): string
 	local out = string.upper(s)
 	for lo, up in pairs(ACCENTS) do out = string.gsub(out, lo, up) end
 	return out
+end
+-- texte qui doit tenir dans sa boîte (titres sur une ligne, noms de tuiles) : TextScaled borné entre min et max px.
+-- Avec TextWrapped, Roblox ne coupe qu'entre les mots tant que le mot le plus long tient à la taille minimale.
+function K.fit(o: TextLabel | TextButton, max: number, min: number?)
+	local c = o:FindFirstChildOfClass("UITextSizeConstraint") or make("UITextSizeConstraint", {}, o)
+	c.MaxTextSize = max; c.MinTextSize = min or 8
+	local ob: any = o
+	ob.TextScaled = true
 end
 -- texte sûr pour RichText
 function K.esc(s: string): string
@@ -312,20 +326,25 @@ function K.card(parent: Instance?, props: { [string]: any }?, onClick: (() -> ()
 	return f
 end
 -- titre de carte (.lcard h4) : icône + lettres espacées, petit texte à droite
+-- Le titre tient sur une ligne : il rapetisse (jusqu'à 8 px) plutôt que d'être coupé ; le petit texte de droite a sa
+-- place à lui (« Small », 110 px) au lieu de passer sous le titre.
 function K.h4(parent: Instance, title: string, small: string?, order: number?, color: Color3?): Frame
 	local row = make("Frame", { Size = UDim2.new(1, 0, 0, 20), LayoutOrder = order or 0 }, parent)
-	K.text(row, { Text = K.spaced(title, 2), Font = K.BLACK, TextSize = 12, TextColor3 = color or C.white, Size = UDim2.new(1, 0, 1, 0), TextWrapped = false,
-		TextTruncate = Enum.TextTruncate.AtEnd })
+	local t = K.text(row, { Name = "Title", Text = K.spaced(title, if small then 1 else 2), Font = K.BLACK, TextSize = 12, TextColor3 = color or C.white,
+		Size = UDim2.new(1, if small then -118 else 0, 1, 0), TextWrapped = false })
+	K.fit(t, 12, 8)
 	if small then
-		K.text(row, { Text = small, TextSize = 11, TextColor3 = C.dim, Size = UDim2.new(0.45, 0, 1, 0), Position = UDim2.fromScale(0.55, 0),
-			TextXAlignment = Enum.TextXAlignment.Right, TextWrapped = false })
+		K.text(row, { Name = "Small", Text = small, TextSize = 11, TextColor3 = C.dim, AnchorPoint = Vector2.new(1, 0), Size = UDim2.new(0, 110, 1, 0),
+			Position = UDim2.fromScale(1, 0), TextXAlignment = Enum.TextXAlignment.Right, TextWrapped = false, TextTruncate = Enum.TextTruncate.AtEnd })
 	end
 	return row
 end
 -- petit titre de section (« DIFFICULTÉ », « JOUEURS »)
 function K.label(parent: Instance, title: string, order: number?, color: Color3?): TextLabel
-	return K.text(parent, { Text = K.spaced(title, 2), Font = K.BLACK, TextSize = 11, TextColor3 = color or C.white, LayoutOrder = order or 0,
+	local t = K.text(parent, { Text = K.spaced(title, 2), Font = K.BLACK, TextSize = 11, TextColor3 = color or C.white, LayoutOrder = order or 0,
 		Size = UDim2.new(1, 0, 0, 18), TextWrapped = false })
+	K.fit(t, 11, 8)
+	return t
 end
 
 -- jauge (.lbar) : fond blanc à 7 %, remplissage dégradé rouge -> or
@@ -357,6 +376,11 @@ function K.btn(parent: Instance?, text: string, kind: BtnKind?, cb: (() -> ())?,
 	if kind == "ghost" or kind == "alt" or kind == "dark" then K.stroke(b, C.white, 1, 0.9) end
 	if props then for key, v in pairs(props) do (b :: any)[key] = v end end
 	b:SetAttribute("BaseColor", b.BackgroundColor3)
+	-- bouton de taille fixe : le libellé rapetisse (jusqu'à 9 px) au lieu de déborder sur ses voisins ; il garde sa taille
+	-- quand il tient (TextScaled plafonné à TextSize). Pas pour les boutons à taille automatique (ils suivent leur texte).
+	if b.AutomaticSize == Enum.AutomaticSize.None and b.Text ~= "" then K.fit(b, b.TextSize, math.min(9, b.TextSize)) end
+	-- bouton de fermeture : la croix U+2715 donne un carré vide dans les polices Roblox, on la dessine (Shared/Icons)
+	if text == "✕" then Icons.closeButton(b, 16, b.TextColor3) end
 	-- survol / sélection manette : éclaircit un peu (filter:brightness du web)
 	-- (un bouton transparent, comme les onglets de la navigation, prend un léger fond au survol)
 	local baseT = b.BackgroundTransparency
@@ -473,7 +497,6 @@ function K.rarityColor(r: number): Color3
 	return ({ rgb(0x9aa6b8), rgb(0x4aa3ff), rgb(0xb36bff), rgb(0xffb938), rgb(0xff3df0) })[r] or rgb(0x9aa6b8)
 end
 
--- un défi (.lmis) : texte, bouton RÉCUPÉRER quand il est fini, jauge, progression et gains
 -- un défi (.lmis) : texte, bouton RÉCUPÉRER quand il est fini, jauge, progression et gains (Accueil et Profil)
 function K.mission(ctx: any, parent: Instance, m: any, i: number, weekly: boolean)
 	local f = K.make("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = if m.done and not m.claimed then 0.92 else 0.97,
@@ -487,18 +510,24 @@ function K.mission(ctx: any, parent: Instance, m: any, i: number, weekly: boolea
 	if m.done and not m.claimed then
 		K.btn(top, K.spaced("RÉCUPÉRER", 1), "gold", function()
 			local res = ctx.call(if weekly then "ClaimWeekly" else "ClaimMission", m.index or i)
-			if res then ctx.toast("✔ +" .. m.coins .. " 🪙 · +" .. m.xp .. " XP", C.gold) end
+			if res then
+				ctx.toast("✔ +" .. m.coins .. " 💰 · +" .. m.xp .. " XP", C.gold)
+				pcall(function() (require :: any)(script.Parent:FindFirstChild("Fx")).reward(f, m.coins, m.xp) end)   -- confettis et pièces (Menu/Fx)
+			end
 			ctx.refresh()
 		end, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.fromOffset(104, 24), TextSize = 10 })
 	elseif m.claimed then
-		K.text(top, { Text = "✔", TextColor3 = C.green, AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.fromOffset(30, 18),
-			TextXAlignment = Enum.TextXAlignment.Right })
+		Icons.check(top, 18, C.green, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0) })   -- ✔ s'affiche en emoji gris
 	end
 	local bar = K.bar(f, m.progress / math.max(1, m.target), { LayoutOrder = 2 }, if m.claimed then C.green elseif weekly then C.purple else nil,
 		if m.claimed then C.green elseif weekly then C.violet else nil)
 	bar.Size = UDim2.new(1, 0, 0, 5)
 	K.text(f, { LayoutOrder = 3, Size = UDim2.new(1, 0, 0, 14), TextSize = 11, TextColor3 = C.dim, TextWrapped = false,
-		Text = K.fmt(m.progress) .. " / " .. K.fmt(m.target) .. '  ·  <font color="#ffd23a">🪙</font> ' .. m.coins .. "  ·  " .. m.xp .. " XP" })
+		Text = K.fmt(m.progress) .. " / " .. K.fmt(m.target) .. '  ·  <font color="#ffd23a">💰</font> ' .. m.coins .. "  ·  " .. m.xp .. " XP" })
+	-- bouton CHANGER, défi d'arme, animations (Menu/Reroll)
+	-- (chargé à la demande : Reroll utilise lui-même Kit)
+	local okR, errR = pcall(function() (require :: any)(script.Parent:FindFirstChild("Reroll"))(ctx, f, top, m, i, weekly) end)
+	if not okR then warn("[Kit] défi renouvelable :", errR) end
 end
 
 

@@ -27,7 +27,7 @@ local gui = make("ScreenGui", { Name = "RewardScreen", ResetOnSpawn = false, Ign
 local function rewardText(r: any): string
 	if typeof(r) ~= "table" then return "" end
 	local t = {}
-	if r.coins then table.insert(t, "🪙 " .. K.fmt(r.coins) .. " pièces") end
+	if r.coins then table.insert(t, "💰 " .. K.fmt(r.coins) .. " pièces") end
 	if r.box then table.insert(t, "📦 " .. (if (r.n or 1) > 1 then r.n .. " " else "") .. (if r.box == "prem" then "Caisse Premium" else "Caisse Standard")) end
 	if r.dance and Config.DANCES[r.dance] then table.insert(t, "💃 Danse « " .. Config.DANCES[r.dance].name .. " »") end
 	return table.concat(t, "   ")
@@ -125,10 +125,10 @@ local function buildRecap(rc: any)
 	make("Frame", { LayoutOrder = nextOrder(), Size = UDim2.new(1, 0, 0, 1), BackgroundTransparency = 0.85, BackgroundColor3 = C.white }, recap)
 	local tot = row(nextOrder(), 34)
 	local xpL = text(tot, { Text = "+0 XP", Font = K.BLACK, TextSize = 26, Size = UDim2.new(0.55, 0, 1, 0), TextWrapped = false })
-	local coinL = text(tot, { Text = "+0 🪙", Font = K.BLACK, TextSize = 22, TextColor3 = C.gold, AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0),
+	local coinL = text(tot, { Text = "+0 💰", Font = K.BLACK, TextSize = 22, TextColor3 = C.gold, AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0),
 		Size = UDim2.new(0.45, 0, 1, 0), TextXAlignment = Enum.TextXAlignment.Right, TextWrapped = false })
 	countUp(xpL, tonumber(rc.xp) or 0, function(n) return "+" .. K.fmt(n) .. " XP" end, 0.9, step(0.15))
-	countUp(coinL, tonumber(rc.coins) or 0, function(n) return "+" .. K.fmt(n) .. ' <font size="16">🪙</font>' end, 0.9, delay)
+	countUp(coinL, tonumber(rc.coins) or 0, function(n) return "+" .. K.fmt(n) .. ' <font size="16">💰</font>' end, 0.9, delay)
 	text(recap, { LayoutOrder = nextOrder(), Text = "Total : " .. K.fmt(tonumber(rc.coinsTotal) or 0) .. " pièces", TextSize = 11, TextColor3 = C.dim, Size = UDim2.new(1, 0, 0, 14) })
 
 	-- barre de niveau : de « from » à « to », un tour complet par niveau gagné
@@ -182,7 +182,7 @@ local function buildRecap(rc: any)
 	for _, c in ipairs(if typeof(rc.challenges) == "table" then rc.challenges else {}) do
 		local r = text(recap, { LayoutOrder = nextOrder(), Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = 11, Font = K.BOLD,
 			TextColor3 = if c.weekly then C.violet else C.green,
-			Text = "✔ " .. (if c.weekly then "Défi de la semaine" else "Défi du jour") .. " : " .. K.esc(tostring(c.text)) .. '  <font color="#ffd23a">🪙 ' .. tostring(c.coins) .. " · " .. tostring(c.xp) .. " XP</font> à récupérer" })
+			Text = "✔ " .. (if c.weekly then "Défi de la semaine" else "Défi du jour") .. " : " .. K.esc(tostring(c.text)) .. '  <font color="#ffd23a">💰 ' .. tostring(c.coins) .. " · " .. tostring(c.xp) .. " XP</font> à récupérer" })
 		fadeIn(r, step(0.1))
 	end
 	if rc.firstWinLeft and not rc.firstWin then

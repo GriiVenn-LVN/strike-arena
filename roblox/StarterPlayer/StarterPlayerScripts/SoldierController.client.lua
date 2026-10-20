@@ -68,7 +68,7 @@ local function weld(p0: BasePart, p1: BasePart, c0: CFrame): Weld
 end
 
 local function dress(d: D)
-	local ok, items = pcall(Models.parts, d.look)
+	local ok, items = pcall(Models.parts, d.look, hash(d.char.Name))     -- légère variation de teinte par soldat
 	if not ok then warn("[SoldierController]", items); return end
 	if not items or not d.char.Parent or active[d.char] ~= d then return end
 	-- sans articulations Motor6D (par ex. « Avatar Joint Upgrade » de Roblox), rien ne peut être soudé :
@@ -171,18 +171,24 @@ local botsFolder = workspace:FindFirstChild("Bots")
 if botsFolder then watchBots(botsFolder) end
 workspace.ChildAdded:Connect(function(c: Instance) if c.Name == "Bots" and c:IsA("Folder") then watchBots(c) end end)
 
--- tirs : recul, arme levée
+-- tirs : recul, arme levée ; l'à-coup suit l'arme tenue (fusil à pompe et sniper secouent l'épaule, pistolet sec)
+local KICK: { [string]: number } = { sniper = 1.6, shotgun = 1.6, lmg = 1.2, rifle = 1, smg = 0.8, pistol = 0.75 }
+local function kickOf(d: D): number
+	local key = d.char:GetAttribute("Weapon")
+	local w = typeof(key) == "string" and Config.WEAPONS[key]
+	return if w then KICK[w.cat] or 1 else 1
+end
 if tracerRemote then
 	(tracerRemote :: RemoteEvent).OnClientEvent:Connect(function(_, _, shooter: Instance?)
 		local d = shooter and active[shooter :: Model]
-		if d then d.fire = 1; d.lastShot = os.clock() end
+		if d then d.fire = kickOf(d); d.lastShot = os.clock() end
 	end)
 end
 S.onShot:Connect(function()
 	if S.kc then return end                  -- tirs du tueur rejoués par la kill-cam : pas le recul de notre corps
 	local c = player.Character
 	local d = c and active[c]
-	if d then d.fire = 1; d.lastShot = os.clock() end
+	if d then d.fire = kickOf(d); d.lastShot = os.clock() end
 end)
 
 -- ---------- état envoyé au serveur (les autres voient nos glissades, sprints…) ----------

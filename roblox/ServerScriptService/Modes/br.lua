@@ -268,7 +268,7 @@ function M.tick(m: any, dt: number)
 	local alive = #aliveCombatants(m)
 	for p in pairs(m.players) do
 		local s = m.stats[p]
-		p:SetAttribute("ModeLine", "🪂 " .. alive .. " EN VIE   ·   " .. (if s then s.k else 0) .. " ÉLIMINATION" .. (if s and s.k > 1 then "S" else ""))
+		p:SetAttribute("ModeLine", "🌀 " .. alive .. " EN VIE   ·   " .. (if s then s.k else 0) .. " ÉLIMINATION" .. (if s and s.k > 1 then "S" else ""))
 	end
 	m.data.alive = alive
 end
@@ -334,7 +334,7 @@ function M.info(m: any): any
 	m.data.public = { br = { x = center.X, z = center.Z, r = r, state = z.state, label = label, t = math.max(0, math.ceil(tt)), phase = z.phase, alive = alive,
 		dmg = z.dmg + (z.phase - 1) * 1.5 } }
 	return {
-		line = "🪂 " .. alive .. " EN VIE",
+		line = "🌀 " .. alive .. " EN VIE",
 		sub = label .. (if z.state ~= "final" then "  " .. string.format("%d:%02d", math.floor(math.ceil(tt) / 60), math.ceil(tt) % 60) else ""),
 		subWarn = z.state == "shrink",
 		color = Z.ZONE_COLOR, kind = "br",

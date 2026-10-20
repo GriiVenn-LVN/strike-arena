@@ -10,12 +10,12 @@
 -- Avec des amis : le groupe (PartyService) ; avec un groupe, la partie est privée (settings.private) et le chef la lance pour tous.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
-local AssetService = game:GetService("AssetService")
 local SocialService = game:GetService("SocialService")
 local Modes = require(ReplicatedStorage.Shared.Modes)
 local MapData = require(ReplicatedStorage.Shared.MapData)
 local X = require(ReplicatedStorage.Shared.ConfigExtra)
 local K = require(script.Parent.Kit)
+local Icons = require(ReplicatedStorage.Shared.Icons)
 local C = K.C
 local make, text, spaced = K.make, K.text, K.spaced
 
@@ -36,55 +36,82 @@ local TH: { [string]: { [string]: number } } = {
 	haunt = { bg = 0x1e2a22, w = 0x6a4a40, h = 0x5a3a30, x = 0x6a5030, l = 0x7d8580, p = 0x5a5048 },
 }
 TH.halloween = TH.haunt
-local thumbs: { [string]: any } = {}   -- EditableImage par carte (gardée d'un affichage à l'autre)
-local function thumbImage(id: string): any
-	if thumbs[id] ~= nil then return thumbs[id] end
-	thumbs[id] = false
-	local md = (MapData :: any)[id]
+-- Plan vu de dessus en cadres : chaque bloc de cases de même couleur devient un rectangle (fusion gloutonne : une case
+-- s'étend vers la droite puis vers le bas tant que la couleur reste la même), 100 à 300 cadres par carte au lieu de 1 600.
+-- Le modèle de chaque carte est construit une fois (positions en fractions : il sert à toutes les tailles), puis cloné.
+-- (Plus d'EditableImage : non autorisée dans Studio sans réglage, elle donnait la vignette de secours, et elle prend sur
+-- la mémoire déjà comptée des EditableMesh.)
+local thumbTemplates: { [string]: Frame | false } = {}
+local function cellColor(g: any, th: { [string]: number }, i: number): number?
+	local t = g.type[i]
+	if g.ramp and g.ramp[i] ~= 0 then return 0xd9b45a end
+	if t == 1 or t == 8 then return th.w end
+	if t == 3 or t == 7 then return th.h end
+	if t == 2 or t == 9 then return th.x end
+	if t == 4 or t == 5 then return th.l end
+	if t == 6 then return th.p end
+	if g.ceil and g.ceil[i] < 90 then   -- couvert : 18 % plus sombre (rgba(0,0,0,.18) du web)
+		local r, gg, b = bit32.rshift(th.bg, 16), bit32.band(bit32.rshift(th.bg, 8), 255), bit32.band(th.bg, 255)
+		return bit32.lshift(math.floor(r * 0.82), 16) + bit32.lshift(math.floor(gg * 0.82), 8) + math.floor(b * 0.82)
+	end
+	if t ~= 0 then return th.w end
+	return nil   -- sol : la couleur de fond de la vignette
+end
+local function thumbTemplate(id: string): Frame?
+	local cached = thumbTemplates[id]
+	if cached == false then return nil end
+	if cached then return cached :: Frame end
+	thumbTemplates[id] = false
 	local info = Modes.MAP[id]
-	if not md or not info then return false end
+	if not (MapData :: any)[id] or not info then return nil end
 	local okG, g = pcall(MapData.buildGrid, id)
-	if not okG then return false end
+	if not okG or not g or not g.type then return nil end
 	local N = MapData.N
 	local th = TH[info.theme] or TH.industrial
-	local okI, img = pcall(function() return AssetService:CreateEditableImage({ Size = Vector2.new(N, N) }) end)
-	if not okI or not img then return false end
-	local buf = buffer.create(N * N * 4)
-	local function put(i: number, hex: number, a: number?)
-		buffer.writeu8(buf, i * 4, bit32.rshift(hex, 16)); buffer.writeu8(buf, i * 4 + 1, bit32.band(bit32.rshift(hex, 8), 255))
-		buffer.writeu8(buf, i * 4 + 2, bit32.band(hex, 255)); buffer.writeu8(buf, i * 4 + 3, a or 255)
-	end
+	local col: { [number]: number } = {}
 	for i = 0, N * N - 1 do
-		local t = g.type[i]
-		local col = th.bg
-		if g.ramp[i] ~= 0 then col = 0xd9b45a
-		elseif t == 1 or t == 8 then col = th.w
-		elseif t == 3 or t == 7 then col = th.h
-		elseif t == 2 or t == 9 then col = th.x
-		elseif t == 4 or t == 5 then col = th.l
-		elseif t == 6 then col = th.p
-		elseif g.ceil[i] < 90 then   -- couvert : 18 % plus sombre
-			local r, gg, b = bit32.rshift(th.bg, 16), bit32.band(bit32.rshift(th.bg, 8), 255), bit32.band(th.bg, 255)
-			col = bit32.lshift(math.floor(r * 0.82), 16) + bit32.lshift(math.floor(gg * 0.82), 8) + math.floor(b * 0.82)
-		end
-		put(i, col)
+		local c = cellColor(g, th, i)
+		if c then col[i] = c end
 	end
-	local okW = pcall(function() (img :: any):WritePixelsBuffer(Vector2.zero, Vector2.new(N, N), buf) end)
-	if not okW then return false end
-	thumbs[id] = img
-	return img
+	local done: { [number]: boolean } = {}
+	local tpl = make("Frame", { Name = "Plan", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1 })
+	for z = 0, N - 1 do
+		for x = 0, N - 1 do
+			local i = z * N + x
+			local c = col[i]
+			if c and not done[i] then
+				local w = 1
+				while x + w < N and col[i + w] == c and not done[i + w] do w += 1 end
+				local h = 1
+				while z + h < N do
+					local ok = true
+					for k = 0, w - 1 do
+						local j = (z + h) * N + x + k
+						if col[j] ~= c or done[j] then ok = false; break end
+					end
+					if not ok then break end
+					h += 1
+				end
+				for dz = 0, h - 1 do for k = 0, w - 1 do done[(z + dz) * N + x + k] = true end end
+				-- + 1 px : pas de fente entre deux blocs voisins à cause des arrondis
+				make("Frame", { Position = UDim2.fromScale(x / N, z / N), Size = UDim2.new(w / N, 1, h / N, 1), BackgroundTransparency = 0,
+					BackgroundColor3 = K.rgb(c), Active = false }, tpl)
+			end
+		end
+	end
+	thumbTemplates[id] = tpl
+	return tpl
 end
 local function thumb(parent: Instance, id: string, size: number): Frame
 	local info = Modes.MAP[id]
 	local th = TH[info and info.theme or ""] or TH.industrial
 	local f = make("Frame", { Size = UDim2.fromOffset(size, size), BackgroundTransparency = 0, BackgroundColor3 = K.rgb(th.bg), ClipsDescendants = true }, parent)
 	K.corner(f, 6)
-	local img = thumbImage(id)
-	if img then
-		local il = make("ImageLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ResampleMode = Enum.ResamplerMode.Pixelated }, f)
-		pcall(function() il.ImageContent = Content.fromObject(img) end)
+	local tpl = thumbTemplate(id)
+	if tpl then
+		tpl:Clone().Parent = f
 	else
-		-- pas d'EditableImage (réglage Roblox) ou carte sans plan : vignette de couleur avec le nom
+		-- carte sans plan : vignette de couleur avec le nom
 		K.gradient(f, K.rgb(th.bg), K.rgb(th.w), 135, 0, 0.3)
 		text(f, { Text = info and info.n or id, Size = UDim2.fromScale(1, 1), TextXAlignment = Enum.TextXAlignment.Center, Font = K.BLACK, TextSize = math.max(10, size // 9),
 			TextColor3 = K.rgb(th.h), TextTransparency = 0.2 })
@@ -97,14 +124,26 @@ local function thumb(parent: Instance, id: string, size: number): Frame
 			local ring = make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale((s.cx + 0.5) / N, (s.cz + 0.5) / N), Size = UDim2.fromOffset(r, r) }, f)
 			K.corner(ring, math.floor(r)); K.stroke(ring, C.accent, 2, 0.1)
 			text(ring, { Text = s.n, Size = UDim2.fromScale(1, 1), TextXAlignment = Enum.TextXAlignment.Center, Font = K.BLACK, TextSize = math.max(9, size // 11),
-				TextColor3 = C.accent })
+				TextColor3 = C.accent, TextStrokeTransparency = 0.6 })
 		end
 		text(f, { Text = "CT", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(20 / N, 5 / N), Size = UDim2.fromOffset(30, 14), Font = K.BLACK,
-			TextSize = math.max(8, size // 16), TextColor3 = C.blue, TextXAlignment = Enum.TextXAlignment.Center })
+			TextSize = math.max(8, size // 16), TextColor3 = C.blue, TextXAlignment = Enum.TextXAlignment.Center, TextStrokeTransparency = 0.6 })
 		text(f, { Text = "T", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(20 / N, 36 / N), Size = UDim2.fromOffset(30, 14), Font = K.BLACK,
-			TextSize = math.max(8, size // 16), TextColor3 = K.rgb(0xff7a4a), TextXAlignment = Enum.TextXAlignment.Center })
+			TextSize = math.max(8, size // 16), TextColor3 = K.rgb(0xff7a4a), TextXAlignment = Enum.TextXAlignment.Center, TextStrokeTransparency = 0.6 })
 	end
 	return f
+end
+-- ambiance de la carte en un mot (petite ligne sous le nom de la vignette)
+local THEME_NAME: { [string]: string } = { sand = "Désert", industrial = "Industriel", snow = "Neige", night = "De nuit", metro = "Souterrain",
+	jungle = "Jungle", range = "Entraînement", haunt = "Hanté", halloween = "Hanté" }
+local function mapTag(id: string): string
+	local info = Modes.MAP[id]
+	local md = (MapData :: any)[id]
+	local parts = { THEME_NAME[info and info.theme or ""] or "" }
+	local ns = if md and md.sites then #md.sites else 0
+	if info and info.zombie then table.insert(parts, "Zombies")
+	elseif ns > 0 then table.insert(parts, ns .. " sites de bombe") end
+	return table.concat(parts, " · ")
 end
 
 -- titre d'étape « (1) MODE », avec une phrase d'aide courte dessous
@@ -217,8 +256,10 @@ return function(ctx: any, body: Frame, _sub: string?)
 					BackgroundTransparency = if on then 0 else 0.45, BackgroundColor3 = m.c }, b)
 				K.corner(band, 2)
 				text(b, { Text = m.ic, Size = UDim2.new(1, 0, 0, 40), Position = UDim2.fromOffset(0, 14), TextSize = 30, TextXAlignment = Enum.TextXAlignment.Center })
-				text(b, { Text = spaced(K.upper(modeName(id)), 1), Size = UDim2.new(1, -10, 0, 44), Position = UDim2.fromOffset(5, 58), TextSize = 11, Font = K.BLACK,
-					TextXAlignment = Enum.TextXAlignment.Center, TextYAlignment = Enum.TextYAlignment.Top, LineHeight = 1.1 })
+				-- nom sans espaces entre les lettres : Roblox ne coupe la ligne qu'entre les mots, et le texte rapetisse (12 à 8 px)
+				-- si un mot est trop long (« DÉSAMORÇAGE RAPIDE », « MATCH À MORT PAR ÉQUIPE »)
+				K.fit(text(b, { Text = K.upper(modeName(id)), Size = UDim2.new(1, -12, 0, 40), Position = UDim2.fromOffset(6, 60), TextSize = 12, Font = K.BLACK,
+					TextXAlignment = Enum.TextXAlignment.Center, TextYAlignment = Enum.TextYAlignment.Top, LineHeight = 1.05, TextWrapped = true }), 12, 8)
 				if id == feat then
 					local x2 = text(b, { Text = "XP ×2", Size = UDim2.fromOffset(46, 16), Position = UDim2.new(1, -52, 0, 6), BackgroundTransparency = 0, BackgroundColor3 = C.gold,
 						TextColor3 = C.ink, Font = K.BLACK, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Center })
@@ -253,19 +294,22 @@ return function(ctx: any, body: Frame, _sub: string?)
 	local per = if single then 1 elseif w2 >= 560 then 4 elseif w2 >= 400 then 3 else 2
 	local cw = if single then math.min(420, w2 - 10) else math.floor((w2 - 8 - (per - 1) * 10) / per)
 	local th = cw - 16
-	K.grid(mgrid, UDim2.fromOffset(cw, th + 52), 10)
+	K.grid(mgrid, UDim2.fromOffset(cw, th + 56), 10)
 	for i, id in ipairs(maps) do
 		local on = p.map == id
 		local b = make("TextButton", { Text = "", LayoutOrder = i, BackgroundTransparency = 0, BackgroundColor3 = C.card, Selectable = true, Active = not guest }, mgrid)
 		K.corner(b, 10); K.stroke(b, if on then C.accent else C.white, 2, if on then 0 else 0.93)
 		local t = thumb(b, id, th); t.Position = UDim2.fromOffset(8, 8)
-		if on then   -- carte choisie : pastille « ✔ » en plus du bord rouge
-			local ok = text(b, { Text = "✔", AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -12, 0, 12), Size = UDim2.fromOffset(22, 22), BackgroundTransparency = 0,
-				BackgroundColor3 = C.accent, Font = K.BLACK, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Center, ZIndex = t.ZIndex + 2 })
-			K.corner(ok, 11)
+		if on then   -- carte choisie : pastille rouge avec une coche dessinée, en plus du bord rouge
+			local ok = make("Frame", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -12, 0, 12), Size = UDim2.fromOffset(24, 24), BackgroundTransparency = 0,
+				BackgroundColor3 = C.accent, ZIndex = t.ZIndex + 2 }, b)
+			K.corner(ok, 12)
+			Icons.check(ok, 16, C.white, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5) })
 		end
-		text(b, { Text = spaced(K.upper(Modes.MAP[id].n), 1), Position = UDim2.fromOffset(4, th + 12), Size = UDim2.new(1, -8, 0, 36), Font = K.BLACK, TextSize = 12,
-			TextXAlignment = Enum.TextXAlignment.Center, LineHeight = 1.05 })
+		K.fit(text(b, { Text = spaced(K.upper(Modes.MAP[id].n), 1), Position = UDim2.fromOffset(6, th + 14), Size = UDim2.new(1, -12, 0, 18), Font = K.BLACK, TextSize = 12,
+			TextXAlignment = Enum.TextXAlignment.Center, TextWrapped = false }), 12, 8)
+		K.fit(text(b, { Text = mapTag(id), Position = UDim2.fromOffset(6, th + 34), Size = UDim2.new(1, -12, 0, 14), Font = K.MED, TextSize = 11, TextColor3 = C.dim,
+			TextXAlignment = Enum.TextXAlignment.Center, TextWrapped = false }), 11, 8)
 		if not guest then b.Activated:Connect(function() set({ map = id }) end); K.juice(b, 0.04) end
 		b.MouseEnter:Connect(function() b.BackgroundColor3 = C.card2 end)
 		b.MouseLeave:Connect(function() b.BackgroundColor3 = C.card end)
@@ -388,9 +432,9 @@ return function(ctx: any, body: Frame, _sub: string?)
 		local mc = K.card(c3, { LayoutOrder = 6 })
 		local st = mc:FindFirstChildOfClass("UIStroke"); if st then st.Color = C.green; st.Transparency = 0.7 end
 		K.vlist(mc, 6)
-		local h = K.h4(mc, "🌐 PARTIES EN COURS", nil, 0, C.green)
-		countL = text(h, { Text = "…", TextSize = 11, TextColor3 = C.dim, Size = UDim2.new(0.45, 0, 1, 0), Position = UDim2.fromScale(0.55, 0),
-			TextXAlignment = Enum.TextXAlignment.Right, TextWrapped = false })
+		-- « n joueurs en ligne » a sa place à droite du titre (il passait dessous)
+		local h = K.h4(mc, "🌐 PARTIES EN COURS", "…", 0, C.green)
+		countL = h:FindFirstChild("Small") :: TextLabel?
 		K.para(mc, "Les joueurs comptés sont des vrais joueurs ; les bots ne sont pas comptés.", 11, C.dim, 1)
 		local lb = make("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 2 }, mc)
 		K.vlist(lb, 6)
@@ -459,7 +503,7 @@ return function(ctx: any, body: Frame, _sub: string?)
 	-- ---------- réglages : seulement si une nouvelle partie est créée ----------
 	local cfg = K.card(c3, { LayoutOrder = 7 })
 	K.vlist(cfg, 8)
-	K.h4(cfg, if privateGame then "⚙ RÉGLAGES DE LA PARTIE" else "⚙ SI UNE NOUVELLE PARTIE EST CRÉÉE", nil, 0)
+	K.h4(cfg, if privateGame then "⚙ RÉGLAGES DE LA PARTIE" else "⚙ RÉGLAGES D'UNE NOUVELLE PARTIE", nil, 0)
 	K.para(cfg, if privateGame then "Ils comptent pour la partie de ton groupe." else "Si tu rejoins une partie en cours, ce sont ses réglages qui comptent.", 11, C.dim, 0)
 	local function chips(order: number, parent: Instance?): Frame
 		local f = make("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = order }, parent or cfg)

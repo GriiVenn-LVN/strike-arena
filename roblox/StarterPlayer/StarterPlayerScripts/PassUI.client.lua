@@ -13,6 +13,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Catalog = require(ReplicatedStorage.Shared.ShopCatalog)
 local ItemPreview = require(ReplicatedStorage.Shared.ItemPreview)
 local S = require(ReplicatedStorage.Shared.ClientState)
+local Icons = require(ReplicatedStorage.Shared.Icons)
 local K = require(script.Parent:WaitForChild("Menu"):WaitForChild("Kit"))
 local C = K.C
 local make, text, spaced = K.make, K.text, K.spaced
@@ -76,8 +77,8 @@ local function rewardLabel(r: any, item: any): (string, string)
 		local w = Config.WEAPONS[item.weapon]
 		return "🎨", (if sk then sk.name else "Skin") .. " · " .. (if w then w.name else item.weapon)
 	end
-	if r.box then return "📦", (if r.box == "prem" then "Caisse Premium" else "Caisse Standard") .. (if r.coins then " + " .. r.coins .. " 🪙" else "") end
-	if r.coins then return "🪙", K.fmt(r.coins) .. " pièces" end
+	if r.box then return "📦", (if r.box == "prem" then "Caisse Premium" else "Caisse Standard") .. (if r.coins then " + " .. r.coins .. " 💰" else "") end
+	if r.coins then return "💰", K.fmt(r.coins) .. " pièces" end
 	return "•", ""
 end
 
@@ -121,8 +122,10 @@ local function cell(parent: Instance, t: number, prem: boolean, y: number)
 	text(f, { Position = UDim2.fromOffset(6, 100), Size = UDim2.new(1, -12, 0, 34), TextSize = 11, Font = K.BOLD, TextXAlignment = Enum.TextXAlignment.Center,
 		TextYAlignment = Enum.TextYAlignment.Top, Text = txt, TextColor3 = if prem then C.gold else C.text })
 	if got then
-		text(f, { Position = UDim2.new(0, 0, 1, -36), Size = UDim2.new(1, 0, 0, 26), TextSize = 13, Font = K.BLACK, TextColor3 = C.green,
-			TextXAlignment = Enum.TextXAlignment.Center, Text = "✔ " .. spaced("REÇU", 1) })
+		text(f, { Position = UDim2.new(0, 12, 1, -36), Size = UDim2.new(1, 0, 0, 26), TextSize = 13, Font = K.BLACK, TextColor3 = C.green,
+			TextXAlignment = Enum.TextXAlignment.Center, Text = spaced("REÇU", 1) })
+		-- coche verte dessinée devant « REÇU » (le ✔ texte sort en emoji gris)
+		Icons.check(f, 16, C.green, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, -26, 1, -23) })
 	elseif ready then
 		local b = K.btn(f, spaced("RÉCUPÉRER", 1), "gold", function() claim(t, prem) end,
 			{ AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -8), Size = UDim2.new(1, -16, 0, 28), TextSize = 11 })
@@ -156,7 +159,7 @@ local function buildActions()
 		end, { LayoutOrder = 2, Size = UDim2.fromOffset(230, 42), TextSize = 13 })
 		if not live then rb.Text = "⭐  PREMIUM · R$ " .. tostring(state.premiumRobux) .. '  <font size="10">bientôt disponible</font>' end
 		local enough = (state.coins or 0) >= state.premiumCoins
-		K.btn(row1, "⭐  " .. spaced("PREMIUM", 1) .. "  ·  " .. K.fmt(state.premiumCoins) .. " 🪙", if enough then "purple" else "dark", function()
+		K.btn(row1, "⭐  " .. spaced("PREMIUM", 1) .. "  ·  " .. K.fmt(state.premiumCoins) .. " 💰", if enough then "purple" else "dark", function()
 			local ok = call("BP_BuyPremium")
 			if ok then toast("✔ Passe Premium débloqué ! Tous les paliers Premium atteints sont à récupérer.") else toast("Pas assez de pièces (" .. K.fmt(state.coins or 0) .. " / " .. K.fmt(state.premiumCoins) .. ")", C.accent) end
 			state = call("BP_State") or state; render()

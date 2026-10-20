@@ -8,8 +8,8 @@ local A = {}
 
 A.MAX = 5
 A.SLOTS = {
-	{ id = "muzzle", n = "Bouche", ic = "◉" }, { id = "optic", n = "Optique", ic = "⌖" }, { id = "barrel", n = "Canon", ic = "═" },
-	{ id = "under", n = "Sous-canon", ic = "⊥" }, { id = "mag", n = "Chargeur", ic = "▮" }, { id = "stock", n = "Crosse", ic = "◣" },
+	{ id = "muzzle", n = "Bouche", ic = "◉" }, { id = "optic", n = "Optique", ic = "◎" }, { id = "barrel", n = "Canon", ic = "▬" },
+	{ id = "under", n = "Sous-canon", ic = "▼" }, { id = "mag", n = "Chargeur", ic = "▮" }, { id = "stock", n = "Crosse", ic = "◣" },
 }
 
 -- m : multiplicateurs. rec = recul vertical, recH = horizontal, adsSpr = dispersion en visée, hip = à la hanche,
@@ -20,23 +20,23 @@ A.ATTS = {
 	comp = { s = "muzzle", n = "Compensateur", lv = 2, d = "Canalise les gaz vers le haut : recul vertical réduit.", m = { rec = .85, ads = .97 } },
 	brake = { s = "muzzle", n = "Frein de bouche", lv = 3, d = "Gaz sur les côtés : recul horizontal fortement réduit, tir plus bruyant.", m = { recH = .68, snd = 1.15 } },
 	flash = { s = "muzzle", n = "Cache-flamme", lv = 1, d = "Masque la flamme de bouche, léger gain de stabilité.", m = { rec = .95 }, noFlash = true },
-	reddot = { s = "optic", n = "Point rouge", lv = 1, d = "Visée nette et dégagée : dispersion en visée −25 %.", m = { adsSpr = .75, zoom = 1.55 } },
-	holo = { s = "optic", n = "Holographique", lv = 2, d = "Réticule cerclé, grande fenêtre : dispersion en visée −20 %, visée plus rapide.", m = { adsSpr = .8, ads = 1.05, zoom = 1.5 } },
-	mini = { s = "optic", n = "Mini réflex", lv = 1, d = "Petit viseur ouvert, très léger : visée plus rapide, dispersion en visée −15 %.", m = { adsSpr = .85, ads = 1.08, zoom = 1.42 } },
+	reddot = { s = "optic", n = "Point rouge", lv = 1, d = "Visée nette et dégagée : dispersion en visée -25 %.", m = { adsSpr = .75, zoom = 1.55 } },
+	holo = { s = "optic", n = "Holographique", lv = 2, d = "Réticule cerclé, grande fenêtre : dispersion en visée -20 %, visée plus rapide.", m = { adsSpr = .8, ads = 1.05, zoom = 1.5 } },
+	mini = { s = "optic", n = "Mini réflex", lv = 1, d = "Petit viseur ouvert, très léger : visée plus rapide, dispersion en visée -15 %.", m = { adsSpr = .85, ads = 1.08, zoom = 1.42 } },
 	acog = { s = "optic", n = "Lunette ×2,5", lv = 4, d = "Grossissement ×2,5 pour la moyenne distance. Visée plus lente.", m = { adsSpr = .7, ads = .85, zoom = 1.9 } },
 	sc4 = { s = "optic", n = "Lunette ×4", lv = 3, d = "Lunette de précision ×4 : vue plein écran en visée, idéale à longue distance. Visée lente.", m = { adsSpr = .6, ads = .78, mob = .97, zoom = 2.4 }, ov = true },
 	sc6 = { s = "optic", n = "Lunette ×6", lv = 5, d = "Grossissement ×6 : pour tenir une longue ligne. Visée lente.", m = { adsSpr = .55, ads = .72, mob = .96, zoom = 3.1 }, ov = true },
 	sc8 = { s = "optic", n = "Lunette ×8", lv = 6, d = "Grossissement ×8 pour les très longues distances.", m = { ads = .95, zoom = 3.8 }, ov = true },
 	sc10 = { s = "optic", n = "Lunette ×10", lv = 8, d = "Grossissement maximal ×10. Visée plus lente, champ de vision très étroit.", m = { ads = .88, zoom = 4.8 }, ov = true },
 	long = { s = "barrel", n = "Canon long", lv = 3, d = "Portée efficace +30 %, balles plus précises. Arme plus lourde.", m = { rng = 1.3, hip = .92, adsSpr = .92, mob = .96, ads = .92 } },
-	heavy = { s = "barrel", n = "Canon lourd", lv = 5, d = "Recul −12 %, portée +10 %. Mobilité réduite.", m = { rec = .88, recH = .9, rng = 1.1, mob = .93, ads = .9 } },
-	grip = { s = "under", n = "Poignée verticale", lv = 2, d = "Meilleure tenue : recul −18 %.", m = { rec = .82, recH = .85, ads = .96 } },
+	heavy = { s = "barrel", n = "Canon lourd", lv = 5, d = "Recul -12 %, portée +10 %. Mobilité réduite.", m = { rec = .88, recH = .9, rng = 1.1, mob = .93, ads = .9 } },
+	grip = { s = "under", n = "Poignée verticale", lv = 2, d = "Meilleure tenue : recul -18 %.", m = { rec = .82, recH = .85, ads = .96 } },
 	angled = { s = "under", n = "Poignée inclinée", lv = 3, d = "Épaulement rapide : vitesse de visée +20 %.", m = { ads = 1.2, rec = .94 } },
 	laser = { s = "under", n = "Laser tactique", lv = 4, d = "Précision à la hanche +30 %, visée plus rapide. Le laser est visible.", m = { hip = .7, ads = 1.06 } },
 	ext = { s = "mag", n = "Chargeur étendu", lv = 2, d = "+30 % de munitions par chargeur. Rechargement un peu plus lent.", m = { mag = 1.3, rel = 1.12, mob = .98 } },
-	fast = { s = "mag", n = "Chargeurs jumelés", lv = 3, d = "Deux chargeurs scotchés : rechargement −30 %.", m = { rel = .7 } },
+	fast = { s = "mag", n = "Chargeurs jumelés", lv = 3, d = "Deux chargeurs scotchés : rechargement -30 %.", m = { rel = .7 } },
 	light = { s = "stock", n = "Crosse squelette", lv = 4, d = "Mobilité +7 %, visée plus rapide. Un peu plus de recul.", m = { mob = 1.07, ads = 1.08, rec = 1.08 } },
-	tac = { s = "stock", n = "Crosse tactique", lv = 5, d = "Crosse rembourrée : recul −10 %. Mobilité réduite.", m = { rec = .9, recH = .92, mob = .96 } },
+	tac = { s = "stock", n = "Crosse tactique", lv = 5, d = "Crosse rembourrée : recul -10 %. Mobilité réduite.", m = { rec = .9, recH = .92, mob = .96 } },
 } :: { [string]: Att }
 -- ordre d'affichage (le web suit l'ordre de déclaration de ATTS)
 A.ORDER = { "sil", "comp", "brake", "flash", "reddot", "holo", "mini", "acog", "sc4", "sc6", "sc8", "sc10", "long", "heavy", "grip", "angled", "laser", "ext", "fast", "light", "tac" }

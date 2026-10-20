@@ -26,6 +26,7 @@ local S = require(ReplicatedStorage.Shared.ClientState)
 local A = require(ReplicatedStorage.Shared.Attachments)
 local ReticleGui = require(ReplicatedStorage.Shared.ReticleGui)
 local ShotFx = require(ReplicatedStorage.Shared.ShotFx)          -- douilles éjectées (effets de tir du web)
+local HandModels = require(ReplicatedStorage.Shared.HandModels)  -- gants modelés et manches exportés du web
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -66,15 +67,16 @@ local function part(name: string, size: Vector3, color: Color3, mat: Enum.Materi
 end
 
 local GLOVE = Color3.fromRGB(34, 36, 40)
+-- manches : diamètres des cônes du web (SG.uarm / SG.farm, ×1,15 dans place()) ; poignet : bande de manche (cR / cL)
+local ARM_U, ARM_F, CUFF_D, CUFF_L = 0.132, 0.112, 0.118, 0.054
 local arms = {
-	uR = part("UpperR", Vector3.new(0.1, 0.1, 0.34), Color3.new()), fR = part("ForeR", Vector3.new(0.085, 0.085, 0.3), Color3.new()),
-	uL = part("UpperL", Vector3.new(0.1, 0.1, 0.34), Color3.new()), fL = part("ForeL", Vector3.new(0.085, 0.085, 0.3), Color3.new()),
-	cR = part("CuffR", Vector3.new(0.095, 0.095, 0.05), Color3.fromRGB(45, 48, 40)), cL = part("CuffL", Vector3.new(0.095, 0.095, 0.05), Color3.fromRGB(45, 48, 40)),
+	uR = part("UpperR", Vector3.new(0.34, ARM_U, ARM_U), Color3.new()), fR = part("ForeR", Vector3.new(0.3, ARM_F, ARM_F), Color3.new()),
+	uL = part("UpperL", Vector3.new(0.34, ARM_U, ARM_U), Color3.new()), fL = part("ForeL", Vector3.new(0.3, ARM_F, ARM_F), Color3.new()),
+	cR = part("CuffR", Vector3.new(CUFF_L, CUFF_D, CUFF_D), Color3.fromRGB(45, 48, 40)), cL = part("CuffL", Vector3.new(CUFF_L, CUFF_D, CUFF_D), Color3.fromRGB(45, 48, 40)),
 	hR = part("HandR", Vector3.new(0.075, 0.09, 0.11), GLOVE), hL = part("HandL", Vector3.new(0.075, 0.09, 0.11), GLOVE),
 }
-for _, k in ipairs({ "uR", "fR", "uL", "fL" }) do
-	local m = Instance.new("SpecialMesh"); m.MeshType = Enum.MeshType.Cylinder; m.Parent = arms[k]
-end
+-- vrais cylindres (axe X) : un SpecialMesh « Cylinder » s'affiche en pavé sur Roblox (manches et poignets en blocs)
+for _, k in ipairs({ "uR", "fR", "uL", "fL", "cR", "cL" }) do arms[k].Shape = Enum.PartType.Cylinder end
 -- hR / hL : simples repères invisibles, les gants modelés (ci-dessous) s'y accrochent
 arms.hR.Transparency = 1; arms.hL.Transparency = 1
 for _, k in ipairs({ "uR", "fR", "uL", "fL" }) do arms[k].Material = Enum.Material.Fabric end
@@ -83,7 +85,8 @@ arms.cR.Material = Enum.Material.Fabric; arms.cL.Material = Enum.Material.Fabric
 -- ---------- gants tactiques modelés (src/55b_hands.js) ----------
 -- paume arrondie, quatre doigts en trois phalanges enroulés autour de la poignée, pouce opposé,
 -- coque des jointures, sangle de poignet ; la main gauche est le reflet de la droite.
-type GPiece = { p: BasePart, at: CFrame, mat: string }
+-- mirrored : maillage déjà reflété (gants exportés du web, HandModels), sinon pièce symétrique de la main droite
+type GPiece = { p: BasePart, at: CFrame, mat: string, mirrored: boolean? }
 local function newGlove(): { GPiece }
 	local list: { GPiece } = {}
 	local function add(p: BasePart, at: CFrame, mat: string)
@@ -92,9 +95,43 @@ local function newGlove(): { GPiece }
 		p.Parent = rig
 		table.insert(list, { p = p, at = at, mat = mat })
 	end
-	local function box(size: Vector3, pos: Vector3, ry: number, mat: string)
-		local p = Instance.new("Part"); p.Name = "Gant"; p.Size = size
-		add(p, CFrame.new(pos) * CFrame.Angles(0, ry, 0), mat)
+	-- pavé arrondi « gonflé » (puffGeo du web) : rayon r = round × plus petite demi-taille ; sans maillage, il est
+	-- refait en pièces simples (somme d'un pavé et d'une boule) : 3 pavés + 12 cylindres d'arêtes + 8 boules de coins,
+	-- les pièces de longueur nulle (axe entièrement arrondi) sont sautées. Plus de coins vifs « en blocs ».
+	local function puff(size: Vector3, pos: Vector3, ry: number, round: number, mat: string)
+		local h = size / 2
+		local r = math.min(h.X, h.Y, h.Z) * round
+		local function inner(x: number): number return if x - r < 0.0008 then 0 else x - r end
+		local i = Vector3.new(inner(h.X), inner(h.Y), inner(h.Z))
+		local at = CFrame.new(pos) * CFrame.Angles(0, ry, 0)
+		local function piece(p: BasePart, cf: CFrame) p.Name = "Gant"; add(p, at * cf, mat) end
+		local function signs(x: number): { number } return if x > 0 then { -x, x } else { 0 } end
+		-- cœur : un pavé par axe, gonflé de r sur cet axe
+		for _, s in ipairs({ Vector3.new(h.X, i.Y, i.Z), Vector3.new(i.X, h.Y, i.Z), Vector3.new(i.X, i.Y, h.Z) }) do
+			if s.X > 1e-4 and s.Y > 1e-4 and s.Z > 1e-4 then
+				local p = Instance.new("Part"); p.Size = s * 2; piece(p, CFrame.identity)
+			end
+		end
+		-- arêtes : cylindres de rayon r (axe X du cylindre tourné sur l'axe de l'arête)
+		local function edge(len: number, rot: CFrame, offs: { Vector3 })
+			if len <= 1e-4 then return end
+			for _, o in ipairs(offs) do
+				local c = Instance.new("Part"); c.Shape = Enum.PartType.Cylinder; c.Size = Vector3.new(len, r * 2, r * 2)
+				piece(c, CFrame.new(o) * rot)
+			end
+		end
+		local ex, ey, ez = {}, {}, {}
+		for _, a in ipairs(signs(i.Y)) do for _, b in ipairs(signs(i.Z)) do table.insert(ex, Vector3.new(0, a, b)) end end
+		for _, a in ipairs(signs(i.X)) do for _, b in ipairs(signs(i.Z)) do table.insert(ey, Vector3.new(a, 0, b)) end end
+		for _, a in ipairs(signs(i.X)) do for _, b in ipairs(signs(i.Y)) do table.insert(ez, Vector3.new(a, b, 0)) end end
+		edge(i.X * 2, CFrame.identity, ex)
+		edge(i.Y * 2, CFrame.Angles(0, 0, math.pi / 2), ey)
+		edge(i.Z * 2, CFrame.Angles(0, math.pi / 2, 0), ez)
+		-- coins
+		for _, x in ipairs(signs(i.X)) do for _, y in ipairs(signs(i.Y)) do for _, z in ipairs(signs(i.Z)) do
+			local b = Instance.new("Part"); b.Shape = Enum.PartType.Ball; b.Size = Vector3.one * (r * 2)
+			piece(b, CFrame.new(x, y, z))
+		end end end
 	end
 	-- capsule (cylindre + deux demi-sphères) de longueur totale L, axe = up
 	local function caps(center: Vector3, up: Vector3, r: number, L: number, mat: string)
@@ -120,9 +157,9 @@ local function newGlove(): { GPiece }
 		local k = rr or R
 		return Vector3.new(math.cos(phi) * k, y, math.sin(phi) * k)
 	end
-	box(Vector3.new(0.028, 0.084, 0.07), Vector3.new(0.03, -0.036, 0.018), -0.62, "fab")      -- paume + dos
-	box(Vector3.new(0.012, 0.07, 0.026), Vector3.new(0.046, -0.034, -0.006), -0.35, "pad")    -- coque des jointures
-	box(Vector3.new(0.03, 0.05, 0.02), Vector3.new(0.03, -0.03, 0.05), -0.9, "strap")         -- sangle du poignet
+	puff(Vector3.new(0.028, 0.084, 0.07), Vector3.new(0.03, -0.036, 0.018), -0.62, 1, "fab")      -- paume + dos
+	puff(Vector3.new(0.012, 0.07, 0.026), Vector3.new(0.046, -0.034, -0.006), -0.35, 0.9, "pad")  -- coque des jointures
+	puff(Vector3.new(0.03, 0.05, 0.02), Vector3.new(0.03, -0.03, 0.05), -0.9, 0.6, "strap")       -- sangle du poignet
 	local F = {
 		{ y = -0.008, L = { 0.042, 0.026, 0.021 }, r = 0.0088 }, { y = -0.027, L = { 0.046, 0.029, 0.022 }, r = 0.0092 },
 		{ y = -0.046, L = { 0.043, 0.027, 0.021 }, r = 0.0088 }, { y = -0.063, L = { 0.034, 0.021, 0.018 }, r = 0.0076 },
@@ -162,7 +199,7 @@ local function setLeftHold(vert: boolean)
 	if leftVert == vert then return end
 	leftVert = vert
 	local inner = if vert then LEFT_VERT else LEFT_FLAT
-	for i, g in ipairs(gloveL) do leftAt[i] = mirror(inner * g.at) end
+	for i, g in ipairs(gloveL) do leftAt[i] = if g.mirrored then mirror(inner) * g.at else mirror(inner * g.at) end
 end
 setLeftHold(false)
 local function leftWrist(): Vector3
@@ -192,9 +229,38 @@ local function placeGloves(rootR: CFrame, rootL: CFrame?, hiddenCF: CFrame)
 	for i in ipairs(gloveL) do n += 1; gCFs[n] = if rootL then rootL * leftAt[i] else hiddenCF end
 	workspace:BulkMoveTo(gParts, gCFs, Enum.BulkMoveMode.FireCFrameChanged)
 end
+-- gants et manches exportés du web (HandModels) : dès que MeshUploader les a envoyés, ils remplacent les ~200 pièces
+-- arrondies ci-dessus par 8 maillages (4 matières × 2 mains) et les manches cylindriques par les cônes du soldat
+local MANCHE_U, MANCHE_F = 0.063 * 2 * 1.15, 0.054 * 2 * 1.15   -- diamètre en haut des cônes (×1,15 de place() du web)
+local sleeveMesh = false
+task.spawn(function()
+	local b = HandModels.build()
+	if not b then return end
+	for _, g in ipairs(gloveR) do g.p:Destroy() end
+	for _, g in ipairs(gloveL) do g.p:Destroy() end
+	table.clear(gloveR); table.clear(gloveL); table.clear(gParts); table.clear(gCFs)
+	for _, g in ipairs(b.R) do g.p.Parent = rig; table.insert(gloveR, { p = g.p :: BasePart, at = g.at, mat = g.mat, mirrored = nil } :: GPiece) end
+	for _, g in ipairs(b.L) do g.p.Parent = rig; table.insert(gloveL, { p = g.p :: BasePart, at = g.at, mat = g.mat, mirrored = true } :: GPiece) end
+	for _, g in ipairs(gloveR) do table.insert(gParts, g.p) end
+	for _, g in ipairs(gloveL) do table.insert(gParts, g.p) end
+	local was = leftVert
+	leftVert = nil; setLeftHold(was == true)
+	gloveLook = ""
+	if b.u and b.f then
+		local A = arms :: any
+		for _, k in ipairs({ "uR", "uL", "fR", "fL" }) do
+			local src = if string.sub(k, 1, 1) == "u" then b.u else b.f
+			local mp = (src :: MeshPart):Clone()
+			mp.Name = A[k].Name; mp.Color = A[k].Color; mp.CFrame = A[k].CFrame; mp.Parent = rig
+			A[k]:Destroy(); A[k] = mp
+		end
+		b.u:Destroy(); b.f:Destroy()
+		sleeveMesh = true
+	end
+end)
 local flash = part("Flash", Vector3.new(0.12, 0.12, 0.12), Color3.fromRGB(255, 214, 140), Enum.Material.Neon)
 flash.Shape = Enum.PartType.Ball
-local flashLight = Instance.new("PointLight"); flashLight.Color = Color3.fromRGB(255, 200, 120); flashLight.Range = 12; flashLight.Brightness = 0; flashLight.Parent = flash
+local flashLight = Instance.new("PointLight"); flashLight.Color = Color3.fromRGB(255, 200, 120); flashLight.Range = 14; flashLight.Brightness = 0; flashLight.Parent = flash
 -- reflet qui balaie l'arme (inspection, sortie des skins Légendaires) : INS_LIGHT du web, une simple lumière
 local glint = part("Glint", Vector3.new(0.02, 0.02, 0.02), Color3.new(), nil)
 glint.Transparency = 1
@@ -263,10 +329,16 @@ local function drawDur(key: string): number
 end
 
 -- skin de l'arme en main : le nôtre, ou celui du tueur pendant la kill-cam
-local function applySkin()
+local setGun: (key: string) -> ()
+local function applySkin(initial: boolean?)
 	if not VM.model or not VM.key then return end
-	if S.kc then SkinPaint.apply(VM.model, S.kc.skin, S.kc.camo) return end
-	SkinPaint.apply(VM.model, player:GetAttribute("Skin_" .. VM.key) :: number?, player:GetAttribute("Camo_" .. VM.key) :: string?)
+	local model = VM.model
+	local wasReal = model:GetAttribute("Real")
+	if S.kc then SkinPaint.apply(model, S.kc.skin, S.kc.camo)
+	else SkinPaint.apply(model, player:GetAttribute("Skin_" .. VM.key) :: number?, player:GetAttribute("Camo_" .. VM.key) :: string?) end
+	-- le skin (ou Réglages › Armes) a fait passer l'arme du modèle réaliste au stylisé ou l'inverse : pièces, chargeur,
+	-- culasse, ligne de visée et main gauche sont relus en refabriquant l'arme en main
+	if not initial and VM.model == model and model:GetAttribute("Real") ~= wasReal and VM.key then task.spawn(setGun, VM.key) end
 end
 player.AttributeChanged:Connect(function(name: string)
 	if VM.key and (name == "Skin_" .. VM.key or name == "Camo_" .. VM.key) then applySkin() end
@@ -282,7 +354,7 @@ local function sigOf(key: string): string
 	return s
 end
 local building: string? = nil
-local function setGun(key: string)
+setGun = function(key: string)
 	local sig = sigOf(key)
 	if building == sig then return end
 	building = sig
@@ -297,7 +369,7 @@ local function setGun(key: string)
 	model.Parent = rig
 	VM.model = model; VM.key = key; VM.sig = sig
 	VM.att = att; VM.mods = A.modsOf(att); VM.noFlash = model:GetAttribute("NoFlash") == true
-	applySkin()
+	applySkin(true)
 	local w = Config.WEAPONS[key]
 	VM.pistol = w.cat == "pistol"
 	VM.twoHand = not w.melee
@@ -437,9 +509,9 @@ local function placeArm(up: BasePart, fore: BasePart, cuff: BasePart, hand: Vect
 	pole = (pole - dir * pole:Dot(dir)).Unit
 	local el = sh + dir * a + pole * h
 	local function w(v: Vector3): Vector3 return camCF:PointToWorldSpace(v) end
-	seg(up, w(sh), w(el), 0.1)
-	seg(fore, w(el), w(hand), 0.085)
-	cuff.CFrame = CFrame.lookAt(w(el:Lerp(hand, 0.9)), w(hand))
+	seg(up, w(sh), w(el), if sleeveMesh then MANCHE_U else ARM_U)
+	seg(fore, w(el), w(hand), if sleeveMesh then MANCHE_F else ARM_F)
+	cuff.CFrame = CFrame.lookAt(w(el:Lerp(hand, 0.9)), w(hand)) * CFrame.Angles(0, math.rad(90), 0)   -- axe X du cylindre le long de l'avant-bras
 end
 
 local function setVisible(on: boolean)
@@ -872,6 +944,10 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 	flash.CFrame = CFrame.new(muzzleW)
 	local on = VM.flashT > 0 and not w.melee and not VM.noFlash      -- silencieux / cache-flamme : pas de flamme
 	flash.Size = Vector3.one * (0.08 + math.random() * 0.06)
-	flashLight.Brightness = if on then 4 else 0
+	-- lumière de bouche (muzzleLight du web) : pic au départ du coup puis extinction en 50 ms, teinte qui vacille du
+	-- blanc chaud à l'orange ; elle se reflète sur le métal de l'arme (SurfaceAppearance de WeaponMaterials)
+	local k = math.clamp(VM.flashT / 0.05, 0, 1)
+	flashLight.Brightness = if on then 1.5 + 5 * k * k else 0
+	if on then flashLight.Color = Color3.fromRGB(255, 200 + math.random(0, 30), 110 + math.random(0, 50)) end
 	flash.LocalTransparencyModifier = if on and not scoped then 0.1 else 1
 end)

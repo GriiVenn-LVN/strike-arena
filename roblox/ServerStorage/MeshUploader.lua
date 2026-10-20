@@ -1,7 +1,7 @@
 --!strict
 -- ServerStorage/MeshUploader (ModuleScript, Studio seulement, en mode Edit)
 -- Envoie une seule fois sur le compte Roblox du créateur tous les maillages et textures du jeu web (armes, viseurs,
--- soldats, skins, véhicules des arrivées, décor des cartes). Roblox limite très fort la mémoire des EditableMesh / EditableImage chez le
+-- armes réalistes et matériaux des armes, soldats et leurs cartes de matière, gants de la vue subjective, skins, véhicules des arrivées, décor des cartes). Roblox limite très fort la mémoire des EditableMesh / EditableImage chez le
 -- joueur : avec ces assets, le jeu charge de vrais modèles (MeshStore), aussi sur téléphone.
 -- Il faut la fonctionnalité bêta de Studio « CreateAssetAsync Luau API ». Dans la barre de commande :
 --   require(game.ServerStorage.MeshUploader).start()     -- lance l'envoi (30 par minute au plus), reprend où il s'était arrêté
@@ -123,6 +123,17 @@ local function run()
 		local WeaponModels = require(Shared.WeaponModels) :: any
 		for _, m in ipairs(Shared.WeaponMeshes:GetChildren()) do WeaponModels.build(m.Name, 1) end
 	end)
+	-- armes réalistes (AK, M4, AWP, Desert Eagle) : maillages « w:real:… » et cartes « i:wr:<arme>:<n°>:c|n|m|r »
+	-- (JPEG de ServerStorage/WeaponRealData décodés par ServerStorage/JpegDecode, 1024 px au plus)
+	step("armes réalistes", function()
+		local WeaponReal = require(Shared.WeaponReal) :: any
+		WeaponReal.uploadAll()
+	end)
+	-- matériaux des armes stylisées : « i:mat:<bruni|anod|poly|bois|acier>:c|n|r|m » (ServerStorage/WeaponMatData)
+	step("matériaux des armes", function()
+		local WeaponMaterials = require(Shared.WeaponMaterials) :: any
+		WeaponMaterials.uploadAll()
+	end)
 	step("viseurs", function()
 		local AM = require(Shared.AttachmentModels) :: any
 		for _, m in ipairs(Shared.OpticMeshes:GetChildren()) do
@@ -134,16 +145,22 @@ local function run()
 		local SoldierModels = require(Shared.SoldierModels) :: any
 		SoldierModels.prebuildAll()
 	end)
+	step("mains", function()   -- gants modelés et manches de la vue subjective (HandModels, h:glove:… / h:sleeve:…)
+		local HandModels = require(Shared.HandModels) :: any
+		HandModels.prebuildAll()
+	end)
 	step("skins", function()
 		local SkinPaint = require(Shared.SkinPaint) :: any
 		for _, m in ipairs(Shared.SkinTextures:GetChildren()) do SkinPaint.paint(m.Name, false); SkinPaint.paint(m.Name, true) end
-		-- peintures 256 px « sk2: » (ServerStorage/SkinTexturesHQ), masques lumineux et cartes métal / rugosité des finitions
+		-- peintures 512 px « sk3: » et leurs cartes (ServerStorage/SkinTexturesHQ), camos de maîtrise « mc: », cartes des finitions
 		SkinPaint.uploadAll()
 	end)
 	step("véhicules", function()   -- arrivées : blindé et camion (models/vehicles, VehicleMeshes)
 		local VehicleModels = require(Shared.VehicleModels) :: any
 		VehicleModels.prebuildAll()
 	end)
+	-- cartes : maillages, textures du web (réduites, et HD 512 px de ServerStorage/MapTexturesHQ : clés « i:m:t2: » et
+	-- « i:m:tt2: »), décalcomanies d'usure (« i:m:fx: »), ciel
 	step("cartes", function()
 		local MapScene = require(Shared.MapScene) :: any
 		local MapDress = require(Shared.MapDress) :: any

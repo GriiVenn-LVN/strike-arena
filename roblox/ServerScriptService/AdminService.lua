@@ -500,7 +500,7 @@ WeaponService.Killed:Connect(function(killer, victim, key: string, headshot: boo
 	if not MatchService.matchOf(victim) then return end
 	local vn = WeaponService.nameOf(victim)
 	if killer == nil or killer == victim then addLog(vn .. " est mort"); return end
-	addLog(WeaponService.nameOf(killer) .. " ➜ " .. vn .. " (" .. MatchService.weaponName(key) .. (if headshot then ", tête" else "") .. ")")
+	addLog(WeaponService.nameOf(killer) .. " → " .. vn .. " (" .. MatchService.weaponName(key) .. (if headshot then ", tête" else "") .. ")")
 end)
 pcall(function()
 	TextChatService.DescendantAdded:Connect(function(d)

@@ -56,6 +56,7 @@ make("TextLabel", { Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -60,
 local closeBtn = make("TextButton", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -8, 0, 8), Size = UDim2.fromOffset(28, 24), BackgroundColor3 = PANEL2,
 	Font = Enum.Font.GothamBold, TextSize = 14, TextColor3 = Color3.new(1, 1, 1), Text = "✕" }, win)
 corner(closeBtn)
+require(ReplicatedStorage.Shared.Icons).closeButton(closeBtn, 11)   -- la croix U+2715 donne un carré vide
 local tabBar = make("Frame", { Position = UDim2.fromOffset(10, 38), Size = UDim2.new(1, -20, 0, 28), BackgroundTransparency = 1 }, win)
 make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6) }, tabBar)
 local body = make("ScrollingFrame", { Position = UDim2.fromOffset(10, 72), Size = UDim2.new(1, -20, 1, -102), BackgroundTransparency = 1, ScrollBarThickness = 5,

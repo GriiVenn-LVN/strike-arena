@@ -162,7 +162,7 @@ return function(ctx: any, body: Frame, _sub: string?)
 	K.vlist(gcard, 6)
 	K.h4(gcard, "🎁 CADEAUX", nil, 1)
 	text(gcard, { LayoutOrder = 2, Font = K.BLACK, TextSize = 22, Size = UDim2.new(1, 0, 0, 26), TextWrapped = false,
-		Text = if lp > 0 then lp .. ' <font size="12" color="#8da0bd">à récupérer</font>' else '<font color="#7dff9f">✔</font>' })
+		Text = if lp > 0 then lp .. ' <font size="12" color="#8da0bd">à récupérer</font>' else "✅" })
 	if lp > 0 then
 		local st = gcard:FindFirstChildOfClass("UIStroke")
 		if st then st.Color = C.gold; st.Transparency = 0.35 end
@@ -196,6 +196,8 @@ return function(ctx: any, body: Frame, _sub: string?)
 				elseif go == "play" then ctx.friends = false; ctx.go("play")
 				elseif go == "boxes" then ctx.go("arsenal", "Caisses")
 				elseif go == "arms" then ctx.go("arsenal", "Armes")
+				elseif go == "stats" then ctx.go("profile", "Statistiques")   -- maîtrise d'arme
+				elseif go == "style" then ctx.go("profile", "Style")          -- carte de joueur
 				elseif string.sub(go, 1, 5) == "mode:" then
 					ctx.play = Modes.sanitize({ mode = string.sub(go, 6), diff = ctx.play.diff }); ctx.save("play"); ctx.go("play")
 				end

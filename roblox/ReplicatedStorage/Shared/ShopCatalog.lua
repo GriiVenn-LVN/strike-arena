@@ -34,7 +34,7 @@ Catalog.TABS = {
 	{ id = "killfx", name = "Effets 💥" },
 	{ id = "premium", name = "Premium ⭐" },
 	{ id = "exclusive", name = "Exclusifs ✨" },
-	{ id = "robux", name = "Pièces 🪙" },
+	{ id = "robux", name = "Pièces 💰" },
 }
 
 -- Présentation des lots de pièces (onglet « Pièces ») : étiquette et bonus calculé par rapport au plus petit lot

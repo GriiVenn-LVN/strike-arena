@@ -3,6 +3,8 @@
 -- Stand de tir sans limite de temps : des silhouettes fixes (s), mobiles (m, va-et-vient de 5 m) et surgissantes (p,
 -- 2,6 s visibles puis 1,2 s cachées). Touche = +100 (+150 à la tête) + bonus de série (5 par cible, 100 au plus) ;
 -- elles reviennent après 0,7 à 1,4 s. Réserve illimitée. Le chrono compte le temps passé ; « Terminer » affiche le bilan.
+-- Temps de réaction (port Roblox) : délai entre la réapparition d'une cible et sa chute (moyenne des 10 dernières,
+-- meilleur temps) ; records du joueur (score, précision, réaction) gardés dans le profil par CareerService.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -17,7 +19,9 @@ if not popEvent then
 	local e = Instance.new("RemoteEvent"); e.Name = "ModePop"; e.Parent = ReplicatedStorage; popEvent = e
 end
 
-type Dummy = { kind: string, home: Vector3, model: Model?, ph: number, popT: number, up: boolean, n: number }
+type Dummy = { kind: string, home: Vector3, model: Model?, ph: number, popT: number, up: boolean, n: number, upAt: number? }
+local function CS(): any return require(script.Parent.Parent.CareerService) :: any end
+local RT_MAX = 3            -- au-delà de 3 s, la cible n'a pas été vue : le temps ne compte pas
 
 local function newModel(m: any, d: Dummy): Model
 	local desc = Instance.new("HumanoidDescription")
@@ -52,7 +56,7 @@ local function place(m: any)
 end
 
 function M.setup(m: any)
-	m.data.tr = { score = 0, streak = 0, best = 0, hits = 0, t = 0 }
+	m.data.tr = { score = 0, streak = 0, best = 0, hits = 0, t = 0, rts = {}, rtBest = nil, rec = nil }
 	m.limit = nil
 	place(m)
 end
@@ -71,7 +75,29 @@ function M.onKill(m: any, killer: any, victim: any, _key: string, headshot: bool
 		popEvent:FireClient(killer, (if headshot then "TÊTE ! " else "") .. "+" .. pts, Color3.fromRGB(255, 215, 94), "pickup")
 	end
 	for _, d in ipairs(m.data.dummies :: { Dummy }) do
-		if d.model == victim then d.popT = 0.7 + math.random() * 0.7; d.up = false end
+		if d.model == victim then
+			-- temps de réaction : depuis la réapparition de la cible (pas les cibles posées au départ)
+			if d.upAt then
+				local rt = os.clock() - d.upAt
+				if rt > 0.05 and rt < RT_MAX then
+					table.insert(tr.rts, rt); if #tr.rts > 10 then table.remove(tr.rts, 1) end
+					tr.rtBest = math.min(tr.rtBest or rt, rt)
+				end
+			end
+			d.popT = 0.7 + math.random() * 0.7; d.up = false; d.upAt = nil
+		end
+	end
+	-- records du joueur (score, précision à partir de 30 tirs, réaction moyenne à partir de 5 cibles)
+	if typeof(killer) == "Instance" and killer:IsA("Player") then
+		local st = m.stats[killer]
+		local acc = if st and st.shots >= 30 then math.floor(math.min(1, st.hits / st.shots) * 100 + 0.5) else nil
+		local avg: number? = nil
+		if #tr.rts >= 5 then local s = 0; for _, v in ipairs(tr.rts) do s += v end; avg = s / #tr.rts end
+		local okR, beat = pcall(function() return CS().trainRecord(killer, { score = tr.score, acc = acc, rt = avg, rtBest = tr.rtBest }) end)
+		if okR and beat and not tr.recShown and tr.score >= 1000 and popEvent then
+			tr.recShown = true
+			popEvent:FireClient(killer, "NOUVEAU RECORD !", Color3.fromRGB(125, 255, 159), "pickup")
+		end
 	end
 	return true
 end
@@ -98,7 +124,7 @@ function M.tick(m: any, dt: number)
 				if model and (not hum or hum.Health <= 0) then model:Destroy(); model = nil end
 				if model then model.Parent = m.map.folder; d.up = true
 				else d.model = newModel(m, d); d.up = true end
-				d.ph = 0
+				d.ph = 0; d.upAt = os.clock()
 			end
 		end
 	end
@@ -119,9 +145,13 @@ function M.info(m: any): any
 	for p in pairs(m.players) do local s = m.stats[p]; if s then shots += s.shots; hits += s.hits end end
 	local acc = if shots > 0 then math.floor(math.min(1, tr.hits / shots) * 100 + 0.5) else 0
 	local mins = math.floor(tr.t / 60)
-	m.data.public = { train = { score = tr.score, acc = acc, streak = tr.streak, best = tr.best, t = math.floor(tr.t) } }
+	local avg: number? = nil
+	if #tr.rts > 0 then local s = 0; for _, v in ipairs(tr.rts) do s += v end; avg = s / #tr.rts end
+	m.data.public = { train = { score = tr.score, acc = acc, streak = tr.streak, best = tr.best, t = math.floor(tr.t), rt = avg, rtBest = tr.rtBest } }
+	local function sec(x: number): string return (string.gsub(string.format("%.2f", x), "%.", ",")) .. " s" end
 	return { line = "SCORE " .. tr.score .. "   ·   précision " .. acc .. " %   ·   série " .. tr.streak,
-		sub = string.format("%d:%02d — série max %d", mins, math.floor(tr.t) % 60, tr.best), color = Color3.fromRGB(255, 215, 94) }
+		sub = string.format("%d:%02d — série max %d", mins, math.floor(tr.t) % 60, tr.best)
+			.. (if avg then " — réaction " .. sec(avg) .. " (meilleure " .. sec(tr.rtBest or avg) .. ")" else ""), color = Color3.fromRGB(255, 215, 94) }
 end
 function M.cleanup(m: any)
 	for _, d in ipairs(m.data.dummies or {}) do if d.model then d.model:Destroy() end end

@@ -95,7 +95,7 @@ local function build(): ScreenGui
 		local l = make("TextLabel", { Size = UDim2.fromOffset(110, 28), BackgroundTransparency = 1, Font = Enum.Font.GothamBold, TextSize = 12, TextColor3 = Color3.fromRGB(141, 160, 189),
 			TextXAlignment = Enum.TextXAlignment.Left, Text = label, ZIndex = 4 }, f)
 		local function upd() l.Text = label .. " " .. get() end
-		for j, s in ipairs({ "−", "+" }) do
+		for j, s in ipairs({ "-", "+" }) do
 			local b = make("TextButton", { Position = UDim2.fromOffset(110 + (j - 1) * 30, 1), Size = UDim2.fromOffset(26, 26), BackgroundColor3 = Color3.fromRGB(24, 35, 56),
 				Font = Enum.Font.GothamBold, TextSize = 16, TextColor3 = Color3.new(1, 1, 1), Text = s, ZIndex = 4 }, f)
 			make("UICorner", { CornerRadius = UDim.new(0, 5) }, b)

@@ -738,6 +738,7 @@ function Rounds.make(variant: string): any
 								model:SetAttribute("Site", site.n); model:SetAttribute("ExplodeAt", workspace:GetServerTimeNow() + BOMB_T)
 								local s = m.stats[MS().keyOf(c)]
 								if s then (s :: any).plants = ((s :: any).plants or 0) + 1; s.score += 300 end
+								if O.isPlayer(c) then require(script.Parent.Parent.RewardService).missionEvent(c, "site_" .. string.lower(tostring(site.n))) end   -- défis « site A / B »
 								if ecoOn(m) then
 									for _, e in ipairs(members(m)) do
 										if e.team == T then

@@ -4,7 +4,11 @@
 -- EditableImage (« Allow Mesh / Image APIs », comme les armes) : un MeshPart par membre R15 et par matière.
 --   real : soldat photo-réaliste CC0 (texture de l'équipe ; chacun-pour-soi teinté de la couleur du joueur) + équipement
 --   proc : soldat procédural des tenues (couleurs de la tenue, coiffe propre à chaque tenue)
--- parts(look) renvoie une liste { part = MeshPart (copie), seg = membre R15, offset = CFrame (studs, repère de l'os) }.
+-- parts(look, seed) renvoie une liste { part = MeshPart (copie), seg = membre R15, offset = CFrame (studs, repère de l'os) }.
+-- Matière : SurfaceAppearance (couleur + carte de normales du relief du tissu + rugosité / métal) quand les cartes sont
+-- envoyées (MeshUploader) : tissu mat comme le web (rugosité 0,88, sans reflet spéculaire), peau un peu moins mate,
+-- équipement par couleur (gilet en toile, casque satiné, lunettes et pièces métalliques qui reflètent un peu) ;
+-- seed donne à chaque soldat une très légère variation de teinte (tissus plus ou moins délavés).
 -- Si l'API est refusée, renvoie nil : le soldat garde l'apparence R15 (mais il est quand même animé comme sur le web).
 local AssetService = game:GetService("AssetService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -114,12 +118,12 @@ local function addPieces(prefix: string, out: { Tpl }, pieces: any, kind: string
 end
 
 -- ---------- images ----------
-local function image(key: string, size: number, buf: buffer): Content?
+local function image(key: string, size: number, buf: buffer | () -> buffer): Content?
 	local ok, img = pcall(function()
 		return (MeshStore.image("s:" .. key, function(): EditableImage?
 			if not SoldierModels.imageApi then return nil end
 			local e = AssetService:CreateEditableImage({ Size = Vector2.new(size, size) })
-			e:WritePixelsBuffer(Vector2.zero, Vector2.new(size, size), buf)
+			e:WritePixelsBuffer(Vector2.zero, Vector2.new(size, size), if type(buf) == "function" then buf() else buf)
 			return e
 		end))
 	end)
@@ -184,6 +188,173 @@ local function palette(id: string, cols: { [number]: Color3 }): Pal
 end
 local function rgb(t: { number }): Color3 return Color3.fromRGB(t[1], t[2], t[3]) end
 
+-- ---------- cartes de matière (SurfaceAppearance) ----------
+-- seulement si elles sont envoyées (ou pendant l'envoi) : chez le joueur, la mémoire des EditableImage reste aux textures
+local function mapImg(key: string, size: number, gen: () -> buffer): Content?
+	if not MeshStore.uploader and not MeshStore.ids["i:s:" .. key] then return nil end
+	return image(key, size, gen)
+end
+local function gray(size: number, at: (number) -> number): buffer
+	local n = size * size
+	local out = buffer.create(n * 4)
+	for i = 0, n - 1 do
+		local v = math.clamp(math.floor(at(i) * 255 + 0.5), 0, 255)
+		buffer.writeu8(out, i * 4, v); buffer.writeu8(out, i * 4 + 1, v); buffer.writeu8(out, i * 4 + 2, v); buffer.writeu8(out, i * 4 + 3, 255)
+	end
+	return out
+end
+
+type Maps = { nrm: Content?, rgh: Content?, mtl: Content? }
+local NO_MAPS: Maps = { nrm = nil, rgh = nil, mtl = nil }
+local mapCache: { [string]: Maps } = {}
+-- corps réaliste : relief tiré de la texture de l'équipe (plis, coutures, sangles : luminance, comme le « det » de
+-- tools/soldiers/build_soldiers.py), pente réglée sur le contraste moyen de la texture ; rugosité 0,88 du web
+-- (tissu), creux plus mats, écussons / boucles plus clairs un peu moins mats, peau 0,7
+local function bodyMaps(k: string): Maps
+	local hit = mapCache["b:" .. k]
+	if hit then return hit end
+	local m: Maps = { nrm = nil, rgh = nil, mtl = nil }
+	local d = data("Tex_" .. k)
+	if d then
+		local size = d.size :: number
+		local lum: { number }, skin: { boolean } = table.create(256, 0), table.create(256, false)
+		local pal = decode(d.pal)
+		for i = 0, 255 do
+			if i * 3 + 2 < buffer.len(pal) then
+				local r, g, b = buffer.readu8(pal, i * 3) / 255, buffer.readu8(pal, i * 3 + 1) / 255, buffer.readu8(pal, i * 3 + 2) / 255
+				lum[i + 1] = 0.299 * r + 0.587 * g + 0.114 * b
+				local mx, mn = math.max(r, g, b), math.min(r, g, b)
+				local sat = (mx - mn) / math.max(mx, 1e-3)
+				skin[i + 1] = r > g and g > b * 0.95 and sat > 0.12 and sat < 0.75 and mx > 0.2
+			end
+		end
+		local px: buffer? = nil
+		local function pixels(): buffer
+			if not px then px = decode(d.px) end
+			return px :: buffer
+		end
+		m.nrm = mapImg("nrm:" .. k, size, function(): buffer
+			local pb = pixels()
+			local function L(x: number, y: number): number
+				x = math.clamp(x, 0, size - 1); y = math.clamp(y, 0, size - 1)
+				return lum[buffer.readu8(pb, y * size + x) + 1]
+			end
+			local n = size * size
+			local gxs: { number }, gys: { number } = table.create(n, 0), table.create(n, 0)
+			local sum = 0
+			for y = 0, size - 1 do
+				for x = 0, size - 1 do
+					local gx = (L(x + 1, y) - L(x - 1, y)) / 2
+					local gy = (L(x, y - 1) - L(x, y + 1)) / 2      -- v d'OpenGL : vers le haut de l'image
+					gxs[y * size + x + 1] = gx; gys[y * size + x + 1] = gy
+					sum += math.sqrt(gx * gx + gy * gy)
+				end
+			end
+			local S = 0.3 / math.max(0.01, sum / n)          -- pente moyenne ≈ 0,3 : relief marqué, sans faux trous
+			local out = buffer.create(n * 4)
+			for i = 0, n - 1 do
+				local nx, ny = math.clamp(-gxs[i + 1] * S, -1.2, 1.2), math.clamp(-gys[i + 1] * S, -1.2, 1.2)
+				local l = math.sqrt(nx * nx + ny * ny + 1)
+				buffer.writeu8(out, i * 4, math.floor((nx / l * 0.5 + 0.5) * 255 + 0.5))
+				buffer.writeu8(out, i * 4 + 1, math.floor((ny / l * 0.5 + 0.5) * 255 + 0.5))
+				buffer.writeu8(out, i * 4 + 2, math.floor((1 / l * 0.5 + 0.5) * 255 + 0.5))
+				buffer.writeu8(out, i * 4 + 3, 255)
+			end
+			return out
+		end)
+		m.rgh = mapImg("rgh:" .. k, size, function(): buffer
+			local pb = pixels()
+			return gray(size, function(i)
+				local c = buffer.readu8(pb, i) + 1
+				if skin[c] then return 0.7 end
+				local l = lum[c]
+				return math.clamp(0.88 + (0.18 - l) * 0.25 - math.max(0, l - 0.45) * 0.4, 0.62, 0.97)
+			end)
+		end)
+	end
+	mapCache["b:" .. k] = m
+	return m
+end
+
+-- équipement et tenues : rugosité / métal de chaque couleur de la palette (lookMats du web)
+local GEAR_MAT: { [string]: { number } } = {
+	["1b1d22"] = { 0.6, 0.3 },     -- M.dark : boucles, radio, crochets
+	["16171a"] = { 0.7, 0 },       -- M.blk
+	["0a0c10"] = { 0.08, 0.9 },    -- M.lens : lunettes, optiques
+	["232f45"] = { 0.5, 0.15 },    -- casque CT
+	["8c7a58"] = { 0.95, 0 },      -- toile sable du T
+	["34383e"] = { 0.6, 0.1 },     -- casque gris du chacun-pour-soi
+}
+local SLOT_MAT: { [string]: { number } } = {
+	skin = { 0.75, 0 }, shirt = { 0.9, 0 }, pants = { 0.9, 0 }, vest = { 0.85, 0 }, helm = { 0.5, 0.15 }, glove = { 0.8, 0 },
+	boot = { 0.7, 0 }, accent = { 0.6, 0 }, dark = { 0.6, 0.3 }, lens = { 0.08, 0.9 }, blk = { 0.7, 0 }, gold = { 0.35, 0.8 }, glass = { 0.1, 0 },
+}
+local function palMaps(id: string, mat: { [number]: { number } }): Maps
+	local hit = mapCache["p:" .. id]
+	if hit then return hit end
+	local function at(j: number): (number) -> number
+		return function(i: number): number
+			local e = mat[i]
+			return if e then e[j] else (if j == 1 then 0.85 else 0)
+		end
+	end
+	local m: Maps = {
+		nrm = nil,
+		rgh = mapImg("rgh:" .. id, PAL_W, function() return gray(PAL_W, at(1)) end),
+		mtl = mapImg("mtl:" .. id, PAL_W, function() return gray(PAL_W, at(2)) end),
+	}
+	mapCache["p:" .. id] = m
+	return m
+end
+local function gearMaps(k: string): Maps
+	local mat: { [number]: { number } } = {}
+	local g = data("Gear_" .. k)
+	if g then
+		for i, e in ipairs(g.pal) do
+			mat[i - 1] = GEAR_MAT[string.lower(rgb(e.c):ToHex())] or { 0.85, 0 }   -- gilet, poches, sac : toile (0,85)
+		end
+	end
+	return palMaps("g:" .. k, mat)
+end
+local function outfitMaps(web: number, def: any): Maps
+	local mat: { [number]: { number } } = {}
+	for i, sl in ipairs(Rig.SLOTS) do
+		local e = SLOT_MAT[sl] or { 0.85, 0 }
+		-- tenues métalliques (samouraï, roi doré) : casque, gilet et accent en métal poli
+		if def.metal and (sl == "helm" or sl == "vest" or sl == "accent" or sl == "gold") then e = { 0.3, 0.75 } end
+		mat[i - 1] = e
+	end
+	local h = data("Head_" .. web)
+	if h then
+		for j, e in ipairs(h.pal) do
+			local si = if e.s then table.find(Rig.SLOTS, e.s) else nil
+			mat[16 + j - 1] = if si then mat[si - 1] or { 0.85, 0 } else { 0.7, 0 }
+		end
+	end
+	return palMaps("o" .. web, mat)
+end
+
+-- SurfaceAppearance d'une pièce ; false si Roblox la refuse ou si les cartes manquent (texture simple gardée)
+local saOK = true
+local function surface(mp: MeshPart, color: Content, maps: Maps, tint: Color3?): boolean
+	if not saOK or not maps.rgh then return false end
+	local ok = pcall(function()
+		local sa = Instance.new("SurfaceAppearance")
+		sa.Name = "SoldatSA"
+		sa.ColorMapContent = color
+		if maps.nrm then sa.NormalMapContent = maps.nrm :: Content end
+		sa.RoughnessMapContent = maps.rgh :: Content
+		if maps.mtl then sa.MetalnessMapContent = maps.mtl :: Content end
+		if tint then pcall(function() (sa :: any).Color = tint end) end
+		sa.Parent = mp
+	end)
+	if not ok then
+		saOK = false
+		warn("[SoldierModels] SurfaceAppearance refusée : soldats en texture simple.")
+	end
+	return ok
+end
+
 -- ---------- gabarits (une fois par soldat ; ensuite copiés) ----------
 local tplCache: { [string]: { Tpl } } = {}
 local building: { [string]: boolean } = {}
@@ -244,17 +415,19 @@ end
 
 -- ---------- soldat habillé ----------
 local palCache: { [string]: Pal } = {}
-function SoldierModels.parts(look: Look.LookInfo): { Item }?
+function SoldierModels.parts(look: Look.LookInfo, seed: number?): { Item }?
 	local tpls: { Tpl }?
 	local tex: Tex? = nil
 	local pal: Pal
 	local metal = false
+	local bMaps: Maps, pMaps: Maps = NO_MAPS, NO_MAPS
 	if look.rig == "proc" and look.outfit then
 		local def: any = nil
 		for _, o in pairs(Rig.OUTFITS) do if o.web == look.outfit then def = o end end
 		if not def then return nil end
 		metal = def.metal
 		tpls = outfitTpl(look.outfit, def.glow)
+		pMaps = outfitMaps(look.outfit, def)
 		local id = "o" .. look.outfit .. ":" .. look.tone:ToHex()
 		local p = palCache[id]
 		if not p then
@@ -275,6 +448,7 @@ function SoldierModels.parts(look: Look.LookInfo): { Item }?
 	else
 		tpls = realTpl(look.tex)
 		tex = teamTex(look.tex, if look.tex == "ffa" then look.acc else nil)
+		bMaps = bodyMaps(look.tex); pMaps = gearMaps(look.tex)
 		local p = palCache["g:" .. look.tex]
 		if not p then
 			local cols: { [number]: Color3 } = {}
@@ -285,14 +459,31 @@ function SoldierModels.parts(look: Look.LookInfo): { Item }?
 		pal = p
 	end
 	if not tpls then return nil end
+	-- légère variation par soldat : tissu un peu plus ou moins délavé, à peine plus chaud ou plus froid
+	local tint: Color3? = nil
+	if seed then
+		local a, b = (seed % 97) / 96, ((seed // 97) % 89) / 88
+		local v = 0.93 + a * 0.07
+		tint = Color3.new(v * (0.985 + b * 0.03), v, v * (1.015 - b * 0.03))
+	end
 	local items: { Item } = {}
 	for _, t in ipairs(tpls) do
 		local mp = t.part:Clone()
+		-- tissu mat (rugosité 0,88 du web) : en SmoothPlastic, le reflet du ciel (EnvironmentSpecularScale de la carte)
+		-- recouvrait les tenues sombres (CT bleu marine, gilets) d'un vernis noir brillant
 		if t.kind == "tex" then
-			if tex and tex.img then mp.TextureContent = tex.img :: Content elseif tex then mp.Color = tex.avg end
+			mp.Material = Enum.Material.Fabric
+			if tex and tex.img then
+				if surface(mp, tex.img :: Content, bMaps, tint) then mp.Material = Enum.Material.SmoothPlastic
+				else mp.TextureContent = tex.img :: Content end
+			elseif tex then mp.Color = tex.avg end
 		elseif t.kind == "pal" then
-			if pal.img then mp.TextureContent = pal.img :: Content else mp.Color = pal.col[t.col] or mp.Color end
-			if metal then mp.Reflectance = 0.12 end
+			if pal.img and surface(mp, pal.img :: Content, pMaps, tint) then
+				mp.Material = Enum.Material.SmoothPlastic
+			else
+				if pal.img then mp.TextureContent = pal.img :: Content else mp.Color = pal.col[t.col] or mp.Color end
+				if metal then mp.Reflectance = 0.12 else mp.Material = Enum.Material.Fabric end
+			end
 		else
 			mp.Color = pal.col[t.col] or Color3.new(1, 1, 1)
 			if t.kind == "neon" then mp.Material = Enum.Material.Neon
@@ -310,6 +501,9 @@ function SoldierModels.prebuildAll()
 		SoldierModels.parts({ rig = "real", key = k, tex = k, acc = Look.hex(Rig.PALETTE[1]), tone = tone, colorIndex = 1 } :: any)
 	end
 	for _, c in ipairs(Rig.PALETTE) do teamTex("ffa", Look.hex(c)) end    -- chacun-pour-soi : une teinte par couleur de joueur
+	-- cartes de matière (SurfaceAppearance) : relief et rugosité du corps, rugosité / métal des palettes
+	for _, k in ipairs({ "t", "ct", "ffa" }) do mapCache["b:" .. k] = nil; bodyMaps(k); mapCache["p:g:" .. k] = nil; gearMaps(k) end
+	for _, o in pairs(Rig.OUTFITS) do mapCache["p:o" .. o.web] = nil; outfitMaps(o.web, o) end
 	for _, o in pairs(Rig.OUTFITS) do
 		for _, t in ipairs(Rig.TONES) do
 			SoldierModels.parts({ rig = "proc", key = "o" .. o.web, tex = "ffa", outfit = o.web, acc = Color3.new(1, 1, 1), tone = Look.hex(t), colorIndex = 1 } :: any)

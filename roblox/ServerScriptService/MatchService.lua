@@ -560,7 +560,7 @@ WeaponService.Killed:Connect(function(killer, victim, key: string, headshot: boo
 		local h = kc and kc:FindFirstChildOfClass("Humanoid")
 		if h then
 			h.Health = math.min(math.max(100, h.MaxHealth), h.Health + 50)
-			if typeof(killer) == "Instance" and killer:IsA("Player") and popEvent then popEvent:FireClient(killer, "🩸 +50 PV", Color3.fromRGB(255, 70, 80), "heal") end
+			if typeof(killer) == "Instance" and killer:IsA("Player") and popEvent then popEvent:FireClient(killer, "🦇 +50 PV", Color3.fromRGB(255, 70, 80), "heal") end
 		end
 	end
 

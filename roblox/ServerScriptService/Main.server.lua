@@ -12,6 +12,7 @@ local ProgressService = require(script.Parent.ProgressService)
 require(script.Parent.MenuService)        -- menu principal : défis de la semaine, réglages gardés, titre
 require(script.Parent.MedalService)       -- médailles, bilan perso et défis de fin de partie (src/8G_medals.js, src/8O_defis.js)
 require(script.Parent.RecapService)       -- écran de fin : détail des gains, barre de niveau, défis terminés (après MedalService)
+require(script.Parent.CareerService)      -- carrière par arme, maîtrise (camos Or/Diamant), carte de joueur, records d'entraînement
 require(script.Parent.AdminService)       -- panneau admin (propriétaire du jeu + code, src/8M_admin.js)
 require(script.Parent.HalloweenService)   -- décor d'Halloween du lobby et des cartes, citrouilles lâchées (src/8W_halloween.js)
 require(script.Parent.SprayService)       -- sprays sur les murs (touche J, src/64_extras.js)

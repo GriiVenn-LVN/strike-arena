@@ -1,7 +1,7 @@
 --!strict
 -- StarterPlayerScripts/BuyMenu (LocalScript)
 -- Boutique en partie, copie de #buy du jeu web (src/80_ui.js renderBuy / quickBuy / rebuy, styles .it de src/00_head.html) :
--- panneau sombre de 1100 de large, « BOUTIQUE » espacé, ⚡ ACHAT RAPIDE et ↻ RACHETER, argent en vert, colonnes
+-- panneau sombre de 1100 de large, « BOUTIQUE » espacé, ⚡ ACHAT RAPIDE et 🔄 RACHETER, argent en vert, colonnes
 -- Pistolets / SMG / Pompes / Fusils puis Snipers / Lourd / Équipement, cartes avec nom, prix, image de l'arme et trois
 -- barres (dégâts rouge, cadence bleue, précision verte), carte verte quand l'objet est équipé, grisée quand il ne
 -- s'achète pas.
@@ -70,7 +70,7 @@ local function chip(text: string, order: number): TextButton
 	return b
 end
 local quickB = chip("⚡  " .. spaced("ACHAT RAPIDE", 0), 1)
-local rebuyB = chip("↻  " .. spaced("RACHETER", 0), 2)
+local rebuyB = chip("🔄  " .. spaced("RACHETER", 0), 2)
 
 -- grille (défile si l'écran est petit, comme .panel { max-height: 96vh; overflow: auto })
 local TOP = PADY + 40 + 14
@@ -290,7 +290,7 @@ quickB.Activated:Connect(function()
 	pcall(Sfx.play, "buy")
 	render()
 end)
--- ↻ RACHETER (rebuy du web) : les armes choisies dans l'arsenal, gilet, frag
+-- 🔄 RACHETER (rebuy du web) : les armes choisies dans l'arsenal, gilet, frag
 rebuyB.Activated:Connect(function()
 	if not open or not st then return end
 	local p, s = player:GetAttribute("Primary"), player:GetAttribute("Secondary")

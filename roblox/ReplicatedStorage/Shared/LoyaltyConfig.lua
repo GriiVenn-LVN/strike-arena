@@ -7,7 +7,7 @@ local L = {}
 
 -- Cadeaux de temps de jeu : minutes jouées dans la journée (UTC), remis à zéro chaque jour
 L.PLAYTIME_GIFTS = {
-	{ minutes = 10, reward = { coins = 15 }, icon = "🪙" },
+	{ minutes = 10, reward = { coins = 15 }, icon = "💰" },
 	{ minutes = 20, reward = { boost = 2 }, icon = "⚡" },
 	{ minutes = 35, reward = { coins = 30 }, icon = "💰" },
 	{ minutes = 50, reward = { coins = 45 }, icon = "💎" },

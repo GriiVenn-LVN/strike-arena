@@ -11,6 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local L = require(ReplicatedStorage.Shared.LoyaltyConfig)
 local S = require(ReplicatedStorage.Shared.ClientState)
+local Icons = require(ReplicatedStorage.Shared.Icons)
 local K = require(script.Parent:WaitForChild("Menu"):WaitForChild("Kit"))
 local C = K.C
 local make, text, spaced = K.make, K.text, K.spaced
@@ -45,7 +46,7 @@ local foot = make("Frame", { Position = UDim2.fromOffset(28, 312), Size = UDim2.
 K.vlist(foot, 8)
 
 local function rewardParts(r: any): (string, string)
-	local ic, t = "🪙", {}
+	local ic, t = Icons.COIN, {}
 	if r.coins then table.insert(t, K.fmt(r.coins) .. " pièces") end
 	if r.dance then ic = "💃"; table.insert(t, "Danse « " .. (Config.DANCES[r.dance] and Config.DANCES[r.dance].name or r.dance) .. " »") end
 	if r.box then ic = "📦"; table.insert(t, if r.box == "prem" then "Caisse Premium" else "Caisse Standard") end
@@ -85,13 +86,21 @@ render = function()
 		text(f, { Position = UDim2.fromOffset(0, 10), Size = UDim2.new(1, 0, 0, 16), Font = K.BLACK, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Center,
 			TextColor3 = if now then C.gold else C.sub, Text = spaced(if big then "JOUR 7 · GROS LOT" else "JOUR " .. i, 1) })
 		local ic, t = rewardParts(r)
-		local icon = text(f, { Position = UDim2.fromOffset(0, 32), Size = UDim2.new(1, 0, 0, 64), TextSize = if big then 54 else 44, TextXAlignment = Enum.TextXAlignment.Center, Text = ic })
+		-- pièces : pièce dessinée (Shared/Icons), l'emoji pièce du web donne un carré vide dans Roblox
+		local icon: GuiObject
+		if ic == Icons.COIN then
+			local g = make("CanvasGroup", { Position = UDim2.fromOffset(0, 32), Size = UDim2.new(1, 0, 0, 64), BackgroundTransparency = 1 }, f)
+			Icons.coin(g, if big then 52 else 44, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5) })
+			icon = g
+		else
+			icon = text(f, { Position = UDim2.fromOffset(0, 32), Size = UDim2.new(1, 0, 0, 64), TextSize = if big then 54 else 44, TextXAlignment = Enum.TextXAlignment.Center, Text = ic })
+		end
 		text(f, { Position = UDim2.fromOffset(6, 100), Size = UDim2.new(1, -12, 0, 40), TextSize = 12, Font = K.BOLD, TextXAlignment = Enum.TextXAlignment.Center,
 			TextYAlignment = Enum.TextYAlignment.Top, Text = t })
 		if taken then
-			icon.TextTransparency = 0.5
-			text(f, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0, 62), Size = UDim2.fromOffset(60, 60), TextSize = 44, Font = K.BLACK,
-				TextColor3 = C.green, TextXAlignment = Enum.TextXAlignment.Center, Text = "✔", Rotation = -12 })
+			if icon:IsA("TextLabel") then icon.TextTransparency = 0.5 elseif icon:IsA("CanvasGroup") then icon.GroupTransparency = 0.5 end
+			-- tampon « pris » : coche verte dessinée (le ✔ texte sort en emoji gris)
+			Icons.check(f, 54, C.green, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0, 64), Rotation = -12 })
 		elseif now then
 			local b = K.btn(f, spaced("RÉCUPÉRER", 1), "gold", claim, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -10), Size = UDim2.new(1, -16, 0, 34), TextSize = 12 })
 			K.beat(b, 1.06, 1)

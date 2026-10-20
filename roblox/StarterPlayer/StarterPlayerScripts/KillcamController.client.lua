@@ -133,6 +133,9 @@ make("TextLabel", { Position = UDim2.fromOffset(22, 0), Size = UDim2.new(1, -22,
 	TextXAlignment = Enum.TextXAlignment.Left, TextStrokeTransparency = 0.6 }, tag)
 local who = make("TextLabel", { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.fromScale(0.5, 0.87), Size = UDim2.new(1, 0, 0, 36),
 	TextSize = 28, RichText = true, Text = "", TextStrokeTransparency = 0.5 }, gui)
+-- carte de joueur du tueur (bannière + emblème choisis dans le Profil, Shared/PlayerCard), au-dessus de son nom
+local PlayerCard = require(ReplicatedStorage.Shared.PlayerCard)
+local cardBox = make("Frame", { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 0.87, -40), Size = UDim2.fromOffset(320, 77), BackgroundTransparency = 1 }, gui)
 local pg = make("Frame", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0.894), Size = UDim2.new(0.4, 0, 0, 3),
 	BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.8 }, gui)
 local pgFill = make("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = C.red }, pg)
@@ -295,6 +298,12 @@ local function begin(info: any)
 	who.Text = string.format('%s  <font color="#9aa6b8">[%s]</font>  <font color="#ff4655">%s</font>%s', kname, tostring(info.weapon or ""), vname,
 		if info.headshot then '  <font color="#ff4655">· TÊTE</font>' else "")
 	mName.Text = vname
+	cardBox:ClearAllChildren()
+	local kp = Players:GetPlayerFromCharacter(killer)
+	local cb, ce = PlayerCard.decode(kp and kp:GetAttribute("Card"))
+	local kt = kp and kp:GetAttribute("Title")
+	pcall(PlayerCard.render, cardBox, { banner = cb, emblem = ce, name = kname, title = if typeof(kt) == "string" then kt elseif kp then nil else "Bot",
+		level = kp and kp:GetAttribute("CardLevel"), size = 320 })
 end
 
 local function finishSetup()
