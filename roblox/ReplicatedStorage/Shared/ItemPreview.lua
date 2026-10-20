@@ -43,6 +43,8 @@ function ItemPreview.weapon(parent: Instance, key: string, skin: number?, camo: 
 				if not vf.Visible then return end
 				a += dt * 0.6
 				cam.CFrame = CFrame.lookAt(center + Vector3.new(-math.cos(a) * dist, dist * 0.12, math.sin(a) * dist), center)
+				-- la lumière suit la caméra (en haut à gauche) : la face vue du camo reste éclairée pendant tout le tour
+				vf.LightDirection = cam.CFrame:VectorToWorldSpace(Vector3.new(0.35, -0.6, -1))
 			end)
 		end
 	end)
