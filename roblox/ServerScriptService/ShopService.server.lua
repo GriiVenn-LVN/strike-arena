@@ -203,6 +203,7 @@ equip.OnServerInvoke = function(player: Player, id: any, weapon: any)
 		eq.trail = it.trail
 		ProgressService.ensure(profile)
 		profile.cosmetics.trail = it.trail
+		DataService.syncSkins(player)                 -- attribut Trail (couleur des balles traçantes)
 	elseif it.kind == "sight" then
 		if typeof(weapon) ~= "string" or not Config.WEAPONS[weapon] or Config.WEAPONS[weapon].melee then return false end
 		eq.sights[weapon] = it.sight

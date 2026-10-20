@@ -15,6 +15,7 @@ local Debris = game:GetService("Debris")
 local G = require(ReplicatedStorage.Shared.Grenades)
 local S = require(ReplicatedStorage.Shared.ClientState)
 local Sfx = require(ReplicatedStorage.Shared.Sfx)
+local ShotFx = require(ReplicatedStorage.Shared.ShotFx)
 local M = G.M
 
 local player = Players.LocalPlayer
@@ -124,6 +125,7 @@ local function explosionFx(pos: Vector3, scale: number)
 	ex.ExplosionType = Enum.ExplosionType.NoCraters; ex.Visible = true; ex.Parent = workspace
 	emitBurst(pos + Vector3.new(0, .3 * M, 0), rgb(0xffa040), math.floor(30 * scale), 30 * scale, .8 * M * scale, .6)
 	lightBurst(pos + Vector3.new(0, M, 0), rgb(0xffa050), 8, 30 * scale, .35)
+	ShotFx.explosion(pos, scale)                       -- boule de feu, fumée sombre et débris du web
 	-- anneau au sol (boomRings du web)
 	local ring = Instance.new("Part"); ring.Shape = Enum.PartType.Cylinder; ring.Anchored = true; ring.CanCollide = false; ring.CanQuery = false; ring.CanTouch = false
 	ring.Material = Enum.Material.Neon; ring.Color = rgb(0xffd9a0); ring.Transparency = .3; ring.Size = Vector3.new(.05, 1, 1)

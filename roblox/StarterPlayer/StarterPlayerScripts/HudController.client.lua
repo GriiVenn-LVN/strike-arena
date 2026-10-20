@@ -612,6 +612,7 @@ local function setVeil(list: { Frame }, alpha: number)
 	for _, f in ipairs(list) do f.BackgroundTransparency = 1 - clamp(alpha, 0, 1) end
 end
 local hurtAlpha = 0
+local lowPhase = 0
 
 -- direction des tirs reçus : l'arc suit la position du tireur quand on se retourne
 type Dir = { holder: Frame, arc: Frame, chev: TextLabel, from: Vector3, att: Instance?, t: number, k: number }
@@ -1100,7 +1101,10 @@ RunService.RenderStepped:Connect(function(dt: number)
 	-- voiles rouges
 	hurtAlpha = math.max(0, hurtAlpha - dt / 0.7)
 	setVeil(hurtVeil, hurtAlpha * 0.85)
-	setVeil(lowVeil, if frac < 0.3 and hp > 0 then 0.35 + 0.25 * math.sin(t * 5.7) else 0)
+	-- sous 30 PV, le bord bat plus vite et plus fort quand la santé baisse (src/8I_lowhp.js : période 1,1 s -> 0,7 s)
+	local lowK = clamp(1 - hp / 30, 0, 1)
+	lowPhase += dt * 2 * math.pi / (1.1 - 0.4 * lowK)
+	setVeil(lowVeil, if hp > 0 and hp < 30 then (0.35 + 0.25 * math.sin(lowPhase)) * (0.85 + 0.35 * lowK) else 0)
 	local prot = char and char:GetAttribute("ProtectedUntil")
 	protectLabel.Text = if typeof(prot) == "number" and prot > workspace:GetServerTimeNow() then "◇ Protection d'apparition" else ""
 

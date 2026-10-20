@@ -9,7 +9,6 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local ContextActionService = game:GetService("ContextActionService")
-local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
 
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -64,29 +63,36 @@ local function fireSound(key: string): any
 end
 
 -- ---------- effets visuels ----------
-local function tracer(from: Vector3, to: Vector3, mine: boolean)
-	local len = (to - from).Magnitude
-	if len < 1 then return end
-	local p = Instance.new("Part"); p.Anchored = true; p.CanCollide = false; p.CanQuery = false; p.CanTouch = false
-	p.Material = Enum.Material.Neon; p.Color = if mine then Color3.fromRGB(255, 226, 150) else Color3.fromRGB(255, 190, 120)
-	p.Size = Vector3.new(0.06, 0.06, len); p.CFrame = CFrame.lookAt(from, to) * CFrame.new(0, 0, -len / 2)
-	p.Transparency = 0.15; p.Parent = workspace
-	TweenService:Create(p, TweenInfo.new(0.09), { Transparency = 1 }):Play()
-	Debris:AddItem(p, 0.12)
-	-- étincelle d'impact
-	local spark = Instance.new("Part"); spark.Anchored = true; spark.CanCollide = false; spark.CanQuery = false; spark.CanTouch = false
-	spark.Shape = Enum.PartType.Ball; spark.Material = Enum.Material.Neon; spark.Color = Color3.fromRGB(255, 210, 140)
-	spark.Size = Vector3.new(0.35, 0.35, 0.35); spark.Position = to; spark.Parent = workspace
-	TweenService:Create(spark, TweenInfo.new(0.18), { Size = Vector3.new(0.05, 0.05, 0.05), Transparency = 1 }):Play()
-	Debris:AddItem(spark, 0.2)
+-- balle traçante, impacts, trous de balle, sang, flamme et douilles des autres : ShotFx (effets du web)
+local ShotFx = require(ReplicatedStorage.Shared.ShotFx)
+local function tracer(from: Vector3, to: Vector3, shooter: Player?)
+	if (to - from).Magnitude < 1 then return end
+	ShotFx.tracer(from, to, ShotFx.trailColor(shooter))     -- traînée cosmétique équipée (boutique)
+	ShotFx.impact(from, to)
 	Sfx.impact(from, to)                               -- bruit d'impact selon le matériau touché
 end
 
-local function muzzleFlash(char: Model?)
+local lastFlash: { [Instance]: number } = setmetatable({}, { __mode = "k" }) :: any
+local function muzzleFlash(char: Model?, origin: Vector3, endPos: Vector3)
+	-- un seul éclair par coup (le pompe envoie une trajectoire par plomb)
+	if char then
+		if os.clock() - (lastFlash[char] or -1) < 0.03 then return end
+		lastFlash[char] = os.clock()
+	end
 	local held = char and char:FindFirstChild("HeldWeapon")
 	local key = held and held:GetAttribute("Key")
-	if held and typeof(key) == "string" and A.modsOf(A.list(key, A.decode(held:GetAttribute("Att")), nil, true)).noFlash then return end
+	local noFlash = held ~= nil and typeof(key) == "string" and A.modsOf(A.list(key, A.decode(held:GetAttribute("Att")), nil, true)).noFlash == true
 	local muzzle = held and held:FindFirstChild("Muzzle", true)
+	local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if root and math.random() < 0.5 and (root.Position - camera.CFrame.Position).Magnitude < 25 * Config.STUDS_PER_METER then
+		ShotFx.shell(origin - Vector3.new(0, 0.2 * Config.STUDS_PER_METER, 0), root.CFrame.RightVector)
+	end
+	if noFlash then return end                         -- silencieux / cache-flamme : pas de flamme
+	-- flamme en étoile et fumée (plus grosse au pompe et au fusil de précision) ; douille une fois sur deux (plus haut)
+	local w = typeof(key) == "string" and Config.WEAPONS[key] or nil
+	local at = if muzzle and muzzle:IsA("Attachment") then muzzle.WorldPosition elseif muzzle and muzzle:IsA("BasePart") then muzzle.Position else origin
+	local dir = endPos - origin
+	ShotFx.muzzle(at, dir, w ~= nil and (w.cat == "sniper" or w.cat == "shotgun"))
 	if not muzzle then return end
 	local light = Instance.new("PointLight"); light.Color = Color3.fromRGB(255, 200, 120); light.Range = 10; light.Brightness = 4
 	light.Parent = muzzle
@@ -114,7 +120,7 @@ end)
 
 tracerRemote.OnClientEvent:Connect(function(origin: Vector3, endPos: Vector3, shooter: Instance?)
 	if shooter and shooter == player.Character then return end -- nos propres traceurs sont déjà dessinés
-	tracer(origin, endPos, false)
+	tracer(origin, endPos, Players:GetPlayerFromCharacter(shooter :: any))
 	if shooter then
 		local key = shooter:GetAttribute("Weapon")
 		if typeof(key) == "string" and Config.WEAPONS[key] then
@@ -123,7 +129,7 @@ tracerRemote.OnClientEvent:Connect(function(origin: Vector3, endPos: Vector3, sh
 			playSound(fireSound(key), origin, m.snd)          -- silencieux : tir à 35 % du volume
 			Sfx.bulletPass(origin, endPos, Config.WEAPONS[key].cat)   -- claquement si la balle frôle la caméra
 		end
-		muzzleFlash(shooter :: Model)
+		muzzleFlash(shooter :: Model, origin, endPos)
 	end
 end)
 
@@ -188,7 +194,7 @@ local function tryFire()
 		params.FilterDescendantsInstances = { player.Character :: Instance }
 		local r = workspace:Raycast(cf.Position, cf.LookVector * 400, params)
 		local muzzle = S.muzzle or (cf.Position + cf.LookVector * 1.5 - cf.UpVector * 0.4 + cf.RightVector * 0.5)
-		tracer(muzzle, if r then r.Position else cf.Position + cf.LookVector * 400, true)
+		tracer(muzzle, if r then r.Position else cf.Position + cf.LookVector * 400, player)
 	end
 	S.inspectStart = -1
 	S.shot:Fire(key)                                   -- recul de l'arme, éclair et douille dans le viewmodel
