@@ -15,6 +15,8 @@
 --     sinon la 128 px « sk:<motif> » de SkinTextures ; pièces simples (lame du couteau, arme en blocs) : Texture sur les faces.
 --
 -- SkinPaint.apply(model, skinIndex, camoId?) : skinIndex suit Config.SKINS (1 = Défaut), camoId = clé de SkinInfo.ANIM.
+-- Sans skin, l'arme passe sur son modèle réaliste s'il existe (WeaponModels.setVariant) ; à la fin, WeaponMaterials
+-- pose les matériaux réalistes (acier bruni, polymère…) sur les pièces que le skin ne peint pas.
 local AssetService = game:GetService("AssetService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -500,9 +502,15 @@ function SkinPaint.apply(model: Instance, skinIndex: number?, camo: string?)
 	end
 end
 
+local WeaponModels: any = nil
+local WeaponMaterials: any = nil
 applyNow = function(model: Instance, skinIndex: number?, camo: string?, world: boolean)
 	local sk = Info.SKINS[skinIndex or 1] or Info.SKINS[1]
 	local anim = camo and Info.ANIM[camo]
+	-- arme réaliste seulement avec la finition d'usine (web : useRealGun) : un skin repasse sur le modèle stylisé
+	if not WeaponModels then WeaponModels = require(ReplicatedStorage.Shared.WeaponModels) end
+	local okV, errV = pcall(WeaponModels.setVariant, model, sk == Info.SKINS[1] and not anim)
+	if not okV then warn("[SkinPaint] version réaliste : " .. tostring(errV)) end
 	local finName = (if anim then anim.fin else sk.fin) or "gloss"
 	local fin = REFLECT[finName] or 0.08
 	local L = anim and animImage(camo :: string) or nil
@@ -574,6 +582,10 @@ applyNow = function(model: Instance, skinIndex: number?, camo: string?, world: b
 			bp.Material = Enum.Material.SmoothPlastic; bp.Reflectance = fin
 		end
 	end
+	-- matériaux réalistes (SurfaceAppearance) des pièces non peintes, du modèle réaliste et des viseurs
+	if not WeaponMaterials then WeaponMaterials = require(ReplicatedStorage.Shared.WeaponMaterials) end
+	local okM, errM = pcall(WeaponMaterials.dress, model, world, (anim ~= nil and anim ~= false) or main ~= nil or sk.b ~= nil)
+	if not okM then warn("[SkinPaint] matériaux : " .. tostring(errM)) end
 end
 
 return SkinPaint

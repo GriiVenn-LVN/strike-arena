@@ -8,6 +8,9 @@
 --   PrimaryPart « Grip » = la poignée (main droite), l'arme pointe vers -Z, le haut vers +Y ;
 --   chaque pièce porte l'attribut Piece = "body" | "bolt" | "mag" (le chargeur et la culasse bougent dans les animations) ;
 --   attachments « Muzzle » (bout du canon) et « LeftHand » (main gauche) sur Grip.
+-- Armes réalistes (AK, M4, AWP, Desert Eagle : WeaponReal) : même repère, mêmes attributs (Piece, Role = "real",
+-- Offset) ; setVariant(modèle, réaliste) échange les pièces d'un modèle déjà fabriqué (SkinPaint.apply : sans skin,
+-- réaliste si Réglages › Armes = Réalistes et si les assets sont envoyés ; avec un skin, stylisé).
 local AssetService = game:GetService("AssetService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -154,15 +157,22 @@ end
 -- ---------- fabrication + cache ----------
 local cache: { [string]: Model } = {}
 
-local function make(key: string, scale: number): Model
+local WeaponReal = require(ReplicatedStorage.Shared.WeaponReal)
+
+local function make(key: string, scale: number, real: boolean?, retOf: ((string) -> (string, string))?): Model
 	local model = Instance.new("Model"); model.Name = "Weapon_" .. key
 	local grip = plain("Grip", Vector3.new(0.05, 0.05, 0.05), Color3.new(), Enum.Material.SmoothPlastic)
 	grip.Transparency = 1; grip.Parent = model; model.PrimaryPart = grip
+	model:SetAttribute("WeaponKey", key)
 	local w = Config.WEAPONS[key]
-	local inf = Info[key]
+	local inf: any = if real then WeaponReal.Info[key] else Info[key]
 	local muzzleZ = if inf then inf.muzzle * scale else -0.3 * scale
 	local sightY = if inf then inf.sight * scale else 0.05 * scale
-	if w and w.melee then
+	if real then
+		-- arme réaliste : pièces et textures envoyées (WeaponReal) ; viseur holographique intégré sur le M4
+		sightY = WeaponReal.build(model, grip, key, scale, retOf)
+		model:SetAttribute("Real", true)
+	elseif w and w.melee then
 		knife(model, grip, scale); muzzleZ = -0.23 * scale
 	else
 		local ok = false
@@ -211,7 +221,7 @@ local function make(key: string, scale: number): Model
 			end
 		end
 	end
-	local muzzle = Instance.new("Attachment"); muzzle.Name = "Muzzle"; muzzle.Position = Vector3.new(0, sightY * 0.6, muzzleZ); muzzle.Parent = grip
+	local muzzle = Instance.new("Attachment"); muzzle.Name = "Muzzle"; muzzle.Position = Vector3.new(0, if real and inf.bore then inf.bore * scale else sightY * 0.6, muzzleZ); muzzle.Parent = grip
 	local left = Instance.new("Attachment"); left.Name = "LeftHand"
 	left.Position = if inf then Vector3.new(inf.left[1], inf.left[2], inf.left[3]) * scale else Vector3.new()
 	left.Parent = grip
@@ -220,24 +230,87 @@ local function make(key: string, scale: number): Model
 	return model
 end
 
+-- options de fabrication de chaque modèle rendu (réticules, aperçu) : setVariant refabrique l'autre version à l'identique
+local optsOf: { [Instance]: any } = setmetatable({}, { __mode = "k" }) :: any
+
 -- att : accessoires de l'armurier (liste d'Attachments) ; opts.ret(optique) -> (forme, couleur) du réticule, opts.preview
-function WeaponModels.build(key: string, scale: number, att: { string }?, opts: any?): Model
-	local id = key .. "@" .. scale
-	if not cache[id] then cache[id] = make(key, scale) end
-	if not att or #att == 0 then return cache[id]:Clone() end
-	local rk = ""
-	if opts and opts.ret then
-		for _, a in ipairs(att) do local s2, c2 = opts.ret(a); rk ..= s2 .. c2 end
+-- real : version réaliste (WeaponReal), seulement si WeaponModels.realAllowed(key)
+function WeaponModels.build(key: string, scale: number, att: { string }?, opts: any?, real: boolean?): Model
+	local id = key .. "@" .. scale .. (if real then "r" else "")
+	local holoRet = ""
+	if real and WeaponReal.Info[key] and WeaponReal.Info[key].optic and opts and opts.ret then
+		local s2, c2 = opts.ret("holo"); holoRet = s2 .. c2; id ..= "|" .. holoRet     -- réticule du holo intégré
 	end
-	local aid = id .. "|" .. table.concat(att, ",") .. "|" .. rk .. (if opts and opts.preview then "p" else "")
-	if not cache[aid] then
-		local m = cache[id]:Clone()
-		local AttachmentModels = require(script.Parent.AttachmentModels) :: any
-		local ok, err = pcall(AttachmentModels.apply, m, key, att, scale, opts)
-		if not ok then warn("[WeaponModels] accessoires", key, err) end
-		cache[aid] = m
+	if not cache[id] then cache[id] = make(key, scale, real, opts and opts.ret) end
+	local out: Model
+	if not att or #att == 0 then out = cache[id]:Clone() else
+		local rk = ""
+		if opts and opts.ret then
+			for _, a in ipairs(att) do local s2, c2 = opts.ret(a); rk ..= s2 .. c2 end
+		end
+		local aid = id .. "|" .. table.concat(att, ",") .. "|" .. rk .. (if opts and opts.preview then "p" else "")
+		if not cache[aid] then
+			local m = cache[id]:Clone()
+			local AttachmentModels = require(script.Parent.AttachmentModels) :: any
+			local ok, err = pcall(AttachmentModels.apply, m, key, att, scale, opts)
+			if not ok then warn("[WeaponModels] accessoires", key, err) end
+			cache[aid] = m
+		end
+		out = cache[aid]:Clone()
 	end
-	return cache[aid]:Clone()
+	optsOf[out] = opts or false
+	return out
+end
+
+-- ---------- version réaliste ou stylisée ----------
+-- Réglages › Armes (ClientState.opt.realGuns, Menu/Options) ; assets envoyés ; pas les armes spéciales des zombies
+function WeaponModels.realAllowed(key: string): boolean
+	if not WeaponReal.Info[key] or not WeaponReal.ready(key) then return false end
+	local w = Config.WEAPONS[key] :: any
+	if not w or w.cat == "wonder" or w.melee then return false end
+	local okS, S = pcall(require, ReplicatedStorage.Shared.ClientState)
+	if okS and type(S) == "table" and type((S :: any).opt) == "table" and (S :: any).opt.realGuns == false then return false end
+	return true
+end
+
+-- Remplace les pièces d'un modèle fabriqué par build() par celles de l'autre version (mêmes accessoires, même échelle).
+-- Les pièces suivent la poignée (ancrées comme elle, soudées comme elle par weldTo) ; repères et attributs copiés.
+-- Renvoie true si le modèle a changé (le viewmodel relit alors ses pièces).
+function WeaponModels.setVariant(model: Instance, wantReal: boolean): boolean
+	if not model:IsA("Model") then return false end
+	local key, scale = model:GetAttribute("WeaponKey"), model:GetAttribute("Scale")
+	if type(key) ~= "string" or type(scale) ~= "number" then return false end
+	local want = wantReal and WeaponModels.realAllowed(key)
+	if (model:GetAttribute("Real") == true) == want then return false end
+	local grip = model.PrimaryPart
+	if not grip then return false end
+	local attStr = model:GetAttribute("Attachments")
+	local att = if type(attStr) == "string" and attStr ~= "" then string.split(attStr, ",") else nil
+	local o = optsOf[model]
+	local ok, other = pcall(WeaponModels.build, key, scale, att, if o then o else nil, want)
+	if not ok or not other then warn("[WeaponModels] version " .. (if want then "réaliste" else "stylisée") .. " de " .. key .. " : " .. tostring(other)); return false end
+	local og = other.PrimaryPart :: BasePart
+	local weld = grip:FindFirstChildOfClass("WeldConstraint")
+	for _, c in ipairs(model:GetChildren()) do if c:IsA("BasePart") and c ~= grip then c:Destroy() end end
+	for _, c in ipairs(other:GetChildren()) do
+		if c:IsA("BasePart") and c ~= og then
+			local off = c:GetAttribute("Offset")
+			c.CFrame = grip.CFrame * (if typeof(off) == "CFrame" then off else CFrame.identity)
+			c.Anchored = grip.Anchored
+			c.Parent = model
+			if weld then
+				local wc = Instance.new("WeldConstraint"); wc.Part0 = weld.Part0; wc.Part1 = c; wc.Parent = c
+			end
+		end
+	end
+	for _, a in ipairs(og:GetChildren()) do
+		local mine = grip:FindFirstChild(a.Name)
+		if a:IsA("Attachment") and mine and mine:IsA("Attachment") then mine.Position = a.Position end
+	end
+	for k in pairs(model:GetAttributes()) do if other:GetAttribute(k) == nil then model:SetAttribute(k, nil) end end
+	for k, v in pairs(other:GetAttributes()) do model:SetAttribute(k, v) end
+	other:Destroy()
+	return true
 end
 
 -- Recalcule la position de chaque pièce d'après Grip ; pieceCF[piece] = décalage d'animation (chargeur, culasse).

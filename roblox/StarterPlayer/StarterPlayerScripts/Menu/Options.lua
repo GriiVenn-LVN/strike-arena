@@ -58,6 +58,11 @@ function O.apply()
 	S.opt.invertY = o.invertY == true
 	S.opt.xhColor = xhColor(o.xhColor); S.opt.xhStyle = o.xhStyle
 	S.opt.showFps = o.showFps == true; S.opt.showPing = o.showPing == true
+	-- armes réalistes / stylisées : l'arme en main est refaite tout de suite (web : VM.gk = null)
+	if S.opt.realGuns ~= (o.realGuns ~= false) then
+		S.opt.realGuns = o.realGuns ~= false
+		if S.onSkin then task.spawn(S.onSkin :: () -> ()) end
+	end
 	-- volumes : Sfx.setVolume règle lui-même le groupe Master (1 = niveau d'origine, 70 % du curseur)
 	if (Sfx :: any).setVolume then
 		local setVolume = (Sfx :: any).setVolume
@@ -176,6 +181,9 @@ local function general(sc: Instance, W: number, rerender: () -> ())
 	chips(b, 4, ONOFF, o.showFps == true, function(v) O.set("showFps", v); rerender() end)
 	K.label(b, "AFFICHER LE PING", 5)
 	chips(b, 6, ONOFF, o.showPing == true, function(v) O.set("showPing", v); rerender() end)
+	K.label(b, "ARMES", 7)
+	chips(b, 8, { { true, "Réalistes" }, { false, "Stylisés" } }, o.realGuns ~= false, function(v) O.set("realGuns", v); rerender() end)
+	K.para(b, "Réalistes : AK, M4, AWP et Desert Eagle avec leurs vraies textures, quand l'arme n'a pas de skin.", 11, C.dim, 9)
 	K.btn(sc, spaced("RÉTABLIR PAR DÉFAUT", 1), "dark", function() O.reset(); rerender() end,
 		{ LayoutOrder = 2, Size = UDim2.fromOffset(220, 32), TextSize = 11 })
 end

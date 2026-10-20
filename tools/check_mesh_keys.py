@@ -7,6 +7,7 @@ ou retombe sur son repli : il faut relancer require(game.ServerStorage.MeshUploa
 
 Les clés sont recalculées comme dans WeaponModels, AttachmentModels.opticBase et SoldierModels :
   w:<arme>#<groupe>/<nv>/<nt>         o:<viseur>#<groupe>/<nv>/<nt>
+  w:real:<arme>#<pièce>/<nv>/<nt>     i:wr:<arme>:<matériau>:c|n|m|r     i:mat:<bruni|anod|poly|bois|acier>:c|n|r|m
   s:real:<équipe>/body|gear/<n>[/c<couleur>]/<nv>/<nt>   s:obody:g|n/<n>[/c<couleur>]/<nv>/<nt>   s:ohead:<tenue>/<n>[/c<couleur>]/<nv>/<nt>
   i:s:tex:<équipe>[<teinte>]  i:s:pal:g:<équipe>  i:s:pal:o<tenue>:<teint>
 (décor des cartes, véhicules et skins : voir le banc de démarrage, qui journalise toutes les clés envoyées.)
@@ -96,6 +97,19 @@ for web, glow, cls in outfits:
     add_soldier('ohead:%d' % web, os.path.join(SM, 'Head_%d.lua' % web), hcls, 'tenue %d' % web)
     for t in tones:
         want.append(('i:s:pal:o%d:%s' % (web, t.lower()), 'palette tenue %d' % web))
+
+# armes réalistes (WeaponInfoReal : pièces et matériaux) et matériaux des armes stylisées (WeaponMaterials)
+real = read(os.path.join(SH, 'WeaponInfoReal.lua'))
+for m in re.finditer(r'\n\t(\w+) = \{\n(.*?)\n\t\},', real, re.S):
+    name, body = m.group(1), m.group(2)
+    for gi, (nv, nt) in enumerate(re.findall(r'part = "\w+", mat = \d+, nv = (\d+), nt = (\d+)', body), 1):
+        want.append(('w:real:%s#%d/%s/%s' % (name, gi, nv, nt), 'arme réaliste ' + name))
+    for mi in range(1, len(re.findall(r'double = ', body)) + 1):
+        for k in 'cnmr':
+            want.append(('i:wr:%s:%d:%s' % (name, mi, k), 'textures arme réaliste ' + name))
+for name in re.findall(r'"(\w+)"', re.search(r'WM\.NAMES = \{([^}]*)\}', read(os.path.join(SH, 'WeaponMaterials.lua'))).group(1)):
+    for k in 'cnrm':
+        want.append(('i:mat:%s:%s' % (name, k), 'matériau ' + name))
 
 missing = [(k, o) for k, o in want if k not in known]
 print('clés demandées : %d ; présentes dans MeshAssets : %d ; manquantes : %d' % (len(want), len(want) - len(missing), len(missing)))

@@ -35,6 +35,7 @@ return {
 		xhColor = Color3.new(1, 1, 1),       -- couleur du viseur (à lire par HudController)
 		xhStyle = "dot",                     -- forme du viseur : "dot", "cross", "circle", "none" (à lire par HudController)
 		showFps = false, showPing = false,   -- compteurs en haut à droite (PauseMenu)
+		realGuns = true,                     -- armes réalistes sans skin (à lire par WeaponModels.realAllowed)
 	},
 	menuOpen = false,
 	panels = {} :: { [string]: () -> () },   -- ouvre la fenêtre d'une autre interface (shop, gifts, vip, codes, group, loadout)

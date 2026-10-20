@@ -229,7 +229,7 @@ local function placeGloves(rootR: CFrame, rootL: CFrame?, hiddenCF: CFrame)
 end
 local flash = part("Flash", Vector3.new(0.12, 0.12, 0.12), Color3.fromRGB(255, 214, 140), Enum.Material.Neon)
 flash.Shape = Enum.PartType.Ball
-local flashLight = Instance.new("PointLight"); flashLight.Color = Color3.fromRGB(255, 200, 120); flashLight.Range = 12; flashLight.Brightness = 0; flashLight.Parent = flash
+local flashLight = Instance.new("PointLight"); flashLight.Color = Color3.fromRGB(255, 200, 120); flashLight.Range = 14; flashLight.Brightness = 0; flashLight.Parent = flash
 -- reflet qui balaie l'arme (inspection, sortie des skins Légendaires) : INS_LIGHT du web, une simple lumière
 local glint = part("Glint", Vector3.new(0.02, 0.02, 0.02), Color3.new(), nil)
 glint.Transparency = 1
@@ -298,10 +298,16 @@ local function drawDur(key: string): number
 end
 
 -- skin de l'arme en main : le nôtre, ou celui du tueur pendant la kill-cam
-local function applySkin()
+local setGun: (key: string) -> ()
+local function applySkin(initial: boolean?)
 	if not VM.model or not VM.key then return end
-	if S.kc then SkinPaint.apply(VM.model, S.kc.skin, S.kc.camo) return end
-	SkinPaint.apply(VM.model, player:GetAttribute("Skin_" .. VM.key) :: number?, player:GetAttribute("Camo_" .. VM.key) :: string?)
+	local model = VM.model
+	local wasReal = model:GetAttribute("Real")
+	if S.kc then SkinPaint.apply(model, S.kc.skin, S.kc.camo)
+	else SkinPaint.apply(model, player:GetAttribute("Skin_" .. VM.key) :: number?, player:GetAttribute("Camo_" .. VM.key) :: string?) end
+	-- le skin (ou Réglages › Armes) a fait passer l'arme du modèle réaliste au stylisé ou l'inverse : pièces, chargeur,
+	-- culasse, ligne de visée et main gauche sont relus en refabriquant l'arme en main
+	if not initial and VM.model == model and model:GetAttribute("Real") ~= wasReal and VM.key then task.spawn(setGun, VM.key) end
 end
 player.AttributeChanged:Connect(function(name: string)
 	if VM.key and (name == "Skin_" .. VM.key or name == "Camo_" .. VM.key) then applySkin() end
@@ -317,7 +323,7 @@ local function sigOf(key: string): string
 	return s
 end
 local building: string? = nil
-local function setGun(key: string)
+setGun = function(key: string)
 	local sig = sigOf(key)
 	if building == sig then return end
 	building = sig
@@ -332,7 +338,7 @@ local function setGun(key: string)
 	model.Parent = rig
 	VM.model = model; VM.key = key; VM.sig = sig
 	VM.att = att; VM.mods = A.modsOf(att); VM.noFlash = model:GetAttribute("NoFlash") == true
-	applySkin()
+	applySkin(true)
 	local w = Config.WEAPONS[key]
 	VM.pistol = w.cat == "pistol"
 	VM.twoHand = not w.melee
@@ -907,6 +913,10 @@ RunService:BindToRenderStep("Viewmodel", Enum.RenderPriority.Camera.Value + 2, f
 	flash.CFrame = CFrame.new(muzzleW)
 	local on = VM.flashT > 0 and not w.melee and not VM.noFlash      -- silencieux / cache-flamme : pas de flamme
 	flash.Size = Vector3.one * (0.08 + math.random() * 0.06)
-	flashLight.Brightness = if on then 4 else 0
+	-- lumière de bouche (muzzleLight du web) : pic au départ du coup puis extinction en 50 ms, teinte qui vacille du
+	-- blanc chaud à l'orange ; elle se reflète sur le métal de l'arme (SurfaceAppearance de WeaponMaterials)
+	local k = math.clamp(VM.flashT / 0.05, 0, 1)
+	flashLight.Brightness = if on then 1.5 + 5 * k * k else 0
+	if on then flashLight.Color = Color3.fromRGB(255, 200 + math.random(0, 30), 110 + math.random(0, 50)) end
 	flash.LocalTransparencyModifier = if on and not scoped then 0.1 else 1
 end)

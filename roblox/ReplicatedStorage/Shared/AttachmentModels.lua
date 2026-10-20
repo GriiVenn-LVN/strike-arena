@@ -11,6 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Info = require(ReplicatedStorage.Shared.WeaponInfo)
+local InfoReal = require(ReplicatedStorage.Shared.WeaponInfoReal) :: { [string]: any }
 local A = require(ReplicatedStorage.Shared.Attachments)
 local ReticleGui = require(ReplicatedStorage.Shared.ReticleGui)
 local decode = require(ReplicatedStorage.Shared.Base64)
@@ -38,13 +39,21 @@ type Prof = { z0: number, z1: number, NB: number, top: { number }, bot: { number
 local PROF: { [string]: Prof } = {}
 local NB = 160
 
-local function profileOf(key: string): Prof?
-	if PROF[key] then return PROF[key] end
+-- real : arme réaliste (WeaponReal) : points du profil précalculés (WeaponInfoReal.pts, sans le viseur intégré)
+local function profileOf(key: string, real: boolean?): Prof?
+	local pid = (if real then "r:" else "") .. key
+	if PROF[pid] then return PROF[pid] end
 	local folder = ReplicatedStorage.Shared:FindFirstChild("WeaponMeshes")
-	local src = folder and folder:FindFirstChild(key)
-	local inf = Info[key]
+	local src = if real then nil else folder and folder:FindFirstChild(key)
+	local inf: any = if real then InfoReal[key] else Info[key]
 	if not inf then return nil end
 	local pts: { Vector3 } = {}
+	if real and inf.pts then
+		local raw = decode(inf.pts)
+		for i = 0, buffer.len(raw) // 6 - 1 do
+			table.insert(pts, Vector3.new(buffer.readi16(raw, i * 6), buffer.readi16(raw, i * 6 + 2), buffer.readi16(raw, i * 6 + 4)) / 20000)
+		end
+	end
 	if src then
 		local ok = pcall(function()
 			local groups = require(src :: ModuleScript) :: any
@@ -73,7 +82,7 @@ local function profileOf(key: string): Prof?
 	local ty, by = -1e9, 1e9
 	for _, p in ipairs(pts) do if p.Z < mz + .012 then ty = math.max(ty, p.Y); by = math.min(by, p.Y) end end
 	local pr: Prof = { z0 = z0, z1 = z1, NB = NB, top = top, bot = bot, pts = pts, bore = 0 }
-	PROF[key] = pr
+	PROF[pid] = pr
 	local function at(arr: { number }, z: number): number
 		local b = bin(z)
 		local r = arr[b]
@@ -213,6 +222,7 @@ local function opticMesh(ctx: Ctx, key: string, f: (Vector3) -> Vector3): boolea
 			mp.Size = (base.size * k):Max(Vector3.one * 0.001)   -- taille d'après les sommets (voir WeaponModels)
 			local m = OMAT[g.mat] or OMAT.body
 			mp.Name = "Att_optic_" .. g.mat; mp.Color = m[1]; mp.Material = m[2]
+			mp:SetAttribute("OMat", g.mat)          -- WeaponMaterials : anodisé, caoutchouc, métal (dans le monde)
 			mp.Anchored = true; mp.CanCollide = false; mp.CanQuery = false; mp.CanTouch = false; mp.Massless = true; mp.CastShadow = false
 			local off = CFrame.new(f(base.center) * ctx.sc)
 			mp:SetAttribute("Piece", "body"); mp:SetAttribute("Role", "att"); mp:SetAttribute("Offset", off)
@@ -237,11 +247,14 @@ end
 export type Opts = { preview: boolean?, ret: ((string) -> (string, string))? }
 function AM.apply(model: Model, key: string, list: { string }, sc: number, opts: Opts?)
 	local w = Config.WEAPONS[key]
-	local inf = Info[key]
+	-- arme réaliste : ses propres dimensions et son profil ; une optique montée remplace le viseur intégré (M4)
+	local real = model:GetAttribute("Real") == true
+	local inf: any = if real then InfoReal[key] else Info[key]
 	local grip = model.PrimaryPart
 	if not w or w.melee or not inf or not grip or #list == 0 then return end
-	local pr = profileOf(key)
+	local pr = profileOf(key, real)
 	if not pr then return end
+	local slot = if real then inf.optSlot else nil
 	local o: Opts = opts or ({} :: Opts)
 	local ctx: Ctx = { model = model, sc = sc, grip = grip }
 	local pistol = w.cat == "pistol"
@@ -345,8 +358,8 @@ function AM.apply(model: Model, key: string, list: { string }, sc: number, opts:
 			for i = 0, 3 do cylZ(ctx, a, r * 1.15, .006, MAT.blk, 0, bore, z - L / 2 + .01 + i * .016) end
 			muzzle -= L - .005
 		elseif a == "reddot" then
-			local z = math.clamp(muzzle * .28, -.2, -.03)
-			local base = topR(pr, z - .04, z + .04) - .002
+			local z = if slot then slot.z else math.clamp(muzzle * .28, -.2, -.03)
+			local base = if slot then slot.y else topR(pr, z - .04, z + .04) - .002
 			local cy = base + .034
 			optic(a, z, base, cy, z + .03, function(add)
 				add(a, .03, .012, .07, MAT.dark, 0, base + .006, z)
@@ -355,8 +368,8 @@ function AM.apply(model: Model, key: string, list: { string }, sc: number, opts:
 				add(a, .026, 0, .008, MAT.blk, 0, cy, z - .025, "tube"); add(a, .026, 0, .008, MAT.blk, 0, cy, z + .025, "tube")
 			end, { { p = Vector3.new(0, cy, z - .024), w = .045, h = .045, round = true }, { p = Vector3.new(0, cy, z - .023), w = 0, h = 0 } }, .018, z - .023)
 		elseif a == "mini" then
-			local z = math.clamp(muzzle * (if pistol then .2 else .26), -.18, -.02)
-			local base = topR(pr, z - .03, z + .03) - .002
+			local z = if slot then slot.z else math.clamp(muzzle * (if pistol then .2 else .26), -.18, -.02)
+			local base = if slot then slot.y else topR(pr, z - .03, z + .03) - .002
 			local cy = base + .02
 			optic(a, z, base, cy, z + .02, function(add)
 				add(a, .026, .008, .04, MAT.dark, 0, base + .004, z + .004)
@@ -364,8 +377,8 @@ function AM.apply(model: Model, key: string, list: { string }, sc: number, opts:
 				add(a, .03, .004, .014, MAT.blk, 0, cy + .012, z - .01)
 			end, { { p = Vector3.new(0, cy, z - .016), w = .022, h = .022 }, { p = Vector3.new(0, cy, z - .017), w = 0, h = 0 } }, .012, z - .017)
 		elseif a == "holo" then
-			local z = math.clamp(muzzle * .3, -.22, -.05)
-			local base = topR(pr, z - .05, z + .05)
+			local z = if slot then slot.z else math.clamp(muzzle * .3, -.22, -.05)
+			local base = if slot then slot.y else topR(pr, z - .05, z + .05)
 			local h, cy = .04, base + .026
 			optic(a, z, base, cy, z + .045, function(add)
 				add(a, .034, .012, .085, MAT.dark, 0, base + .006, z)
@@ -374,8 +387,8 @@ function AM.apply(model: Model, key: string, list: { string }, sc: number, opts:
 				add(a, .045, .006, .034, MAT.dark, 0, base + .012, z + .016)
 			end, { { p = Vector3.new(0, cy, z - .023), w = .035, h = .034 }, { p = Vector3.new(0, cy, z - .024), w = 0, h = 0 } }, .017, z - .024)
 		elseif a == "acog" then
-			local z = math.clamp(muzzle * .3, -.24, -.06)
-			local base = topR(pr, z - .06, z + .06)
+			local z = if slot then slot.z else math.clamp(muzzle * .3, -.24, -.06)
+			local base = if slot then slot.y else topR(pr, z - .06, z + .06)
 			local r, cy = .021, base + .036
 			optic(a, z, base, cy, z + .075, function(add)
 				add(a, .028, .016, .07, MAT.dark, 0, base + .008, z)
@@ -386,8 +399,8 @@ function AM.apply(model: Model, key: string, list: { string }, sc: number, opts:
 		elseif a == "sc4" or a == "sc6" or a == "sc8" or a == "sc10" then
 			if w.cat ~= "sniper" then          -- le sniper garde sa lunette : seul le grossissement change
 				local L, r = if a == "sc4" then .17 else .21, if a == "sc4" then .019 else .022
-				local z = math.clamp(muzzle * .32, -.26, -.08)
-				local base = topR(pr, z - L / 2, z + L / 2)
+				local z = if slot then slot.z else math.clamp(muzzle * .32, -.26, -.08)
+				local base = if slot then slot.y else topR(pr, z - L / 2, z + L / 2)
 				local cy = base + r + .022
 				optic(a, z, base, cy, z + L / 2 + .03, function(add)
 					add(a, r * .8, 0, L, MAT.tube, 0, cy, z, "tube")
@@ -473,6 +486,10 @@ function AM.apply(model: Model, key: string, list: { string }, sc: number, opts:
 		end
 	end
 
+	-- viseur intégré du modèle réaliste (holo du M4) : retiré quand une optique est montée (web : builtinOptic.visible)
+	if real and A.optOf(list) then
+		for _, c in ipairs(model:GetChildren()) do if c:GetAttribute("BuiltinOptic") then c:Destroy() end end
+	end
 	-- repères mis à jour : bout du canon, ligne de visée, main gauche
 	local m = A.modsOf(list)
 	local mz = grip:FindFirstChild("Muzzle") :: Attachment?
