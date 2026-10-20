@@ -197,6 +197,9 @@ local function statistics(ctx: any, sc: ScrollingFrame)
 		text(r, { Text = tostring(ws[i][2]), AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.new(0.12, 0, 1, 0), TextSize = 12,
 			TextXAlignment = Enum.TextXAlignment.Right })
 	end
+	-- records d'entraînement, carrière par arme et maîtrise (Menu/Career)
+	local okC, errC = pcall(function() require(script.Parent.Career).stats(ctx, sc, 3) end)
+	if not okC then warn("[Profile] carrière :", errC) end
 end
 
 -- ======================= Style =======================
@@ -250,6 +253,9 @@ local function style(ctx: any, sc: ScrollingFrame)
 	for i, id in ipairs(loy and loy.titles or {}) do
 		if L.TITLES[id] then choice(tr, 100 + i, L.TITLES[id], cur == id, nil, function() setTitle(id) end, C.gold) end
 	end
+	-- carte de joueur : bannière et emblème (Menu/CardPicker)
+	local okP, errP = pcall(function() require(script.Parent.CardPicker)(ctx, sc, 7) end)
+	if not okP then warn("[Profile] carte de joueur :", errP) end
 	K.para(sc, "La traînée de balles, les tenues, les danses et les effets se choisissent dans <b>Arsenal › Tenues et effets</b>.", 12, C.dim, 9)
 end
 

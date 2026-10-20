@@ -23,6 +23,9 @@ local ServerStorage = game:GetService("ServerStorage")
 local Info = require(ReplicatedStorage.Shared.SkinInfo)
 local decode = require(ReplicatedStorage.Shared.Base64)
 local MeshStore = require(ReplicatedStorage.Shared.MeshStore)
+local Mastery = require(ReplicatedStorage.Shared.Mastery)
+-- camos de maîtrise (Or, Diamant, Matière noire) : dessinés ici comme les camos animés, sans image à envoyer
+for id, c in pairs(Mastery.CAMOS) do (Info.ANIM :: any)[id] = c end
 
 local SkinPaint = {}
 SkinPaint.imageApi = true
@@ -41,7 +44,8 @@ local GLOW: { [string]: { number } } = {
 	lava = { 0xff7a1a, 1.4 }, matrix = { 0x45ff7a, 1.1 }, pixel8 = { 0xffffff, 0.7 },
 	hw_pumpkin = { 0xffb040, 1.2 }, hw_ecto = { 0x6dff6a, 1.1 }, hw_witch = { 0xffc070, 1 },
 }
-local ANIM_EI: { [string]: number } = { plasma = 0.55, magma = 0.9, code = 0.8, nebula = 0.6, prism = 0.35, storm = 1 }
+local ANIM_EI: { [string]: number } = { plasma = 0.55, magma = 0.9, code = 0.8, nebula = 0.6, prism = 0.35, storm = 1,
+	m_gold = 0.3, m_diamond = 0.45, m_dark = 0.85 }
 local TINT = Color3.fromRGB(140, 140, 140)  -- web : M.acc color #8c8c8c
 -- taille d'une répétition de la peinture, en mètres d'arme (web : 0,78 / 1,35) ; × échelle du modèle pour les Texture
 local TILE = 0.78 / 1.35
@@ -50,6 +54,7 @@ local TILE = 0.78 / 1.35
 local ANIM_FALLBACK: { [string]: Color3 } = {
 	plasma = Color3.fromRGB(138, 59, 255), magma = Color3.fromRGB(255, 90, 26), code = Color3.fromRGB(42, 255, 122),
 	nebula = Color3.fromRGB(74, 58, 255), prism = Color3.fromRGB(255, 106, 213), storm = Color3.fromRGB(74, 184, 255),
+	m_gold = Color3.fromRGB(240, 180, 50), m_diamond = Color3.fromRGB(160, 225, 255), m_dark = Color3.fromRGB(120, 50, 200),
 }
 
 local function hex(s: string?): Color3?
@@ -149,6 +154,29 @@ local PIX: { [string]: Pix } = {
 		local d = u + v
 		local band = 0.5 + 0.5 * sin(P2 * 6 * d - t * 4)
 		return hsl(d * 0.5 + t * 0.12, 0.9, 0.5 + band * 0.22)
+	end,
+	-- maîtrise : or brossé avec un reflet qui passe lentement
+	m_gold = function(u, v, t)
+		local brush = 0.5 + 0.5 * sin(P2 * v * 9 + sin(P2 * u * 2) * 0.8)
+		local band = max(0, sin(P2 * (u * 0.8 + v * 0.6) - t * 1.6)) ^ 8
+		local k = 0.76 + 0.14 * brush
+		return 235 * k + 200 * band, 172 * k + 190 * band, 56 * k + 170 * band
+	end,
+	-- maîtrise : facettes de diamant (triangles) qui scintillent chacune à leur tour
+	m_diamond = function(u, v, t)
+		local x, y = u * 6, v * 6
+		local cx, cy = floor(x), floor(y)
+		local tri = if x - cx > y - cy then 1 else 0
+		local h = ((cx * 7385 + cy * 1934 + tri * 8349) % 997) / 997
+		local l = 0.55 + 0.22 * h + 0.12 * (0.5 + 0.5 * sin(t * 1.8 + h * P2))
+		local spark = max(0, sin(t * 3 + h * 40)) ^ 30
+		return hsl(0.53 + h * 0.06, 0.6, min(0.95, l + spark * 0.4))
+	end,
+	-- maîtrise : matière noire, nuit violette parcourue de veines lumineuses
+	m_dark = function(u, v, t)
+		local s = sin(P2 * u * 2 + sin(P2 * v * 3 + t * 0.5) * 1.5) + sin(P2 * v * 2 - t * 0.4 + cos(P2 * u * 3) * 1.2)
+		local vein = max(0, 1 - abs(s) * 3.2)
+		return hsl(0.76 + s * 0.04 + t * 0.02, 0.9, 0.06 + 0.05 * sin(P2 * (u + v) + t * 0.3) + vein * 0.45)
 	end,
 }
 

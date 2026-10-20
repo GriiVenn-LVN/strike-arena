@@ -6,7 +6,14 @@
 local M = {}
 
 -- Nouveautés de l'accueil ; go = où mène un clic (onglet du menu)
+-- version des nouveautés : la fenêtre « Quoi de neuf » (LaunchNews) s'ouvre une fois par version et par joueur
+M.NEWS_VERSION = "n9"
 M.NEWS = {
+	{ id = "n_reroll", ic = "🔄", t = "Défis renouvelables", d = "Un défi du jour ne te plaît pas ? Bouton CHANGER : 1 fois gratuit par jour, puis 60 pièces. Nouveau défi d'arme chaque jour." },
+	{ id = "n_mastery", ic = "🥇", t = "Maîtrise d'arme : Or, Diamant, Matière noire", d = "Éliminations et tirs à la tête avec une arme débloquent ses camos animés de maîtrise. Profil › Statistiques.", go = "stats" },
+	{ id = "n_card", ic = "🪪", t = "Carte de joueur", d = "Bannière et emblème à débloquer, visibles par tes adversaires dans la kill-cam. Profil › Pseudo et titre.", go = "style" },
+	{ id = "n_medals", ic = "🔱", t = "7 nouvelles médailles", d = "Double élimination, Triplé, Furie, Bout portant, Rabat-joie, Retour en force et Glissade mortelle." },
+	{ id = "n_train", ic = "⏱", t = "Entraînement : temps de réaction", d = "Le stand de tir mesure ta réaction sur les cibles surgissantes et garde tes records.", go = "mode:train" },
 	{ id = "n_rewards", ic = "🎁", t = "Récompenses et passe de combat", d = "Bilan détaillé en fin de partie, calendrier de 7 jours, XP ×2 le week-end et nouveau passe de combat." },
 	{ id = "n_gunfight", ic = "🔫", t = "Nouveaux modes : Gunfight et Survolté", d = "Gunfight : 2 contre 2, mêmes armes pour tous. Survolté : élimine toutes les 30 s ou explose !", go = "mode:gunfight" },
 	{ id = "n_lobby", ic = "🏠", t = "Nouvel accueil", d = "Défis, nouveautés et récompenses dès l'ouverture du jeu." },
@@ -32,6 +39,15 @@ M.MISSIONS = {
 	w_gg = "Gagne {t} Course aux armes", z_wave = "Survis à {t} manches de Zombies", inf_surv = "Termine {t} partie d'Infecté sans être infecté",
 	kcTag = "Ramasse {t} plaques en Élimination confirmée",
 	w_gunfight = "Gagne {t} Gunfight", w_survolte = "Gagne {t} partie de Survolté",
+	-- défis renouvelables du port Roblox (RewardService.MISSION_POOL) ; kw_<arme> : voir missionText
+	md_assist = "Fais {t} assistances", md_long = "Réussis {t} tirs lointains (plus de 38 m)", md_double = "Fais {t} doubles éliminations",
+	md_revenge = "Venge-toi {t} fois de ton tueur", md_first = "Fais le premier sang {t} fois", md_slide = "Élimine {t} adversaires en glissade",
+	md_air = "Élimine {t} adversaires en plein saut", md_pointblank = "Élimine {t} adversaires à bout portant",
+	md_buzzkill = "Arrête {t} séries adverses (Rabat-joie)", slide = "Fais {t} glissades en partie", climb = "Escalade {t} rebords en partie",
+	hs_sniper = "Fais {t} headshots au fusil de précision", hs_pistol = "Fais {t} headshots au pistolet", hs_rifle = "Fais {t} headshots au fusil d'assaut",
+	site_a = "Pose la bombe {t} fois sur le site A", site_b = "Pose la bombe {t} fois sur le site B",
+	w_tdm = "Gagne {t} Match à mort par équipe", w_ffa = "Gagne {t} Match à mort", w_koth = "Gagne {t} Capture de zone",
+	w_ctf = "Gagne {t} Capture du drapeau", w_kc = "Gagne {t} Élimination confirmée", w_bomb = "Gagne {t} partie de Compétitif",
 }
 M.WEEKLY = {
 	kills = "Élimine {t} adversaires", hs = "Fais {t} headshots", win = "Gagne {t} parties", matches = "Joue {t} parties",
@@ -39,9 +55,16 @@ M.WEEKLY = {
 	k_sniper = "Élimine {t} adversaires au fusil de précision", k_shotgun = "Élimine {t} adversaires au fusil à pompe",
 	w_duel = "Gagne {t} Duels", w_dom = "Gagne {t} parties de Domination", z_wave = "Survis à {t} manches de Zombies",
 	inf_surv = "Termine {t} parties d'Infecté sans être infecté",
+	md_assist = "Fais {t} assistances", md_double = "Fais {t} doubles éliminations", md_slide = "Élimine {t} adversaires en glissade",
+	climb = "Escalade {t} rebords en partie",
 }
 function M.missionText(id: string, target: number, weekly: boolean?): string
-	local t = (if weekly then M.WEEKLY[id] else M.MISSIONS[id]) or M.MISSIONS[id] or id
+	local t = (if weekly then M.WEEKLY[id] else M.MISSIONS[id]) or M.MISSIONS[id]
+	if not t and string.sub(id, 1, 3) == "kw_" then   -- défi d'arme du jour
+		local w = require(script.Parent.Config).WEAPONS[string.sub(id, 4)]
+		t = "Élimine {t} adversaires avec : " .. (if w then w.name else string.sub(id, 4))
+	end
+	t = t or id
 	return (string.gsub(t, "{t}", tostring(target)))
 end
 

@@ -20,8 +20,9 @@ local MatchService = require(script.Parent.MatchService)
 local U = Config.STUDS_PER_METER
 local popEvent = Instance.new("RemoteEvent"); popEvent.Name = "MedalPop"; popEvent.Parent = ReplicatedStorage   -- serveur -> joueur : id de la médaille
 
-type PState = { got: { [string]: number }, killer: any, lastKill: { t: number, key: string }?, streak: number, roundKills: number }
-type MState = { fb: boolean, round: any, players: { [Player]: PState }, dmg: { [any]: { [Player]: { d: number, t: number } } }, hurtAt: { [Instance]: number } }
+type PState = { got: { [string]: number }, killer: any, lastKill: { t: number, key: string }?, streak: number, roundKills: number, multi: number, deathsRow: number }
+type MState = { fb: boolean, round: any, players: { [Player]: PState }, dmg: { [any]: { [Player]: { d: number, t: number } } }, hurtAt: { [Instance]: number },
+	kst: { [any]: number } }   -- kst = série en cours de chaque combattant (bots compris), pour « Rabat-joie »
 
 local MedalService = {}
 local states: { [number]: MState } = {}
@@ -32,13 +33,13 @@ local function isPlayer(c: any): boolean return typeof(c) == "Instance" and c:Is
 local function stateOf(m: any): MState
 	local cur = states[m.id]
 	if cur and cur.round ~= "__over" then return cur end
-	local s: MState = { fb = false, round = nil, players = {}, dmg = {}, hurtAt = {} }
+	local s: MState = { fb = false, round = nil, players = {}, dmg = {}, hurtAt = {}, kst = {} }
 	states[m.id] = s
 	return s
 end
 local function pstate(ms: MState, p: Player): PState
 	local ps = ms.players[p]
-	if not ps then ps = { got = {}, killer = nil, lastKill = nil, streak = 0, roundKills = 0 }; ms.players[p] = ps end
+	if not ps then ps = { got = {}, killer = nil, lastKill = nil, streak = 0, roundKills = 0, multi = 0, deathsRow = 0 }; ms.players[p] = ps end
 	return ps
 end
 
@@ -53,6 +54,7 @@ function MedalService.award(p: Player, ms: MState, id: string)
 		profile.medals[id] = (profile.medals[id] or 0) + 1
 	end
 	popEvent:FireClient(p, id)
+	RewardService.missionEvent(p, "md_" .. id)   -- défis « fais N assistances / tirs lointains / glissades mortelles… »
 end
 
 local function rootOf(c: any): BasePart?
@@ -97,6 +99,14 @@ WeaponService.Killed:Connect(function(killer, victim, key: string, _headshot: bo
 		local vs = pstate(ms, victim)
 		vs.killer = if killer ~= nil and killer ~= victim then killer else nil
 		vs.streak = 0
+		vs.deathsRow += 1
+	end
+	-- série de la victime (bots compris) avant sa mort : « Rabat-joie » pour qui l'arrête
+	local vkst = ms.kst[MatchService.keyOf(victim)] or 0
+	ms.kst[MatchService.keyOf(victim)] = 0
+	if killer ~= nil and killer ~= victim then
+		local kk = MatchService.keyOf(killer)
+		ms.kst[kk] = (ms.kst[kk] or 0) + 1
 	end
 	-- assistances : un autre joueur a infligé au moins 25 dégâts à cet adversaire dans les 8 dernières secondes
 	local vkey = MatchService.keyOf(victim)
@@ -117,16 +127,24 @@ WeaponService.Killed:Connect(function(killer, victim, key: string, _headshot: bo
 	if firstBlood then MedalService.award(p, ms, "first") end
 	if ps.killer ~= nil and ps.killer == victim then ps.killer = nil; MedalService.award(p, ms, "revenge") end
 	local kr, vr = rootOf(killer), rootOf(victim)
-	if kr and vr and not melee and (Vector3.new(kr.Position.X - vr.Position.X, 0, kr.Position.Z - vr.Position.Z)).Magnitude / U > Medals.LONG_M then
+	local distM = if kr and vr then (Vector3.new(kr.Position.X - vr.Position.X, 0, kr.Position.Z - vr.Position.Z)).Magnitude / U else nil
+	if distM and not melee and distM > Medals.LONG_M then
 		MedalService.award(p, ms, "long")
 	end
+	if distM and not melee and key ~= "frag" and distM < Medals.POINT_M then MedalService.award(p, ms, "pointblank") end
+	if vkst >= Medals.BUZZ_STREAK then MedalService.award(p, ms, "buzzkill") end
+	if ps.deathsRow >= Medals.COMEBACK_D then MedalService.award(p, ms, "comeback") end
+	ps.deathsRow = 0
 	if melee then MedalService.award(p, ms, "knife") end
 	if key == "frag" then MedalService.award(p, ms, "nade") end
 	local kc = WeaponService.charOf(killer)
 	local hum = kc and kc:FindFirstChildOfClass("Humanoid")
 	local anim = kc and kc:GetAttribute("Anim")
-	local inAir = hum ~= nil and (hum.FloorMaterial == Enum.Material.Air or (typeof(anim) == "number" and bit32.band(anim, 1) ~= 0))
+	-- bit 1 de « Anim » = glissade (Shared/SoldierAnim, Anim.SLIDE) : médaille à part, plus « Acrobate »
+	local sliding = typeof(anim) == "number" and bit32.band(anim, 1) ~= 0
+	local inAir = hum ~= nil and hum.FloorMaterial == Enum.Material.Air and not sliding
 	if inAir and not melee and key ~= "frag" then MedalService.award(p, ms, "air") end
+	if sliding and key ~= "frag" then MedalService.award(p, ms, "slide") end
 	if hum and hum.Health > 0 and hum.Health <= Medals.CLUTCH_HP then MedalService.award(p, ms, "clutchhp") end
 	-- sauveur : la victime (un bot) visait un allié du tueur, touché il y a moins de 2 s
 	if m.teams and BotService.isBot(victim) then
@@ -140,6 +158,11 @@ WeaponService.Killed:Connect(function(killer, victim, key: string, _headshot: bo
 	end
 	local lk = ps.lastKill
 	if lk and t - lk.t < Medals.COLLAT_T and lk.key == key and not melee then MedalService.award(p, ms, "collat") end
+	-- éliminations en chaîne (moins de 4 s entre chacune) : double, triplé, furie
+	ps.multi = if lk and t - lk.t < Medals.MULTI_T then ps.multi + 1 else 1
+	if ps.multi == 2 then MedalService.award(p, ms, "double")
+	elseif ps.multi == 3 then MedalService.award(p, ms, "triple")
+	elseif ps.multi == 4 then MedalService.award(p, ms, "fury") end
 	ps.lastKill = { t = t, key = key }
 	if ps.streak == 5 then MedalService.award(p, ms, "s5") end
 	if ps.streak == 10 then MedalService.award(p, ms, "s10") end

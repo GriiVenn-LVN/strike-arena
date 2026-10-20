@@ -196,6 +196,8 @@ return function(ctx: any, body: Frame, _sub: string?)
 				elseif go == "play" then ctx.friends = false; ctx.go("play")
 				elseif go == "boxes" then ctx.go("arsenal", "Caisses")
 				elseif go == "arms" then ctx.go("arsenal", "Armes")
+				elseif go == "stats" then ctx.go("profile", "Statistiques")   -- maîtrise d'arme
+				elseif go == "style" then ctx.go("profile", "Style")          -- carte de joueur
 				elseif string.sub(go, 1, 5) == "mode:" then
 					ctx.play = Modes.sanitize({ mode = string.sub(go, 6), diff = ctx.play.diff }); ctx.save("play"); ctx.go("play")
 				end
