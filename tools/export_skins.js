@@ -1,20 +1,22 @@
 // Exporte les peintures des skins d'armes du jeu web (src/44_skins.js, 44c_csskins.js, 44d_skinhq.js) pour Roblox.
 // Chaque skin est dessiné par le vrai code du jeu (navigateur sans fenêtre, Playwright) en 512 px, la carte
-// lumineuse des skins néon est ajoutée par-dessus, puis l'image est réduite en 128 px (repli joueur) et en 256 px
-// (haute qualité, envoyée par MeshUploader). Pour les skins lumineux, la carte d'émission seule (gris, 128 px) sert de
-// masque lumineux sur Roblox (SurfaceAppearance).
+// lumineuse des skins néon est ajoutée par-dessus, puis l'image est réduite en 128 px (repli joueur) ; la 512 px
+// (haute qualité, comme le web) est envoyée par MeshUploader. Pour les skins lumineux, la carte d'émission seule (gris,
+// 256 px) sert de masque lumineux sur Roblox (SurfaceAppearance). Chaque skin donne aussi sa carte de rugosité
+// (skinRough du web, gris 256 px, <motif>#r.png) et, pour les gravés (HQH), sa carte de normales (autoNormal, <motif>#n.png).
 // Usage (depuis la racine du dépôt, après ./build.sh) : node tools/export_skins.js <dossier de sortie>
-//   -> <dossier>/<motif>.png et <dossier>/skins.json ; ensuite : python3 tools/skins_to_lua.py <dossier>
+//   -> <dossier>/<motif>.png, @512, #g, #r, #n et <dossier>/skins.json ; ensuite : python3 tools/skins_to_lua.py <dossier>
+//      et python3 tools/skins_hq_to_lua.py <dossier>
 const fs = require('fs'), path = require('path');
 const { chromium } = require('playwright');
 const OUT = process.argv[2] || 'skins_out';
-const SIZE = 128, HQ = 256;
+const SIZE = 128, HQ = 512, GM = 256;
 
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
   // copie du jeu qui expose les fonctions de peinture
   let html = fs.readFileSync(path.join(__dirname, '../strike-arena.html'), 'utf8');
-  html = html.replace('window.__dbg={', 'window.__dbg={HQ,PAINT,hqFinish,mkRng,hashStr,SKINS,FIN,');
+  html = html.replace('window.__dbg={', 'window.__dbg={HQ,HQH,PAINT,hqFinish,skinRough,skinRelief,mkRng,hashStr,SKINS,FIN,');
   const tmp = path.join(__dirname, '../.skins_export.html');
   fs.writeFileSync(tmp, html);
   const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
@@ -22,7 +24,7 @@ const SIZE = 128, HQ = 256;
   page.on('pageerror', e => console.log('page:', e.message));
   await page.goto('file://' + tmp);
   await page.waitForFunction(() => window.__dbg && window.__dbg.PAINT, null, { timeout: 60000 });
-  const res = await page.evaluate(([SIZE, HQ]) => {
+  const res = await page.evaluate(([SIZE, HQ, GM]) => {
     const D = window.__dbg, out = [], seen = {};
     const draw = (kind, glow) => {
       const c = document.createElement('canvas'); c.width = c.height = 512; const x = c.getContext('2d');
@@ -51,18 +53,22 @@ const SIZE = 128, HQ = 256;
       hx.imageSmoothingEnabled = true; hx.imageSmoothingQuality = 'high'; hx.drawImage(fin, 0, 0, HQ, HQ);
       info.hq = hq.toDataURL('image/png');
       if (s.glow) {
-        const gm = document.createElement('canvas'); gm.width = gm.height = SIZE; const gx = gm.getContext('2d');
-        gx.imageSmoothingEnabled = true; gx.imageSmoothingQuality = 'high'; gx.drawImage(draw(s.tex, true), 0, 0, SIZE, SIZE);
+        const gm = document.createElement('canvas'); gm.width = gm.height = GM; const gx = gm.getContext('2d');
+        gx.imageSmoothingEnabled = true; gx.imageSmoothingQuality = 'high'; gx.drawImage(draw(s.tex, true), 0, 0, GM, GM);
         info.gm = gm.toDataURL('image/png');
       }
+      // rugosité propre au skin (vernis, usure, rayures) et relief des skins gravés (carte de normales du web)
+      const rt = D.skinRough(s.tex); if (rt && rt.image) info.rm = rt.image.toDataURL('image/png');
+      const nt = D.skinRelief(s.tex); if (nt && nt.image) info.nm = nt.image.toDataURL('image/png');
     });
     return out;
-  }, [SIZE, HQ]);
+  }, [SIZE, HQ, GM]);
   const meta = [];
   for (const s of res) {
     if (s.png) { fs.writeFileSync(path.join(OUT, s.tex + '.png'), Buffer.from(s.png.split(',')[1], 'base64')); delete s.png; }
     if (s.hq) { fs.writeFileSync(path.join(OUT, s.tex + '@' + HQ + '.png'), Buffer.from(s.hq.split(',')[1], 'base64')); delete s.hq; }
-    if (s.gm) { fs.writeFileSync(path.join(OUT, s.tex + '#g.png'), Buffer.from(s.gm.split(',')[1], 'base64')); delete s.gm; }
+    for (const [k, suf] of [['gm', '#g'], ['rm', '#r'], ['nm', '#n']])
+      if (s[k]) { fs.writeFileSync(path.join(OUT, s.tex + suf + '.png'), Buffer.from(s[k].split(',')[1], 'base64')); delete s[k]; }
     meta.push(s);
   }
   fs.writeFileSync(path.join(OUT, 'skins.json'), JSON.stringify(meta, null, 1));

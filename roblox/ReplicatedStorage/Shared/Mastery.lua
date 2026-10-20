@@ -1,8 +1,8 @@
 --!strict
 -- ReplicatedStorage/Shared/Mastery (ModuleScript, client + serveur)
 -- Maîtrise d'arme façon Call of Duty : chaque arme (sauf le couteau) a ses défis de maîtrise, qui débloquent des camos
--- animés pour CETTE arme. Les camos sont dessinés en direct par Shared/SkinPaint (aucune image à envoyer : pas de
--- nouvelle clé MeshUploader) et se posent comme les camos animés de la boutique (attribut Camo_<arme>).
+-- animés pour CETTE arme. Les camos sont dessinés par Shared/SkinPaint (cartes 512 px « i:mc:<camo> » envoyées par
+-- MeshUploader, dessin en direct en attendant) et se posent comme les camos animés de la boutique (attribut Camo_<arme>).
 --   Or            : 100 éliminations et 30 tirs à la tête avec l'arme
 --   Diamant       : l'Or, puis 300 éliminations et 120 tirs à la tête avec l'arme
 --   Matière noire : le Diamant sur l'arme ET sur 5 armes en tout
